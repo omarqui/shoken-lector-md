@@ -29,6 +29,7 @@ internal sealed class SettingsStore(AppPaths paths)
             var stored = JsonSerializer.Deserialize<StoredSettings>(File.ReadAllText(paths.SettingsFile), JsonOptions);
             AppSettings settings = stored?.Settings ?? new AppSettings();
             settings.AzureKey = Unprotect(stored?.AzureKeyProtected);
+            settings.GoogleApiKey = Unprotect(stored?.GoogleKeyProtected);
             return settings;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -43,7 +44,12 @@ internal sealed class SettingsStore(AppPaths paths)
         try
         {
             paths.EnsureCreated();
-            var stored = new StoredSettings { Settings = settings, AzureKeyProtected = Protect(settings.AzureKey) };
+            var stored = new StoredSettings
+            {
+                Settings = settings,
+                AzureKeyProtected = Protect(settings.AzureKey),
+                GoogleKeyProtected = Protect(settings.GoogleApiKey),
+            };
             File.WriteAllText(paths.SettingsFile, JsonSerializer.Serialize(stored, JsonOptions));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -79,6 +85,8 @@ internal sealed class SettingsStore(AppPaths paths)
         public AppSettings? Settings { get; set; }
 
         public string? AzureKeyProtected { get; set; }
+
+        public string? GoogleKeyProtected { get; set; }
     }
 }
 

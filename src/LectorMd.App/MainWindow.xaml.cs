@@ -48,6 +48,9 @@ public partial class MainWindow : Window
     private TrayIcon? _tray;
     private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
     private MiniPlayerWindow? _mini; // solo existe mientras la ventana está oculta o minimizada
+
+    /// <summary>Sonando o preparando el audio (no en pausa ni detenido).</summary>
+    private bool IsReading => _player.State is PlaybackState.Playing or PlaybackState.Loading;
     private bool _exiting;        // true = cerrar termina la app (si no, la ventana se oculta en la bandeja)
     private bool _syncingTabs;  // la selección de la barra la está cambiando el código, no el usuario
     private readonly string? _fileFromCommandLine;
@@ -84,6 +87,7 @@ public partial class MainWindow : Window
         Player.SpeedChanged += OnSpeedChanged;
         Player.RefreshUsageClicked += () => _ = RefreshAzureUsageAsync();
         Player.ChapterClicked += OnChapterClicked;
+        Player.EngineChoiceRequested += OnEngineChoiceRequested;
 
         // Una velocidad del deslizador anterior (p. ej. 1.15) pasa al paso más cercano del selector.
         _settings.PlaybackSpeed = PlaybackSpeeds.Nearest(_settings.PlaybackSpeed);
@@ -156,7 +160,7 @@ public partial class MainWindow : Window
             // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
             e.Cancel = true;
             Hide();
-            if (_player.State != PlaybackState.Stopped)
+            if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
             {
                 ShowMiniPlayer();
             }
@@ -205,7 +209,30 @@ public partial class MainWindow : Window
         AudioCacheTrim(_services);
 
         ShowEngine(_services.Engine.Status.ActiveEngine, _services.Engine.Status.UsingFallback, _services.Engine.Status.Reason);
+        Player.SetEngineChoice(_settings.Engine, _settings.HasAzure, _settings.HasGoogle, _settings.HasPiper);
         UpdateUsage();
+    }
+
+    /// <summary>Otro motor elegido en el panel del estado: se reconstruye la cadena y se sigue en el mismo párrafo.</summary>
+    private void OnEngineChoiceRequested(EngineChoice choice)
+    {
+        if (choice == _settings.Engine)
+        {
+            return;
+        }
+
+        int resume = _player.CurrentSegmentId;
+        _settings.Engine = choice;
+        _settingsStore.Save(_settings);
+        RebuildServices();
+        if (_active is { State.IsEmpty: false })
+        {
+            _ = ActivateAsync(_active, force: true, resumeSegmentId: resume >= 0 ? resume : null);
+        }
+
+        ShowStatus(choice == EngineChoice.Auto
+            ? "Motor automático: Azure, y si no está disponible, Google y luego Piper."
+            : $"Leyendo solo con {choice} (sin respaldo). Vuelve a Automático para la cadena completa.");
     }
 
     // Estos eventos llegan desde hilos del motor.
@@ -716,7 +743,7 @@ public partial class MainWindow : Window
         // Minimizada mientras lee: aparece el mini reproductor; al volver, se va.
         if (WindowState == WindowState.Minimized)
         {
-            if (_player.State != PlaybackState.Stopped)
+            if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
             {
                 ShowMiniPlayer();
             }
@@ -1377,6 +1404,18 @@ public partial class MainWindow : Window
 
     private void UpdateUsage()
     {
+        if (_services is not null && _settings.HasGoogle)
+        {
+            int used = _services.GoogleUsage.Used;
+            int limit = Math.Max(1, _services.GoogleUsage.Limit);
+            Player.SetGoogleUsage($"Google: {used.ToString("N0", Mexico)} de {limit.ToString("N0", Mexico)} caracteres " +
+                                  $"({((double)used / limit * 100).ToString("0.#", Mexico)} %)");
+        }
+        else
+        {
+            Player.SetGoogleUsage(null);
+        }
+
         if (_services is null || !_settings.HasAzure || _settings.OfflineOnly)
         {
             Player.SetUsage(false, 0, 1, DateTime.UtcNow, null);

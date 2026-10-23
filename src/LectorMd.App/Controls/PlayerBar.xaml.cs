@@ -80,6 +80,9 @@ public partial class PlayerBar : UserControl
     public event Action<double>? SpeedChanged;
     public event Action? RefreshUsageClicked;
 
+    /// <summary>Se eligió otro motor en el panel del estado.</summary>
+    public event Action<EngineChoice>? EngineChoiceRequested;
+
     /// <summary>Clic en un tramo de la línea de tiempo: el ancla del título (null = desde el principio).</summary>
     public event Action<string?>? ChapterClicked;
 
@@ -245,6 +248,66 @@ public partial class PlayerBar : UserControl
         PopupAzure.Text = azureReport ?? "Todavía no consultas el consumo real en Azure.";
         _usagePercent = visible ? percent : null;
         UpdateStatusName();
+    }
+
+    /// <summary>Línea de consumo de Google en el panel ("Google: 1 200 de 950 000 (0.1 %)"), o null si no está configurado.</summary>
+    public void SetGoogleUsage(string? text)
+    {
+        PopupGoogleUsage.Text = text ?? "";
+        PopupGoogleUsage.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>Marca el motor elegido y habilita solo los que están configurados.</summary>
+    public void SetEngineChoice(EngineChoice current, bool hasAzure, bool hasGoogle, bool hasPiper)
+    {
+        if (EngineChoicePanel.Children.Count == 0)
+        {
+            foreach ((EngineChoice choice, string label) in new[]
+                     {
+                         (EngineChoice.Auto, "Automático"), (EngineChoice.Azure, "Azure"),
+                         (EngineChoice.Google, "Google"), (EngineChoice.Piper, "Piper"),
+                     })
+            {
+                var button = new Button
+                {
+                    Style = (Style)Resources["BareButton"],
+                    Content = label,
+                    Height = 30,
+                    Padding = new Thickness(10, 0, 10, 0),
+                    FontSize = 12,
+                    Tag = choice,
+                };
+                AutomationProperties.SetName(button, "Usar " + label);
+                button.Click += (_, _) => EngineChoiceRequested?.Invoke(choice);
+                EngineChoicePanel.Children.Add(button);
+            }
+        }
+
+        foreach (Button button in EngineChoicePanel.Children.OfType<Button>())
+        {
+            var choice = (EngineChoice)button.Tag;
+            bool on = choice == current;
+            button.IsEnabled = choice switch
+            {
+                EngineChoice.Azure => hasAzure,
+                EngineChoice.Google => hasGoogle,
+                EngineChoice.Piper => hasPiper,
+                _ => true,
+            };
+            button.ToolTip = button.IsEnabled ? null : "Configúralo en ⚙ Configuración";
+            if (on)
+            {
+                button.SetResourceReference(BackgroundProperty, "LectorSurfaceBrush");
+            }
+            else
+            {
+                button.Background = Brushes.Transparent;
+            }
+
+            button.SetResourceReference(ForegroundProperty, on ? "LectorTextBrush" : "LectorText2Brush");
+            button.FontWeight = on ? FontWeights.SemiBold : FontWeights.Normal;
+            button.Opacity = button.IsEnabled ? 1 : 0.45;
+        }
     }
 
     public void SetRefreshing(bool busy)

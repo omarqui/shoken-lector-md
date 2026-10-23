@@ -147,6 +147,14 @@
                         <TextBlock x:Name="PopupEngineDetail" FontSize="12" Margin="17,2,0,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource LectorText2Brush}" />
 
+                        <!-- Para probar voces: Automático usa la cadena con respaldos; los demás, solo ese motor. -->
+                        <TextBlock Text="USAR" FontSize="11" FontWeight="SemiBold" Margin="0,12,0,0"
+                                   Foreground="{DynamicResource LectorText2Brush}" />
+                        <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="0,6,0,0"
+                                HorizontalAlignment="Left" AutomationProperties.Name="Motor de voz">
+                            <StackPanel x:Name="EngineChoicePanel" Orientation="Horizontal" />
+                        </Border>
+
                         <StackPanel x:Name="PopupUsageSection">
                             <Border Height="1" Background="{DynamicResource LectorBorderBrush}" Margin="0,12" />
                             <TextBlock Text="CONSUMO DE AZURE ESTE MES" FontSize="11" FontWeight="SemiBold"
@@ -159,6 +167,8 @@
                             </Grid>
                             <TextBlock x:Name="PopupReset" FontSize="12" Margin="0,8,0,0" Foreground="{DynamicResource LectorText2Brush}" />
                             <TextBlock x:Name="PopupAzure" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBlock x:Name="PopupGoogleUsage" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap" Visibility="Collapsed"
                                        Foreground="{DynamicResource LectorText2Brush}" />
                             <TextBlock Text="Lo ya escuchado se reproduce desde la caché sin gastar cuota." FontSize="12" Margin="0,2,0,0"
                                        TextWrapping="Wrap" Foreground="{DynamicResource LectorText2Brush}" />

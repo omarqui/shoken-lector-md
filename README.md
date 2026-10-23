@@ -67,6 +67,18 @@ Lo que conviene saber de la capa F0:
 
 Voces es-MX: **Dalia** (mujer) y **Jorge** (hombre) son las más naturales. También están Beatriz, Candela, Carlota, Cecilio, Gerardo, Larissa, Liberto, Luciano, Marina, Nuria, Pelayo, Renata y Yago. El campo es editable, así que puedes escribir cualquier otra voz de Azure.
 
+## 1b. Configurar Google Cloud (respaldo de Azure, opcional)
+
+Google entra cuando Azure no está disponible y antes de Piper. Sus voces **Neural2** en español latino (`es-US-Neural2-A` mujer, `B` y `C` hombres) tienen **1 000 000 de caracteres gratis al mes** y marcas de tiempo, así que el resaltado funciona igual que con Azure.
+
+1. Entra a [console.cloud.google.com](https://console.cloud.google.com) y crea un proyecto (o usa uno).
+2. En **Facturación**, vincula una cuenta de facturación. Google la exige aunque solo uses lo gratuito. Recomendado: en *Presupuestos y alertas* crea un presupuesto de 1 USD con aviso por correo.
+3. En **APIs y servicios → Biblioteca**, busca **Cloud Text-to-Speech API** y pulsa **Habilitar**.
+4. En **APIs y servicios → Credenciales**, elige **Crear credenciales → Clave de API**. Después edita la clave y, en *Restricciones de API*, elige **Restringir clave → Cloud Text-to-Speech API**. Así, si alguien la obtiene, no la puede usar para otra cosa.
+5. En la app, abre ⚙ **Configuración → Google Cloud**, pega la clave, elige la voz y pulsa **Probar Google**.
+
+Al pasar el plan gratuito Google **cobra** en lugar de cortar, así que la app lleva su propio contador (`uso-google.json`) y no usa Google más allá del **límite mensual** (950 000 por defecto). En el panel del estado (al pasar el mouse) está el consumo de Google y el selector **Usar: Automático · Azure · Google · Piper**, para probar cada voz por separado.
+
 ## 2. Configurar Piper (respaldo sin conexión)
 
 1. Descarga **[piper_windows_amd64.zip](https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip)** y descomprímelo, por ejemplo en `C:\Herramientas\piper\`. Deja juntos `piper.exe`, sus DLL y la carpeta `espeak-ng-data`.

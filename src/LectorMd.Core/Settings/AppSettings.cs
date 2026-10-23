@@ -51,6 +51,22 @@ public sealed class AppSettings
     /// <summary>Ya se avisó (una vez) que cerrar la ventana deja la app en la bandeja.</summary>
     public bool TrayHintShown { get; set; }
 
+    /// <summary>Clave de API de Google Cloud (restringida a Text-to-Speech). Se guarda cifrada (DPAPI).</summary>
+    [JsonIgnore]
+    public string GoogleApiKey { get; set; } = "";
+
+    /// <summary>Voz Neural2: es-US-Neural2-A (mujer), B o C (hombres).</summary>
+    public string GoogleVoice { get; set; } = "es-US-Neural2-A";
+
+    /// <summary>Límite mensual para Google: su plan gratuito de Neural2 es 1 000 000; se deja margen.</summary>
+    public int GoogleMonthlyCharacterLimit { get; set; } = 950_000;
+
+    /// <summary>Motor elegido en el panel del estado: automático (Azure → Google → Piper) o uno solo, para probar.</summary>
+    public EngineChoice Engine { get; set; } = EngineChoice.Auto;
+
+    [JsonIgnore]
+    public bool HasGoogle => !string.IsNullOrWhiteSpace(GoogleApiKey);
+
     public AppTheme Theme { get; set; } = AppTheme.System;
 
     /// <summary>Id de ARM del recurso de Speech, para consultar su consumo real en Azure Monitor.</summary>
@@ -73,6 +89,15 @@ public sealed class AppSettings
     }
 }
 
+/// <summary>Automático = la cadena completa con respaldos; los demás usan solo ese motor (sin respaldo).</summary>
+public enum EngineChoice
+{
+    Auto,
+    Azure,
+    Google,
+    Piper,
+}
+
 public enum AppTheme
 {
     System,
@@ -89,6 +114,7 @@ public sealed class AppPaths(string root)
     public string Root { get; } = root;
     public string SettingsFile => Path.Combine(Root, "settings.json");
     public string UsageFile => Path.Combine(Root, "uso-azure.json");
+    public string GoogleUsageFile => Path.Combine(Root, "uso-google.json");
     public string PronunciationFile => Path.Combine(Root, "pronunciacion.json");
     public string CacheDirectory => Path.Combine(Root, "cache");
     public string ViewDirectory => Path.Combine(Root, "view");

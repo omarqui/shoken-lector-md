@@ -22,6 +22,7 @@ public sealed class EngineServices : IDisposable
         SpeechTextNormalizer normalizer,
         AudioCache cache,
         UsageTracker usage,
+        UsageTracker googleUsage,
         HybridTtsEngine engine)
     {
         Parser = parser;
@@ -29,6 +30,7 @@ public sealed class EngineServices : IDisposable
         Normalizer = normalizer;
         Cache = cache;
         Usage = usage;
+        GoogleUsage = googleUsage;
         Engine = engine;
     }
 
@@ -36,7 +38,12 @@ public sealed class EngineServices : IDisposable
     public ChunkingOptions Chunking { get; }
     public SpeechTextNormalizer Normalizer { get; }
     public AudioCache Cache { get; }
+    /// <summary>Contador de Azure.</summary>
     public UsageTracker Usage { get; }
+
+    /// <summary>Contador de Google (archivo y límite propios).</summary>
+    public UsageTracker GoogleUsage { get; }
+
     public HybridTtsEngine Engine { get; }
 
     public static EngineServices Create(AppSettings settings, AppPaths paths)
@@ -76,15 +83,43 @@ public sealed class EngineServices : IDisposable
                 normalizer, cache, paths.TempDirectory)
             : null;
 
+        var googleUsage = new UsageTracker(paths.GoogleUsageFile, settings.GoogleMonthlyCharacterLimit);
+        GoogleTtsEngine? google = settings.HasGoogle
+            ? new GoogleTtsEngine(
+                new GoogleTtsOptions
+                {
+                    ApiKey = settings.GoogleApiKey,
+                    Voice = string.IsNullOrWhiteSpace(settings.GoogleVoice) ? "es-US-Neural2-A" : settings.GoogleVoice.Trim(),
+                    RatePercent = settings.RatePercent,
+                },
+                new SsmlBuilder(normalizer), cache, googleUsage, GoogleHttp)
+            : null;
+
+        // Automático: Azure → Google → Piper. Si se eligió un motor para probarlo, se usa solo ese (sin respaldo).
+        EngineChoice choice = settings.Engine;
         var clouds = new List<CloudEngine>();
-        if (azure is not null)
+        if (azure is not null && choice is EngineChoice.Auto or EngineChoice.Azure)
         {
             clouds.Add(new CloudEngine(azure, usage, "Azure"));
         }
 
-        var engine = new HybridTtsEngine(clouds, piper, settings.OfflineOnly);
-        return new EngineServices(parser, new ChunkingOptions(), normalizer, cache, usage, engine);
+        if (google is not null && choice is EngineChoice.Auto or EngineChoice.Google)
+        {
+            clouds.Add(new CloudEngine(google, googleUsage, "Google"));
+        }
+
+        PiperTtsEngine? local = choice is EngineChoice.Auto or EngineChoice.Piper ? piper : null;
+        if (local is null)
+        {
+            piper?.Dispose();
+        }
+
+        var engine = new HybridTtsEngine(clouds, local, settings.OfflineOnly || choice == EngineChoice.Piper);
+        return new EngineServices(parser, new ChunkingOptions(), normalizer, cache, usage, googleUsage, engine);
     }
+
+    // Una sola conexión HTTP para toda la app (crear un HttpClient por motor agota los sockets).
+    private static readonly HttpClient GoogleHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     public SpeechDocument Parse(string markdown, string? sourcePath) => Parser.Parse(markdown, sourcePath);
 
