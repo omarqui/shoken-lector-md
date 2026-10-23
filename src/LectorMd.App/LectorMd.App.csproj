@@ -4,6 +4,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- Solo para el ícono de la bandeja (NotifyIcon); sus using implícitos chocan con WPF y se quitan abajo. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>LectorMd.App</RootNamespace>
     <AssemblyName>LectorMd</AssemblyName>
     <!-- ThemeMode (tema Fluent de WPF) todavía está marcado como experimental. -->
@@ -24,6 +26,8 @@
   <ItemGroup>
     <!-- El SDK de WPF quita System.IO de los using implícitos (choca con System.Windows.Shapes.Path). -->
     <Using Include="System.IO" />
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>

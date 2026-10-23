@@ -48,6 +48,9 @@ public sealed class AppSettings
     /// <summary>Panel del índice de títulos visible.</summary>
     public bool ShowOutline { get; set; } = true;
 
+    /// <summary>Ya se avisó (una vez) que cerrar la ventana deja la app en la bandeja.</summary>
+    public bool TrayHintShown { get; set; }
+
     public AppTheme Theme { get; set; } = AppTheme.System;
 
     /// <summary>Id de ARM del recurso de Speech, para consultar su consumo real en Azure Monitor.</summary>

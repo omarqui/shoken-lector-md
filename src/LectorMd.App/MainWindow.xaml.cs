@@ -45,6 +45,8 @@ public partial class MainWindow : Window
     private ReadingTimeline? _timeline;
     private int _activation;    // cada activación de pestaña invalida las que todavía estaban cargando
     private int _shownActivation; // activación cuyo documento ya está en pantalla
+    private TrayIcon? _tray;
+    private bool _exiting;        // true = cerrar termina la app (si no, la ventana se oculta en la bandeja)
     private bool _syncingTabs;  // la selección de la barra la está cambiando el código, no el usuario
     private readonly string? _fileFromCommandLine;
     private string? _lastFallbackReason;
@@ -93,6 +95,12 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         RebuildServices();
+        _tray = new TrayIcon(
+            open: () => _ = BringToFrontAsync(null),
+            readClipboard: () => _ = ReadClipboardAloudAsync(),
+            exit: ExitApp);
+        // Al cerrar sesión o apagar, Windows cierra la ventana: no hay que esconderla en la bandeja.
+        Application.Current.SessionEnding += (_, _) => _exiting = true;
 
         try
         {
@@ -135,8 +143,31 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         SaveSession();
+        if (!_exiting)
+        {
+            // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
+            e.Cancel = true;
+            Hide();
+            if (!_settings.TrayHintShown)
+            {
+                _tray?.ShowHint("Lector MD sigue en la bandeja. Ctrl+Alt+L lee lo que copiaste.");
+                _settings.TrayHintShown = true;
+                _settingsStore.Save(_settings);
+            }
+
+            return;
+        }
+
+        _tray?.Dispose();
         _player.Dispose();
         _services?.Dispose();
+    }
+
+    /// <summary>Salir de verdad (menú de la bandeja o cierre de sesión de Windows).</summary>
+    private void ExitApp()
+    {
+        _exiting = true;
+        Close();
     }
 
     private void RebuildServices()
@@ -737,7 +768,33 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Ctrl+V: rutas de archivos (texto o archivos copiados en el Explorador) o un texto Markdown.</summary>
-    private async Task PasteAsync()
+    /// <summary>
+    /// Ctrl+Alt+L o "Leer portapapeles" de la bandeja: abre lo copiado (rutas .md o texto Markdown) en su pestaña
+    /// y empieza a leer, aunque la ventana esté oculta. El texto queda como pestaña pegada, para retomarlo y
+    /// para que su audio quede en caché.
+    /// </summary>
+    private async Task ReadClipboardAloudAsync()
+    {
+        if (!await PasteAsync() || _document is null)
+        {
+            return;
+        }
+
+        if (_services is { Engine.IsConfigured: false })
+        {
+            ShowStatus("Para leer, configura Azure o Piper en ⚙ Configuración.");
+            return;
+        }
+
+        // Al activar la pestaña la lectura quedó detenida: esto empieza desde su párrafo guardado o desde el inicio.
+        if (_player.State == PlaybackState.Stopped)
+        {
+            _player.TogglePlayPause();
+        }
+    }
+
+    /// <returns>True si abrió algo (archivos o el texto pegado).</returns>
+    private async Task<bool> PasteAsync()
     {
         List<string> files;
         string? text;
@@ -749,7 +806,7 @@ public partial class MainWindow : Window
         catch (ExternalException ex)
         {
             ShowStatus($"No se pudo leer el portapapeles: {ex.Message}");
-            return;
+            return false;
         }
 
         IReadOnlyList<string> paths = files.Count > 0 ? files : PastedPaths.Parse(text);
@@ -761,7 +818,7 @@ public partial class MainWindow : Window
                 ShowStatus(paths.Count == 1
                     ? $"No hay un documento Markdown en \"{paths[0]}\"."
                     : "Ninguna de las rutas pegadas es un documento Markdown que exista.");
-                return;
+                return false;
             }
 
             await OpenFilesAsync(openable);
@@ -770,16 +827,17 @@ public partial class MainWindow : Window
                 ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: las demás rutas no son documentos Markdown que existan.");
             }
 
-            return;
+            return true;
         }
 
         if (string.IsNullOrWhiteSpace(text))
         {
             ShowStatus("El portapapeles no tiene texto ni rutas de archivos para pegar.");
-            return;
+            return false;
         }
 
         await OpenPastedTextAsync(text);
+        return true;
     }
 
     private async Task ReloadAsync()
