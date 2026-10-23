@@ -76,7 +76,13 @@ public sealed class EngineServices : IDisposable
                 normalizer, cache, paths.TempDirectory)
             : null;
 
-        var engine = new HybridTtsEngine(azure, piper, usage, settings.OfflineOnly);
+        var clouds = new List<CloudEngine>();
+        if (azure is not null)
+        {
+            clouds.Add(new CloudEngine(azure, usage, "Azure"));
+        }
+
+        var engine = new HybridTtsEngine(clouds, piper, settings.OfflineOnly);
         return new EngineServices(parser, new ChunkingOptions(), normalizer, cache, usage, engine);
     }
 
