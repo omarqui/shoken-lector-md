@@ -1156,7 +1156,7 @@ public partial class MainWindow : Window
             : source ?? (name.StartsWith("Piper", StringComparison.Ordinal) ? "Voz local, sin conexión" : "Lista para leer");
         Player.SetEngine(none ? "Sin motor de voz" : FriendlyEngineName(name), detail,
             none ? StatusBrushes.Error : fallback ? StatusBrushes.Fallback : StatusBrushes.Ok,
-            reason is null ? name : $"{name}\nMotivo: {reason}");
+            reason);
     }
 
     /// <summary>"Azure · es-MX-DaliaNeural" → "Dalia · Azure"; "Piper · es_MX-claude-high" → "Claude · Piper".</summary>
@@ -1177,20 +1177,14 @@ public partial class MainWindow : Window
     {
         if (_services is null || !_settings.HasAzure || _settings.OfflineOnly)
         {
-            Player.SetUsage(false, "", 0, "", null);
+            Player.SetUsage(false, 0, 1, DateTime.UtcNow, null);
             return;
         }
 
-        int used = _services.Usage.Used;
-        int limit = Math.Max(1, _services.Usage.Limit);
-        string tooltip = "Caracteres enviados a Azure este mes (estimación local). Lo ya escuchado se reproduce desde la caché sin gastar cuota.";
-        if (_azureReport is { } report)
-        {
-            tooltip += $"\nÚltima consulta a Azure ({report.At.ToString("t", Mexico)}): {report.Characters.ToString("N0", Mexico)} caracteres.";
-        }
-
-        Player.SetUsage(true, $"Azure {used.ToString("N0", Mexico)} / {limit.ToString("N0", Mexico)}", (double)used / limit, tooltip,
-            _azureReport?.At.ToString("HH:mm", Mexico));
+        string? report = _azureReport is { } r
+            ? $"Azure Monitor: {r.Characters.ToString("N0", Mexico)} a las {r.At.ToString("HH:mm", Mexico)}"
+            : null;
+        Player.SetUsage(true, _services.Usage.Used, Math.Max(1, _services.Usage.Limit), _services.Usage.ResetsOn, report);
     }
 
     private void UpdateButtons() => Player.SetState(_player.State, _player.HasDocument);

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LectorMd.App.Services;
@@ -17,8 +18,11 @@ namespace LectorMd.App.Controls;
 public partial class PlayerBar : UserControl
 {
     private static readonly TimeSpan NoticeTime = TimeSpan.FromSeconds(8);
+    private static readonly CultureInfo Mexico = CultureInfo.GetCultureInfo("es-MX");
 
     private readonly DispatcherTimer _noticeTimer;
+    private readonly DispatcherTimer _statusCloseTimer;
+    private string? _usagePercent;
     private readonly List<(Border Fill, TextBlock Label, TimelineChapter Chapter)> _cells = [];
     private readonly List<(Button Button, double Speed)> _speedButtons = [];
     private ReadingTimeline? _timeline;
@@ -35,6 +39,17 @@ public partial class PlayerBar : UserControl
             _noticeShowing = false;
             ShowDetail(_detail);
         };
+
+        _statusCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _statusCloseTimer.Tick += (_, _) =>
+        {
+            _statusCloseTimer.Stop();
+            if (!StatusButton.IsMouseOver && !StatusPanel.IsMouseOver)
+            {
+                StatusPopup.IsOpen = false;
+            }
+        };
+        StatusPopup.CustomPopupPlacementCallback = PlaceStatusPanel;
 
         foreach (double speed in PlaybackSpeeds.Steps)
         {
@@ -175,25 +190,71 @@ public partial class PlayerBar : UserControl
         _noticeTimer.Start();
     }
 
-    public void SetEngine(string name, string detail, Brush dot, string? tooltip)
+    /// <param name="name">Voz y motor ("Dalia · Azure").</param>
+    /// <param name="detail">De dónde sale el audio o el motivo del respaldo.</param>
+    public void SetEngine(string name, string detail, Brush dot, string? reason)
     {
-        EngineName.Text = name;
-        EngineDetail.Text = detail;
         EngineDot.Fill = dot;
-        EngineChip.ToolTip = tooltip;
+        PopupDot.Fill = dot;
+        PopupEngine.Text = name;
+        PopupEngineDetail.Text = reason is null || detail.Contains(reason, StringComparison.Ordinal) ? detail : $"{detail}\nMotivo: {reason}";
+        StatusLabel.Text = name;
+        UpdateStatusName();
     }
 
-    public void SetUsage(bool visible, string text, double fraction, string tooltip, string? lastQuery)
+    /// <param name="visible">False si no hay Azure configurado o se usa solo Piper: el componente muestra solo el motor.</param>
+    /// <param name="azureReport">"Azure Monitor: 23 060 a las 01:01", o null si todavía no se consultó.</param>
+    public void SetUsage(bool visible, int used, int limit, DateTime resetsOnUtc, string? azureReport)
     {
-        UsageBox.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        UsageText.Text = text;
-        UsageFill.Width = 150 * Math.Clamp(fraction, 0, 1);
-        UsageBox.ToolTip = tooltip;
-        RefreshTime.Text = lastQuery ?? "";
-        RefreshTime.Visibility = lastQuery is null ? Visibility.Collapsed : Visibility.Visible;
+        double fraction = limit > 0 ? Math.Clamp((double)used / limit, 0, 1) : 0;
+        string percent = (fraction * 100).ToString("0.#", Mexico) + " %";
+
+        UsageMini.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        UsagePercent.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        StatusLabel.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
+        PopupUsageSection.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+        UsageFill.Width = UsageMini.Width * fraction;
+        UsagePercent.Text = percent;
+        PopupUsage.Text = $"{used.ToString("N0", Mexico)} de {limit.ToString("N0", Mexico)} caracteres ({percent})";
+        PopupUsageFill.Width = (StatusPanel.Width - StatusPanel.Padding.Left - StatusPanel.Padding.Right - 2) * fraction;
+        // La fecha del reinicio es en UTC: pasarla a hora local la movería al día anterior en América.
+        PopupReset.Text = "Se reinicia el " + resetsOnUtc.ToString("d 'de' MMMM", Mexico);
+        PopupAzure.Text = azureReport ?? "Todavía no consultas el consumo real en Azure.";
+        _usagePercent = visible ? percent : null;
+        UpdateStatusName();
     }
 
-    public void SetRefreshing(bool busy) => RefreshButton.IsEnabled = !busy;
+    public void SetRefreshing(bool busy)
+    {
+        RefreshButton.IsEnabled = !busy;
+        RefreshLabel.Text = busy ? "Consultando Azure…" : "Consultar consumo real en Azure";
+    }
+
+    private void UpdateStatusName() =>
+        AutomationProperties.SetName(StatusButton,
+            $"Estado: {PopupEngine.Text}" + (_usagePercent is null ? "" : $", consumo de Azure {_usagePercent}"));
+
+    // ------------------------------------------------------------------ panel del estado (al pasar el mouse)
+
+    private void OnStatusMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        _statusCloseTimer.Stop();
+        StatusPopup.IsOpen = true;
+    }
+
+    // Se cierra un momento después, para poder pasar del componente al panel sin que parpadee.
+    private void OnStatusMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        _statusCloseTimer.Stop();
+        _statusCloseTimer.Start();
+    }
+
+    private void OnStatusClick(object sender, RoutedEventArgs e) => StatusPopup.IsOpen = !StatusPopup.IsOpen;
+
+    // Alineado a la derecha del componente y por encima de él (el componente está en el borde derecho).
+    private static CustomPopupPlacement[] PlaceStatusPanel(Size popupSize, Size targetSize, Point offset) =>
+        [new CustomPopupPlacement(new Point(targetSize.Width - popupSize.Width + 10, -popupSize.Height + 4), PopupPrimaryAxis.Horizontal)];
 
     public void SetSpeed(double speed)
     {

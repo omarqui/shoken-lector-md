@@ -28,6 +28,16 @@ public sealed class UsageTracker
 
     public string CurrentMonth => _utcNow().ToString("yyyy-MM", CultureInfo.InvariantCulture);
 
+    /// <summary>Cuándo vuelve a cero el contador: el día 1 del mes siguiente (UTC).</summary>
+    public DateTime ResetsOn
+    {
+        get
+        {
+            DateTime now = _utcNow();
+            return new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1);
+        }
+    }
+
     public int Used
     {
         get

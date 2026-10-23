@@ -76,6 +76,18 @@ public sealed class AzureUsageTests : IDisposable
         Assert.Equal(expected, resource.IsInRegion(region));
     }
 
+    [Theory]
+    [InlineData("2026-10-23", "2026-11-01")]
+    [InlineData("2026-12-31", "2027-01-01")]
+    public void Usage_ResetsOnFirstDayOfNextMonth(string today, string expected)
+    {
+        DateTime now = DateTime.SpecifyKind(DateTime.Parse(today, System.Globalization.CultureInfo.InvariantCulture), DateTimeKind.Utc);
+        var usage = new UsageTracker(Path.Combine(_dir, "uso.json"), 1000, () => now);
+
+        Assert.Equal(DateTime.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), usage.ResetsOn);
+        Assert.Equal(DateTimeKind.Utc, usage.ResetsOn.Kind);
+    }
+
     [Fact]
     public void SyncFromService_OnlyRaisesTheLocalCount()
     {
