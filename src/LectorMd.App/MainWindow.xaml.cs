@@ -1083,6 +1083,7 @@ public partial class MainWindow : Window
 
     private void OnOpenClick(object sender, RoutedEventArgs e) => _ = OpenWithDialogAsync();
     private void OnPasteClick(object sender, RoutedEventArgs e) => _ = PasteAsync();
+    private void OnReloadClick(object sender, RoutedEventArgs e) => _ = ReloadAsync();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
     private void OnSpeedChanged(double speed)
@@ -1509,7 +1510,11 @@ public partial class MainWindow : Window
         Player.SetUsage(true, _services.Usage.Used, Math.Max(1, _services.Usage.Limit), _services.Usage.ResetsOn, report);
     }
 
-    private void UpdateButtons() => Player.SetState(_player.State, _player.HasDocument);
+    private void UpdateButtons()
+    {
+        Player.SetState(_player.State, _player.HasDocument);
+        ReloadButton.IsEnabled = _active is { State.IsEmpty: false }; // pestaña vacía o bienvenida: nada que recargar
+    }
 }
 
 internal static class StatusBrushes

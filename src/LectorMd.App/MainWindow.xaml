@@ -140,6 +140,14 @@
                             <TextBlock Text="Pegar" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+                    <Button x:Name="ReloadButton" Style="{StaticResource FlatIconButton}" Click="OnReloadClick"
+                            ToolTip="Recargar el documento y el diccionario de pronunciación, siguiendo en el mismo párrafo (F5)"
+                            AutomationProperties.Name="Recargar" Height="36" Padding="12,0" Margin="2,0,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE72C;" Margin="0,0,8,0" />
+                            <TextBlock Text="Recargar" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
