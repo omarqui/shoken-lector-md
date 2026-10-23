@@ -145,6 +145,28 @@ public class ReadingTimelineTests
     }
 
     [Fact]
+    public void PositionAt_FindsTheSegmentAndTheOffsetInsideIt()
+    {
+        // Tres segmentos de 2 s cada uno (30 caracteres a 15 por segundo).
+        SpeechDocument doc = Document(Segment(0, new string('a', 30)), Segment(1, new string('b', 30)), Segment(2, new string('c', 30)));
+        ReadingTimeline timeline = ReadingTimeline.Build(doc, [new SpeechChunk { Index = 0, Segments = doc.Segments }], _ => null);
+
+        Assert.Equal((0, TimeSpan.Zero), timeline.PositionAt(TimeSpan.Zero));
+        Assert.Equal((1, TimeSpan.FromSeconds(0.5)), timeline.PositionAt(TimeSpan.FromSeconds(2.5)));
+        Assert.Equal((2, TimeSpan.Zero), timeline.PositionAt(TimeSpan.FromSeconds(4)));
+    }
+
+    [Fact]
+    public void PositionAt_ClampsBeforeTheStartAndAfterTheEnd()
+    {
+        SpeechDocument doc = Document(Segment(0, new string('a', 30)), Segment(1, new string('b', 30)));
+        ReadingTimeline timeline = ReadingTimeline.Build(doc, [new SpeechChunk { Index = 0, Segments = doc.Segments }], _ => null);
+
+        Assert.Equal((0, TimeSpan.Zero), timeline.PositionAt(TimeSpan.FromSeconds(-10)));
+        Assert.Equal(1, timeline.PositionAt(TimeSpan.FromHours(1)).SegmentId);
+    }
+
+    [Fact]
     public void ElapsedAt_IsStartPlusClampedOffset()
     {
         ReadingTimeline timeline = Build("# A\n\nUno.\n\nDos.");

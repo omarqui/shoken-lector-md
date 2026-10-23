@@ -200,14 +200,38 @@ internal sealed class ReadAloudController : IDisposable
         SetState(PlaybackState.Stopped);
     }
 
-    public void PlayFrom(int segmentId)
+    /// <summary>
+    /// Mueve la posición dentro del bloque que ya está abierto, sin volver a abrirlo (y sin cortar si está en
+    /// pausa). False si el destino cae fuera del bloque: entonces hay que usar <see cref="PlayFrom"/>.
+    /// </summary>
+    public bool TrySeekWithinCurrent(TimeSpan delta)
+    {
+        if (_current is null || !_mediaReady || !_player.NaturalDuration.HasTimeSpan)
+        {
+            return false;
+        }
+
+        TimeSpan target = _player.Position + delta;
+        if (target < TimeSpan.Zero || target >= _player.NaturalDuration.TimeSpan)
+        {
+            return false;
+        }
+
+        _player.Position = target;
+        _lastProgressTicks = 0; // que la línea de tiempo se actualice ya, aunque esté en pausa
+        UpdateCurrentSegment(target);
+        return true;
+    }
+
+    /// <param name="intoSegment">Cuánto saltar dentro del párrafo (para retroceder o adelantar 10 s).</param>
+    public void PlayFrom(int segmentId, TimeSpan intoSegment = default)
     {
         if (_document is null || _engine is null || _chunks.Count == 0)
         {
             return;
         }
 
-        _ = RunAsync(_engine, Math.Clamp(segmentId, 0, _document.Segments.Count - 1));
+        _ = RunAsync(_engine, Math.Clamp(segmentId, 0, _document.Segments.Count - 1), intoSegment);
     }
 
     public void NextSection()
@@ -252,7 +276,7 @@ internal sealed class ReadAloudController : IDisposable
         PlayFrom(target);
     }
 
-    private async Task RunAsync(ITtsEngine engine, int startSegmentId)
+    private async Task RunAsync(ITtsEngine engine, int startSegmentId, TimeSpan intoSegment = default)
     {
         Stop();
         var session = new CancellationTokenSource();
@@ -280,7 +304,7 @@ internal sealed class ReadAloudController : IDisposable
                     GetOrStart(engine, pending, index + ahead, token);
                 }
 
-                TimeSpan startAt = first ? audio.OffsetOf(startSegmentId) : TimeSpan.Zero;
+                TimeSpan startAt = first ? audio.OffsetOf(startSegmentId) + intoSegment : TimeSpan.Zero;
                 first = false;
                 await PlayChunkAsync(audio, startAt, token);
                 pending.Remove(index);

@@ -101,6 +101,29 @@ public sealed class ReadingTimeline
         return StartOf(segmentId) + clamped;
     }
 
+    /// <summary>
+    /// Lo contrario de <see cref="ElapsedAt"/>: el segmento que suena en ese tiempo y cuánto lleva de él
+    /// (para retroceder o adelantar 10 s). Fuera del documento se acota al principio o al último segmento.
+    /// </summary>
+    public (int SegmentId, TimeSpan IntoSegment) PositionAt(TimeSpan elapsed)
+    {
+        if (_durations.Length == 0 || elapsed <= TimeSpan.Zero)
+        {
+            return (0, TimeSpan.Zero);
+        }
+
+        for (int i = 0; i < _durations.Length; i++)
+        {
+            if (elapsed < _starts[i] + _durations[i])
+            {
+                return (i, elapsed - _starts[i]);
+            }
+        }
+
+        int last = _durations.Length - 1;
+        return (last, _durations[last]);
+    }
+
     private bool InRange(int segmentId) => segmentId >= 0 && segmentId < _durations.Length;
 
     private static TimeSpan Estimate(SpeechSegment segment) =>

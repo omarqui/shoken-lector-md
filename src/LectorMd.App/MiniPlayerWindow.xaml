@@ -64,7 +64,11 @@
                         ToolTip="Sección anterior" AutomationProperties.Name="Sección anterior">
                     <TextBlock Style="{StaticResource IconText}" FontSize="13" Text="&#xE892;" />
                 </Button>
-                <Button x:Name="PlayButton" Width="40" Height="40" Margin="8,0" Click="OnPlayClick" Cursor="Hand"
+                <Button Style="{StaticResource FlatIconButton}" Width="38" Height="34" Margin="2,0,0,0" Click="OnBack10Click"
+                        ToolTip="Retroceder 10 segundos" AutomationProperties.Name="Retroceder 10 segundos">
+                    <TextBlock Text="−10" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
+                </Button>
+                <Button x:Name="PlayButton" Width="40" Height="40" Margin="6,0" Click="OnPlayClick" Cursor="Hand"
                         ToolTip="Leer o pausar" AutomationProperties.Name="Pausar">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -80,6 +84,10 @@
                     </Button.Template>
                     <TextBlock x:Name="PlayIcon" Style="{StaticResource IconText}" FontSize="15" Text="&#xE769;"
                                Foreground="{DynamicResource LectorOnAccentBrush}" />
+                </Button>
+                <Button Style="{StaticResource FlatIconButton}" Width="38" Height="34" Margin="0,0,2,0" Click="OnForward10Click"
+                        ToolTip="Adelantar 10 segundos" AutomationProperties.Name="Adelantar 10 segundos">
+                    <TextBlock Text="+10" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
                 </Button>
                 <Button Style="{StaticResource FlatIconButton}" Width="34" Height="34" Margin="0,0,4,0" Click="OnNextClick"
                         ToolTip="Sección siguiente" AutomationProperties.Name="Sección siguiente">

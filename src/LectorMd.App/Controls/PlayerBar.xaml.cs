@@ -80,6 +80,9 @@ public partial class PlayerBar : UserControl
     public event Action<double>? SpeedChanged;
     public event Action? RefreshUsageClicked;
 
+    /// <summary>−10 s o +10 s.</summary>
+    public event Action<TimeSpan>? SkipRequested;
+
     /// <summary>Se eligió otro motor en el panel del estado.</summary>
     public event Action<EngineChoice>? EngineChoiceRequested;
 
@@ -371,6 +374,8 @@ public partial class PlayerBar : UserControl
         AutomationProperties.SetName(PlayButton, label);
         PlayButton.IsEnabled = hasDocument;
         PreviousButton.IsEnabled = hasDocument;
+        BackButton.IsEnabled = hasDocument;
+        ForwardButton.IsEnabled = hasDocument;
         NextButton.IsEnabled = hasDocument;
         StopButton.IsEnabled = state != PlaybackState.Stopped;
     }
@@ -385,6 +390,8 @@ public partial class PlayerBar : UserControl
     }
 
     private void OnPlayClick(object sender, RoutedEventArgs e) => PlayPauseClicked?.Invoke();
+    private void OnBack10Click(object sender, RoutedEventArgs e) => SkipRequested?.Invoke(TimeSpan.FromSeconds(-10));
+    private void OnForward10Click(object sender, RoutedEventArgs e) => SkipRequested?.Invoke(TimeSpan.FromSeconds(10));
     private void OnStopClick(object sender, RoutedEventArgs e) => StopClicked?.Invoke();
     private void OnPreviousClick(object sender, RoutedEventArgs e) => PreviousClicked?.Invoke();
     private void OnNextClick(object sender, RoutedEventArgs e) => NextClicked?.Invoke();

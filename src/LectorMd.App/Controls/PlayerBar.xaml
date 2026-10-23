@@ -90,10 +90,18 @@
                             ToolTip="Sección anterior (Ctrl+←)" AutomationProperties.Name="Sección anterior">
                         <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE892;" />
                     </Button>
+                    <Button x:Name="BackButton" Style="{StaticResource RoundButton}" Click="OnBack10Click" Margin="6,0,0,0"
+                            Background="Transparent" ToolTip="Retroceder 10 segundos (←)" AutomationProperties.Name="Retroceder 10 segundos">
+                        <TextBlock Text="−10" FontSize="13" FontWeight="SemiBold" />
+                    </Button>
                     <Button x:Name="PlayButton" Style="{StaticResource RoundButton}" Click="OnPlayClick" Width="52" Height="52"
                             Margin="8,0" Background="{DynamicResource LectorAccentBrush}" Foreground="{DynamicResource LectorOnAccentBrush}"
                             ToolTip="Leer o pausar (Espacio)" AutomationProperties.Name="Leer">
                         <TextBlock x:Name="PlayIcon" Style="{StaticResource IconText}" FontSize="18" Text="&#xE768;" />
+                    </Button>
+                    <Button x:Name="ForwardButton" Style="{StaticResource RoundButton}" Click="OnForward10Click" Margin="0,0,6,0"
+                            Background="Transparent" ToolTip="Adelantar 10 segundos (→)" AutomationProperties.Name="Adelantar 10 segundos">
+                        <TextBlock Text="+10" FontSize="13" FontWeight="SemiBold" />
                     </Button>
                     <Button x:Name="NextButton" Style="{StaticResource RoundButton}" Click="OnNextClick"
                             ToolTip="Sección siguiente (Ctrl+→)" AutomationProperties.Name="Sección siguiente">

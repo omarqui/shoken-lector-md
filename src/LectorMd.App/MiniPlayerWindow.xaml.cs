@@ -53,6 +53,9 @@ public sealed partial class MiniPlayerWindow : Window
     public event Action<double>? SpeedChanged;
     public event Action? OpenMainClicked;
 
+    /// <summary>−10 s o +10 s.</summary>
+    public event Action<TimeSpan>? SkipRequested;
+
     public void SetPosition(string section, string detail)
     {
         SectionText.Text = section;
@@ -130,6 +133,8 @@ public sealed partial class MiniPlayerWindow : Window
     }
 
     private void OnPlayClick(object sender, RoutedEventArgs e) => PlayPauseClicked?.Invoke();
+    private void OnBack10Click(object sender, RoutedEventArgs e) => SkipRequested?.Invoke(TimeSpan.FromSeconds(-10));
+    private void OnForward10Click(object sender, RoutedEventArgs e) => SkipRequested?.Invoke(TimeSpan.FromSeconds(10));
     private void OnStopClick(object sender, RoutedEventArgs e) => StopClicked?.Invoke();
     private void OnPreviousClick(object sender, RoutedEventArgs e) => PreviousClicked?.Invoke();
     private void OnNextClick(object sender, RoutedEventArgs e) => NextClicked?.Invoke();

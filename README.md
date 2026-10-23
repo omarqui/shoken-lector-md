@@ -123,6 +123,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 | Recargar (y releer el diccionario) | `F5` |
 | Configuración | `Ctrl` + `,` |
 | Leer lo copiado, desde cualquier app | `Ctrl` + `Alt` + `L` |
+| Retroceder / adelantar 10 segundos | `←` / `→`, o los botones −10 y +10 del reproductor |
 
 - **Pestañas:** viven en la barra de título (con muchas, se recorren con la rueda del mouse o Ctrl+Tab). Cada documento se abre en su pestaña, con un ícono que distingue los archivos `.md` (al pasar el mouse muestran su ruta) del texto pegado. Si ya estaba abierto, la app va a esa pestaña. Al cambiar de pestaña la lectura se pausa, y cada una recuerda su párrafo y su posición. Al cerrar la app se guardan las pestañas abiertas y se reabren al iniciar.
 - **Pegar (`Ctrl` + `V`):** si el portapapeles tiene rutas (una por línea, con o sin comillas, o archivos copiados en el Explorador), se abren. Si tiene otro texto, se lee como Markdown en una pestaña nueva, o en la vacía si estás en una. El texto pegado se guarda hasta que cierras su pestaña.

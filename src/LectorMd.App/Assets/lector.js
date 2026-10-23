@@ -134,6 +134,8 @@
     else if (e.ctrlKey && (e.key === 'w' || e.key === 'W' || e.key === 'F4')) command = 'closeTab';
     else if (e.ctrlKey && e.key === 'Tab') command = e.shiftKey ? 'previousTab' : 'nextTab';
     else if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) command = 'outline';
+    else if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.altKey && !e.shiftKey) command = 'back10';
+    else if (e.key === 'ArrowRight' && !e.ctrlKey && !e.altKey && !e.shiftKey) command = 'forward10';
 
     if (command) {
       e.preventDefault();

@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private DocumentTab? _active;
     private IReadOnlyList<OutlineEntry> _outline = [];
     private IReadOnlyList<SpeechChunk> _chunks = [];
+    private TimeSpan _lastElapsed; // última posición mostrada en la línea de tiempo (base para −10 s / +10 s)
     private ReadingTimeline? _timeline;
     private int _activation;    // cada activación de pestaña invalida las que todavía estaban cargando
     private int _shownActivation; // activación cuyo documento ya está en pantalla
@@ -87,6 +88,7 @@ public partial class MainWindow : Window
         Player.SpeedChanged += OnSpeedChanged;
         Player.RefreshUsageClicked += () => _ = RefreshAzureUsageAsync();
         Player.ChapterClicked += OnChapterClicked;
+        Player.SkipRequested += SkipBy;
         Player.EngineChoiceRequested += OnEngineChoiceRequested;
 
         // Una velocidad del deslizador anterior (p. ej. 1.15) pasa al paso más cercano del selector.
@@ -868,6 +870,7 @@ public partial class MainWindow : Window
             _mini.NextClicked += () => _player.NextSection();
             _mini.SpeedChanged += OnSpeedChanged;
             _mini.OpenMainClicked += () => _ = BringToFrontAsync(null);
+            _mini.SkipRequested += SkipBy;
             _mini.Closed += (_, _) => _mini = null;
         }
 
@@ -961,6 +964,8 @@ public partial class MainWindow : Window
             case "nextTab": SwitchTab(1); break;
             case "previousTab": SwitchTab(-1); break;
             case "outline": ToggleOutline(); break;
+            case "back10": SkipBy(TimeSpan.FromSeconds(-10)); break;
+            case "forward10": SkipBy(TimeSpan.FromSeconds(10)); break;
         }
     }
 
@@ -1023,6 +1028,9 @@ public partial class MainWindow : Window
             Key.F4 when ctrl => "closeTab",
             Key.Tab when ctrl => shift ? "previousTab" : "nextTab",
             Key.B when ctrl => "outline",
+            // Flechas solas: −10 s / +10 s (en las listas de pestañas e índice siguen moviendo la selección).
+            Key.Left when !ctrl && e.OriginalSource is not ListBoxItem => "back10",
+            Key.Right when !ctrl && e.OriginalSource is not ListBoxItem => "forward10",
             _ => null,
         };
 
@@ -1266,9 +1274,35 @@ public partial class MainWindow : Window
         if (_timeline is not null)
         {
             TimeSpan elapsed = _timeline.ElapsedAt(segmentId, intoSegment);
+            _lastElapsed = elapsed;
             Player.SetProgress(elapsed, _timeline.ChapterIndexOf(segmentId));
             _mini?.SetProgress(elapsed, _timeline.Total);
         }
+    }
+
+    /// <summary>
+    /// Retrocede o adelanta (−10 s / +10 s). Dentro del bloque que suena mueve la posición sin cortar; si el
+    /// destino está en otro bloque, empieza a leer desde el párrafo y punto que da la línea de tiempo.
+    /// </summary>
+    private void SkipBy(TimeSpan delta)
+    {
+        if (_document is null || _timeline is null || _services is { Engine.IsConfigured: false })
+        {
+            return;
+        }
+
+        if (_player.State != PlaybackState.Stopped && _player.TrySeekWithinCurrent(delta))
+        {
+            return;
+        }
+
+        TimeSpan from = _player.State == PlaybackState.Stopped
+            ? _timeline.StartOf(Math.Max(0, _player.CurrentSegmentId))
+            : _lastElapsed;
+        TimeSpan target = from + delta;
+        target = target < TimeSpan.Zero ? TimeSpan.Zero : target > _timeline.Total ? _timeline.Total : target;
+        (int segmentId, TimeSpan into) = _timeline.PositionAt(target);
+        _player.PlayFrom(segmentId, into);
     }
 
     /// <summary>Duraciones reales de lo que está en caché y estimadas del resto.</summary>
