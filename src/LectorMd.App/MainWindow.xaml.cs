@@ -82,6 +82,9 @@ public partial class MainWindow : Window
             ShowStatus("Se perdió la salida de audio (se desconectó o cambió). Quedó en pausa: pulsa Espacio para seguir desde el párrafo donde ibas.");
 
         _player.ProgressChanged += OnProgressChanged;
+        // RDP se come el inicio del audio tras un silencio (medido: la app arranca en el punto exacto); 0.5 s de
+        // pre-arranque lo absorbe. En el equipo local no hace falta.
+        _player.PreRoll = System.Windows.Forms.SystemInformation.TerminalServerSession ? TimeSpan.FromMilliseconds(500) : TimeSpan.Zero;
 
         Player.PlayPauseClicked += TogglePlay;
         Player.StopClicked += () => _player.Stop();

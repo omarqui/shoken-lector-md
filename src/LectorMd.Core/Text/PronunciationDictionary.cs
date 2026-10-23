@@ -94,7 +94,7 @@ public sealed class PronunciationDictionary
         ["Windows"] = "uíndous",
         ["macOS"] = "mac o ese",
         ["Microsoft"] = "máicrosoft",
-        ["Azure"] = "ásher",
+        ["Azure"] = "áchur",
         ["Docker"] = "dóker",
         ["Kubernetes"] = "kubernetis",
         ["Chrome"] = "crom",
