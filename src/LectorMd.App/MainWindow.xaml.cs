@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     private int _activation;    // cada activación de pestaña invalida las que todavía estaban cargando
     private int _shownActivation; // activación cuyo documento ya está en pantalla
     private TrayIcon? _tray;
+    private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
     private bool _exiting;        // true = cerrar termina la app (si no, la ventana se oculta en la bandeja)
     private bool _syncingTabs;  // la selección de la barra la está cambiando el código, no el usuario
     private readonly string? _fileFromCommandLine;
@@ -101,6 +102,7 @@ public partial class MainWindow : Window
             exit: ExitApp);
         // Al cerrar sesión o apagar, Windows cierra la ventana: no hay que esconderla en la bandeja.
         Application.Current.SessionEnding += (_, _) => _exiting = true;
+        _hotkey = GlobalHotkey.TryRegister(this, ModifierKeys.Control | ModifierKeys.Alt, Key.L, () => _ = ReadClipboardAloudAsync());
 
         try
         {
@@ -138,6 +140,10 @@ public partial class MainWindow : Window
         {
             ShowStatus("Para empezar, configura Azure o Piper en ⚙ Configuración.");
         }
+        else if (_hotkey is null)
+        {
+            ShowStatus("Ctrl+Alt+L ya lo usa otra app: el atajo no está activo.");
+        }
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
@@ -158,6 +164,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _hotkey?.Dispose();
         _tray?.Dispose();
         _player.Dispose();
         _services?.Dispose();
