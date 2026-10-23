@@ -68,10 +68,14 @@ public partial class MainWindow : Window
     {
         _settingsStore = new SettingsStore(_paths);
         _settings = _settingsStore.Load();
-        ThemeService.Apply(_settings.Theme); // antes de crear los controles, para que no parpadeen
+        ThemeService.Apply(_settings.Theme, _settings.Palette); // antes de crear los controles, para que no parpadeen
         TextScale.Apply(_settings.TextSize);
         ThemeService.WatchSystemTheme();
-        ThemeService.Changed += UpdateThemeButton;
+        ThemeService.Changed += () =>
+        {
+            UpdateThemeButton();
+            _ = _view?.SetColorsAsync(ThemeService.DocumentVariables); // con "Sistema", Windows cambió de claro a oscuro
+        };
         Activated += (_, _) => _mini?.Close(); // la ventana a la vista: el mini reproductor sobra
         Deactivated += (_, _) =>
         {
@@ -151,6 +155,7 @@ public partial class MainWindow : Window
             });
             await _view.InitializeAsync();
             _view.SetColorScheme(_settings.Theme);
+            _ = _view.SetColorsAsync(ThemeService.DocumentVariables); // antes de abrir la primera página
         }
         catch (Exception ex)
         {
@@ -936,10 +941,21 @@ public partial class MainWindow : Window
     private void OnThemeClick(object sender, RoutedEventArgs e)
     {
         _settings.Theme = ThemeService.Toggled();
-        ThemeService.Apply(_settings.Theme);
-        _view?.SetColorScheme(_settings.Theme);
-        UpdateThemeButton();
+        ApplyTheme(_settings.Palette);
         _settingsStore.Save(_settings);
+    }
+
+    /// <summary>Tema de color y modo (claro u oscuro) en la ventana y en el documento, sin recargar nada.</summary>
+    private void ApplyTheme(ThemePalette palette)
+    {
+        ThemeService.Apply(_settings.Theme, palette);
+        if (_view is not null)
+        {
+            _view.SetColorScheme(_settings.Theme);
+            _ = _view.SetColorsAsync(ThemeService.DocumentVariables);
+        }
+
+        UpdateThemeButton();
     }
 
     /// <summary>Un solo botón: muestra el sol en oscuro (pasa a claro) y la luna en claro (pasa a oscuro).</summary>
@@ -1345,10 +1361,11 @@ public partial class MainWindow : Window
 
     private void OpenSettings()
     {
-        var window = new SettingsWindow(_settings.Clone(), _paths) { Owner = this };
+        var window = new SettingsWindow(_settings.Clone(), _paths) { Owner = this, PreviewPalette = ApplyTheme };
         if (window.ShowDialog() != true || window.Result is null)
         {
             TextScale.Apply(_settings.TextSize); // se canceló la vista previa del tamaño del texto
+            ApplyTheme(_settings.Palette); // y la del tema
             return;
         }
 
@@ -1357,6 +1374,7 @@ public partial class MainWindow : Window
         _settings = window.Result;
         _settings.PlaybackSpeed = speed;
         TextScale.Apply(_settings.TextSize);
+        ApplyTheme(_settings.Palette);
         _settingsStore.Save(_settings);
         RebuildServices();
 

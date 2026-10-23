@@ -26,16 +26,27 @@
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Tamaño del texto" VerticalAlignment="Center" />
-                    <ComboBox x:Name="TextSizeBox" Grid.Column="1" Margin="0,4" SelectionChanged="OnTextSizeChanged">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Tema" VerticalAlignment="Center" />
+                    <ComboBox x:Name="PaletteBox" Grid.Column="1" Margin="0,4" SelectionChanged="OnPaletteChanged">
+                        <ComboBoxItem Content="Clásico (blanco y gris)" />
+                        <ComboBoxItem Content="Papel (cálido, menos brillo)" />
+                        <ComboBoxItem Content="Grafito (gris azulado)" />
+                        <ComboBoxItem Content="Sepia y noche" />
+                    </ComboBox>
+                    <TextBlock Grid.Row="1" Text="Tamaño del texto" VerticalAlignment="Center" />
+                    <ComboBox x:Name="TextSizeBox" Grid.Row="1" Grid.Column="1" Margin="0,4" SelectionChanged="OnTextSizeChanged">
                         <ComboBoxItem Content="Normal" />
                         <ComboBoxItem Content="Grande (+15 %)" />
                         <ComboBoxItem Content="Muy grande (+30 %)" />
                     </ComboBox>
                 </Grid>
                 <TextBlock Style="{StaticResource Hint}" Margin="170,4,0,0">
-                    Pestañas, índice, reproductor y paneles; se ve al instante y, si cancelas, vuelve como estaba.
-                    El documento se agranda aparte, con Ctrl + rueda del mouse.
+                    Se ven al instante y, si cancelas, vuelven como estaban. Cada tema tiene versión clara y oscura:
+                    el botón sol/luna de la ventana elige cuál. El documento se agranda aparte, con Ctrl + rueda del mouse.
                 </TextBlock>
 
                 <Separator Margin="0,22" />

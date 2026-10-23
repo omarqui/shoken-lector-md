@@ -545,8 +545,16 @@
       dark.addEventListener('change', render);
     }
 
-    return { count: blocks.length, rememberScroll };
+    return { count: blocks.length, rememberScroll, redraw: () => { if (blocks.length) render(); } };
   })();
 
-  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, find, diagrams };
+  // Colores del tema elegido en la app (variables de lector.css); los diagramas se dibujan de nuevo con ellos.
+  function setColors(colors) {
+    for (const [name, value] of Object.entries(colors)) {
+      document.documentElement.style.setProperty('--' + name, value);
+    }
+    diagrams.redraw();
+  }
+
+  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, find, diagrams, setColors };
 })();

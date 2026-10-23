@@ -22,14 +22,15 @@ internal static class HtmlPages
         "media-src https://doc.lector; " +
         "font-src https://app.lector";
 
-    public static string Document(SpeechDocument document, bool hasDocumentFolder) =>
-        Page(document.Title, $"<main class=\"doc\">{document.HtmlBody}</main>", hasDocumentFolder);
+    public static string Document(SpeechDocument document, bool hasDocumentFolder, string? themeCss) =>
+        Page(document.Title, $"<main class=\"doc\">{document.HtmlBody}</main>", hasDocumentFolder, themeCss);
 
-    public static string Welcome() => Page("Lector MD", WelcomeBody, hasDocumentFolder: false);
+    public static string Welcome(string? themeCss) => Page("Lector MD", WelcomeBody, hasDocumentFolder: false, themeCss);
 
-    public static string EmptyTab() => Page("Nueva pestaña", EmptyTabBody, hasDocumentFolder: false);
+    public static string EmptyTab(string? themeCss) => Page("Nueva pestaña", EmptyTabBody, hasDocumentFolder: false, themeCss);
 
-    private static string Page(string title, string body, bool hasDocumentFolder)
+    /// <param name="themeCss">Variables de color del tema elegido (pisan los valores por omisión de lector.css).</param>
+    private static string Page(string title, string body, bool hasDocumentFolder, string? themeCss)
     {
         var html = new StringBuilder(body.Length + 1024);
         html.Append("<!doctype html><html lang=\"es-MX\"><head><meta charset=\"utf-8\">");
@@ -40,6 +41,11 @@ internal static class HtmlPages
         }
 
         html.Append("<link rel=\"stylesheet\" href=\"https://").Append(AppHost).Append("/lector.css\">");
+        if (themeCss is not null)
+        {
+            html.Append("<style>").Append(themeCss).Append("</style>");
+        }
+
         html.Append("<title>").Append(WebUtility.HtmlEncode(title)).Append("</title></head><body>");
         html.Append(body);
         html.Append("<script src=\"https://").Append(AppHost).Append("/lector.js\"></script></body></html>");

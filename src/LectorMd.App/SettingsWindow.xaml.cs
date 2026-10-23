@@ -67,8 +67,12 @@ public partial class SettingsWindow : Window
         TableModeBox.SelectedIndex = (int)settings.Tables;
         ImageAltBox.IsChecked = settings.ReadImageAltText;
         TextSizeBox.SelectedIndex = (int)settings.TextSize;
+        PaletteBox.SelectedIndex = (int)settings.Palette;
         UpdateCacheInfo();
     }
+
+    /// <summary>Vista previa del tema: quien abrió la ventana lo aplica y lo restaura si se cancela.</summary>
+    public Action<ThemePalette>? PreviewPalette { get; init; }
 
     /// <summary>Configuración resultante si se guardó.</summary>
     public AppSettings? Result { get; private set; }
@@ -87,6 +91,7 @@ public partial class SettingsWindow : Window
         settings.Tables = (TableMode)Math.Max(0, TableModeBox.SelectedIndex);
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
         settings.TextSize = (TextSize)Math.Max(0, TextSizeBox.SelectedIndex);
+        settings.Palette = (ThemePalette)Math.Max(0, PaletteBox.SelectedIndex);
         settings.AzureTenantId = string.IsNullOrWhiteSpace(AzureTenantBox.Text) ? null : AzureTenantBox.Text.Trim();
         settings.GoogleApiKey = GoogleKeyBox.Password.Trim();
         settings.GoogleVoice = string.IsNullOrWhiteSpace(GoogleVoiceBox.Text) ? "es-US-Neural2-A" : GoogleVoiceBox.Text.Trim();
@@ -154,6 +159,14 @@ public partial class SettingsWindow : Window
         if (IsLoaded && TextSizeBox.SelectedIndex >= 0)
         {
             TextScale.Apply((TextSize)TextSizeBox.SelectedIndex);
+        }
+    }
+
+    private void OnPaletteChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && PaletteBox.SelectedIndex >= 0)
+        {
+            PreviewPalette?.Invoke((ThemePalette)PaletteBox.SelectedIndex);
         }
     }
 

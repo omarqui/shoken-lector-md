@@ -20,9 +20,17 @@ internal static class ThemeService
         _ => SystemUsesDark(),
     };
 
-    public static void Apply(AppTheme theme)
+    /// <summary>Tema de color: cada uno con su versión clara y oscura, según <see cref="Current"/>.</summary>
+    public static ThemePalette Palette { get; private set; } = ThemePalette.Paper;
+
+    /// <summary>Variables CSS del documento para lo que se ve ahora (tema de color y modo).</summary>
+    public static IReadOnlyDictionary<string, string> DocumentVariables =>
+        ThemePalettes.DocumentVariables(ThemePalettes.Get(Palette, IsDark), IsDark);
+
+    public static void Apply(AppTheme theme, ThemePalette palette)
     {
         Current = theme;
+        Palette = palette;
         Application.Current.ThemeMode = theme switch
         {
             AppTheme.Light => ThemeMode.Light,
@@ -33,27 +41,28 @@ internal static class ThemeService
     }
 
     /// <summary>
-    /// Colores propios del diseño (pestañas, barra de comandos, reproductor), los mismos de la propuesta D.
-    /// Se usan como DynamicResource, así que cambian al alternar el tema sin recrear la ventana.
+    /// Colores propios del diseño (pestañas, barra de comandos, reproductor) del tema de color elegido; vienen de
+    /// <see cref="ThemePalettes"/>, como los del documento. Se usan como DynamicResource, así que cambian al
+    /// alternar el tema sin recrear la ventana.
     /// </summary>
     private static void ApplyPalette(bool dark)
     {
+        PaletteColors c = ThemePalettes.Get(Palette, dark);
         ResourceDictionary resources = Application.Current.Resources;
-        void Set(string key, string light, string darkColor) =>
-            resources[key] = Frozen((Color)ColorConverter.ConvertFromString(dark ? darkColor : light));
+        void Set(string key, string color) => resources[key] = Frozen((Color)ColorConverter.ConvertFromString(color));
 
-        Set("LectorBackgroundBrush", "#F3F3F3", "#202020");
-        Set("LectorSurfaceBrush", "#FFFFFF", "#2B2B2B");
-        Set("LectorSurface2Brush", "#F0F0F0", "#363636");
-        Set("LectorBorderBrush", "#E5E5E5", "#3D3D3D");
-        Set("LectorTextBrush", "#1B1B1B", "#FFFFFF");
-        Set("LectorText2Brush", "#5D5D5D", "#C8C8C8");
-        Set("LectorAccentBrush", "#005FB8", "#60CDFF");
-        Set("LectorPastedBrush", "#8250DF", "#C297FF"); // ícono de las pestañas con texto pegado
-        Set("LectorOnAccentBrush", "#FFFFFF", "#00344D");
-        Set("LectorCurrentBrush", "#DCE9F7", "#1E3A4C");
-        Set("LectorCurrentTextBrush", "#003D7A", "#99EBFF");
-        Set("LectorTrackBrush", "#E0E0E0", "#4A4A4A");
+        Set("LectorBackgroundBrush", c.Background);
+        Set("LectorSurfaceBrush", c.Surface);
+        Set("LectorSurface2Brush", c.Surface2);
+        Set("LectorBorderBrush", c.Border);
+        Set("LectorTextBrush", c.Text);
+        Set("LectorText2Brush", c.Text2);
+        Set("LectorAccentBrush", c.Accent);
+        Set("LectorPastedBrush", c.Pasted); // ícono de las pestañas con texto pegado
+        Set("LectorOnAccentBrush", c.OnAccent);
+        Set("LectorCurrentBrush", c.Current);
+        Set("LectorCurrentTextBrush", c.CurrentText);
+        Set("LectorTrackBrush", c.Track);
     }
 
     private static SolidColorBrush Frozen(Color color)

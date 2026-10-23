@@ -87,7 +87,7 @@ internal sealed class DocumentView
         _core.NewWindowRequested += OnNewWindowRequested;
     }
 
-    /// <summary>Colores del documento: lector.css responde a prefers-color-scheme sin recargar la página.</summary>
+    /// <summary>Claro u oscuro para lo que el navegador dibuja solo (barras de desplazamiento, controles).</summary>
     public void SetColorScheme(AppTheme theme)
     {
         if (_core is not null)
@@ -101,9 +101,23 @@ internal sealed class DocumentView
         }
     }
 
-    public Task ShowWelcomeAsync() => NavigateAsync($"bienvenida-{_instance}.html", HtmlPages.Welcome());
+    /// <summary>
+    /// Colores del tema elegido (variables de lector.css, sin el "--"): cambian la página abierta sin recargarla y
+    /// se usan en las que se abran después.
+    /// </summary>
+    public Task SetColorsAsync(IReadOnlyDictionary<string, string> colors)
+    {
+        _colors = colors;
+        return RunScriptAsync($"window.lector && window.lector.setColors({JsonSerializer.Serialize(colors)})");
+    }
 
-    public Task ShowEmptyTabAsync() => NavigateAsync($"vacia-{_instance}.html", HtmlPages.EmptyTab());
+    private IReadOnlyDictionary<string, string>? _colors;
+
+    private string? ThemeCss => _colors is null ? null : ":root{" + string.Concat(_colors.Select(c => $"--{c.Key}:{c.Value};")) + "}";
+
+    public Task ShowWelcomeAsync() => NavigateAsync($"bienvenida-{_instance}.html", HtmlPages.Welcome(ThemeCss));
+
+    public Task ShowEmptyTabAsync() => NavigateAsync($"vacia-{_instance}.html", HtmlPages.EmptyTab(ThemeCss));
 
     public Task ShowDocumentAsync(SpeechDocument document)
     {
@@ -128,7 +142,7 @@ internal sealed class DocumentView
             _documentFolder = folder;
         }
 
-        return NavigateAsync($"documento-{_instance}.html", HtmlPages.Document(document, folder is not null));
+        return NavigateAsync($"documento-{_instance}.html", HtmlPages.Document(document, folder is not null, ThemeCss));
     }
 
     /// <param name="follow">Si es false solo marca el segmento, sin desplazar la vista hasta él.</param>

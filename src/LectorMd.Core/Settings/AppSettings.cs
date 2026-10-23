@@ -69,6 +69,9 @@ public sealed class AppSettings
 
     public AppTheme Theme { get; set; } = AppTheme.System;
 
+    /// <summary>Tema de color (cada uno con versión clara y oscura); <see cref="Theme"/> elige cuál se ve.</summary>
+    public ThemePalette Palette { get; set; } = ThemePalette.Paper;
+
     /// <summary>Tamaño de los textos de la interfaz (no del documento, que se agranda con Ctrl+rueda).</summary>
     public TextSize TextSize { get; set; } = TextSize.Large;
 
