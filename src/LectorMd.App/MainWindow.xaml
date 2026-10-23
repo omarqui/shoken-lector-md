@@ -87,8 +87,18 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
                                 <!-- Archivo .md, texto pegado (en memoria) o pestaña vacía. -->
-                                <TextBlock Style="{StaticResource IconText}" FontSize="13" Text="{Binding Icon}" Margin="0,0,9,0"
-                                           Foreground="{DynamicResource LectorAccentBrush}" />
+                                <TextBlock FontSize="13" Text="{Binding Icon}" Margin="0,0,9,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource IconText}">
+                                            <Setter Property="Foreground" Value="{DynamicResource LectorAccentBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsPasted}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource LectorPastedBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock Text="{Binding Name}" MaxWidth="200" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
                                 <Button Click="OnCloseTabClick" ToolTip="Cerrar (Ctrl+W)" AutomationProperties.Name="Cerrar pestaña"

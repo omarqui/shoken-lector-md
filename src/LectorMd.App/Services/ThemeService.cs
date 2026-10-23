@@ -47,6 +47,7 @@ internal static class ThemeService
         Set("LectorTextBrush", "#1B1B1B", "#FFFFFF");
         Set("LectorText2Brush", "#5D5D5D", "#C8C8C8");
         Set("LectorAccentBrush", "#005FB8", "#60CDFF");
+        Set("LectorPastedBrush", "#8250DF", "#C297FF"); // ícono de las pestañas con texto pegado
         Set("LectorOnAccentBrush", "#FFFFFF", "#00344D");
         Set("LectorCurrentBrush", "#DCE9F7", "#1E3A4C");
         Set("LectorCurrentTextBrush", "#003D7A", "#99EBFF");

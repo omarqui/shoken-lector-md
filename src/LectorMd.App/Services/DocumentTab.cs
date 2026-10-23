@@ -14,6 +14,9 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 
     public string Name => State.Name;
 
+    /// <summary>Texto pegado (en memoria): su ícono va en otro color que el de los archivos .md.</summary>
+    public bool IsPasted => State.IsPasted;
+
     /// <summary>Ícono de Segoe Fluent: documento (archivo .md), portapapeles (texto pegado) o "+" (vacía).</summary>
     public string Icon => State.IsEmpty ? "" : State.IsPasted ? "" : "";
 
@@ -31,6 +34,7 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsPasted)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolTip)));
     }
 }
