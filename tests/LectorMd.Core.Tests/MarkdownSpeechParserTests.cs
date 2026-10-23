@@ -151,6 +151,18 @@ public class MarkdownSpeechParserTests
     }
 
     [Fact]
+    public void Mermaid_IsReadAsDiagrama_AndStaysInPreMermaidWithItsAnchorForThePageToDraw()
+    {
+        // lector.js dibuja cada <pre class="mermaid"> con Mermaid; el data-seg sigue marcando lo que se lee.
+        var doc = Parse("```mermaid\nsequenceDiagram\n  A->>B: Hola <b>x</b>\n```");
+
+        SpeechSegment diagram = Assert.Single(doc.Segments);
+        Assert.Equal("Diagrama.", diagram.PlainText);
+        Assert.Contains($"<pre class=\"mermaid\" data-seg=\"{diagram.AnchorId}\">sequenceDiagram", doc.HtmlBody);
+        Assert.Contains("A->>B: Hola &lt;b>x&lt;/b>", doc.HtmlBody); // escapado: el código no se vuelve HTML
+    }
+
+    [Fact]
     public void Html_ContainsAnAnchorForEverySegment()
     {
         var doc = Parse("# T\n\nPárrafo.\n\n- uno\n- dos\n\n| A |\n|---|\n| 1 |\n\n```js\nx\n```\n\n> cita");

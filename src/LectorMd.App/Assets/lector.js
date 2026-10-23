@@ -2,6 +2,9 @@
 (() => {
   'use strict';
 
+  // https://app.lector/lector.js: de aquí salen los demás recursos de la app (mermaid.min.js).
+  const scriptBase = (document.currentScript && document.currentScript.src) || location.href;
+
   const post = (message) => {
     if (window.chrome && window.chrome.webview) {
       window.chrome.webview.postMessage(message);
@@ -54,6 +57,7 @@
 
   function scrollToY(y) {
     window.scrollTo(0, y);
+    diagrams.rememberScroll(y);
   }
 
   // La app guarda la posición de cada pestaña para restaurarla al volver o al reabrir.
@@ -345,7 +349,15 @@
       return true; // dentro de la barra las teclas escriben o pulsan sus botones: ningún atajo del lector
     }
 
-    return { open, close, handleKey };
+    // El texto de la página cambió (se dibujaron los diagramas): se vuelve a indexar y a buscar.
+    function refresh() {
+      index = null;
+      if (bar && !bar.hidden && input.value.trim()) {
+        search();
+      }
+    }
+
+    return { open, close, handleKey, refresh };
   })();
 
   document.addEventListener('keydown', (e) => {
@@ -415,5 +427,126 @@
     }
   }, { passive: true });
 
-  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, find };
+  // Diagramas Mermaid (```mermaid): Markdig deja el código en <pre class="mermaid" data-seg>. Mermaid pesa 5 MB y
+  // se carga solo si el documento tiene alguno. Se dibuja con los colores de lector.css y otra vez al cambiar de tema.
+  const diagrams = (() => {
+    const blocks = Array.from(document.querySelectorAll('pre.mermaid')).map((el) => ({ el, source: el.textContent }));
+    const dark = window.matchMedia('(prefers-color-scheme: dark)');
+    let loading = null;
+    let generation = 0;
+    let counter = 0;
+    let pending = blocks.length > 0;
+    let restoreY = null;
+
+    // La app restaura la posición guardada (en píxeles, medida con los diagramas ya dibujados) apenas carga la página.
+    // Si llega antes de que terminen de dibujarse, se vuelve a aplicar al final, salvo que el usuario ya se haya movido.
+    function rememberScroll(y) {
+      if (pending) restoreY = y;
+    }
+    for (const type of ['wheel', 'keydown', 'mousedown', 'touchstart']) {
+      window.addEventListener(type, () => { restoreY = null; }, { capture: true, passive: true });
+    }
+
+    function finishFirstDraw() {
+      if (!pending) return;
+      pending = false;
+      if (restoreY !== null) {
+        window.scrollTo(0, restoreY);
+        restoreY = null;
+      }
+    }
+
+    function load() {
+      loading = loading || new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = new URL('mermaid.min.js', scriptBase).href; // la página tiene <base> en la carpeta del documento
+        script.onload = () => (window.mermaid ? resolve(window.mermaid) : reject(new Error('Mermaid no se inicializó.')));
+        script.onerror = () => reject(new Error('No se pudo cargar mermaid.min.js.'));
+        document.head.appendChild(script);
+      });
+      return loading;
+    }
+
+    function themeVariables() {
+      const css = getComputedStyle(document.documentElement);
+      const v = (name) => css.getPropertyValue(name).trim();
+      return {
+        darkMode: dark.matches,
+        background: v('--bg'),
+        primaryColor: v('--soft'),
+        primaryTextColor: v('--fg'),
+        primaryBorderColor: v('--accent'),
+        secondaryColor: v('--reading'),
+        tertiaryColor: v('--bg'),
+        lineColor: v('--muted'),
+        textColor: v('--fg'),
+        fontFamily: '"Segoe UI Variable Text", "Segoe UI", sans-serif',
+        fontSize: '15px',
+      };
+    }
+
+    // Cambiar la altura de un bloque no debe mover lo que el usuario está viendo (ni la posición restaurada al abrir).
+    function keepingPosition(change) {
+      const anchor = Array.from(document.querySelectorAll('[data-seg]')).find((el) => el.getBoundingClientRect().bottom > 0);
+      const before = anchor ? anchor.getBoundingClientRect().top : 0;
+      change();
+      if (anchor) {
+        const delta = anchor.getBoundingClientRect().top - before;
+        if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+      }
+    }
+
+    async function render() {
+      const mine = ++generation;
+      let mermaid;
+      try {
+        mermaid = await load();
+      } catch (e) {
+        blocks.forEach((b) => keepingPosition(() => fail(b, e)));
+        finishFirstDraw();
+        return;
+      }
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', themeVariables: themeVariables() });
+      for (const block of blocks) {
+        const id = 'lector-diagrama-' + (++counter);
+        try {
+          const { svg } = await mermaid.render(id, block.source);
+          if (mine !== generation) return; // otro cambio de tema ya está dibujando
+          keepingPosition(() => {
+            block.el.innerHTML = svg;
+            block.el.classList.remove('lector-diagram-pending', 'lector-diagram-error');
+            block.el.classList.add('lector-diagram');
+            block.el.removeAttribute('title');
+          });
+        } catch (e) {
+          // Si el código tiene un error, Mermaid deja su borrador en la página.
+          for (const leftover of [document.getElementById(id), document.getElementById('d' + id)]) {
+            if (leftover && !blocks.some((b) => b.el === leftover)) leftover.remove();
+          }
+          if (mine !== generation) return;
+          keepingPosition(() => fail(block, e));
+        }
+      }
+      finishFirstDraw();
+      find.refresh(); // el texto de los diagramas cambió: los resultados de la búsqueda también
+    }
+
+    // Se muestra el código, con el motivo al pasar el mouse.
+    function fail(block, error) {
+      block.el.textContent = block.source;
+      block.el.classList.remove('lector-diagram-pending', 'lector-diagram');
+      block.el.classList.add('lector-diagram-error');
+      block.el.title = 'No se pudo dibujar el diagrama: ' + ((error && error.message) || error);
+    }
+
+    if (blocks.length) {
+      blocks.forEach((b) => b.el.classList.add('lector-diagram-pending'));
+      render();
+      dark.addEventListener('change', render);
+    }
+
+    return { count: blocks.length, rememberScroll };
+  })();
+
+  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, find, diagrams };
 })();

@@ -336,7 +336,7 @@ internal sealed class DocumentView
         }
 
         Assembly assembly = typeof(DocumentView).Assembly;
-        foreach (string name in new[] { "lector.css", "lector.js" })
+        foreach (string name in new[] { "lector.css", "lector.js", "mermaid.min.js" })
         {
             using Stream? stream = assembly.GetManifestResourceStream(name);
             if (stream is null)

@@ -111,6 +111,39 @@ table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 
 th, td { border: 1px solid var(--border); padding: 6px 13px; }
 th { background: var(--soft); font-weight: 600; text-align: left; }
 
+/* Diagramas Mermaid: lector.js los dibuja dentro del mismo <pre class="mermaid">. */
+pre.mermaid { font-family: "Cascadia Mono", "Cascadia Code", Consolas, monospace; font-size: 0.86em; }
+pre.mermaid.lector-diagram {
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  border-color: transparent;
+  padding: 8px 0;
+  text-align: center;
+  white-space: normal;
+  line-height: normal;
+}
+pre.mermaid.lector-diagram svg { max-width: 100%; height: auto; }
+pre.mermaid.lector-diagram-pending { position: relative; min-height: 120px; color: transparent; }
+pre.mermaid.lector-diagram-pending::after {
+  content: "Dibujando el diagrama…";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+pre.mermaid.lector-diagram-error::before {
+  content: "No se pudo dibujar el diagrama (pasa el mouse para ver el motivo):";
+  display: block;
+  margin-bottom: 0.6em;
+  color: var(--caution);
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
 hr { border: 0; height: 1px; background: var(--border); margin: 2em 0; }
 img { max-width: 100%; }
 dt { font-weight: 600; }

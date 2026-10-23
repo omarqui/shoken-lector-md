@@ -21,6 +21,7 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 | `> [!WARNING]` (alertas de GitHub) | "Advertencia." y luego el contenido. También Nota, Consejo, Importante y Precaución |
 | Tablas | "Tabla con columnas: Motor, Costo." Luego, por cada fila: "Motor: Azure. Costo: Gratis." |
 | Bloques de código | "Bloque de código en C#." (en Configuración puedes omitirlos o leerlos) |
+| Diagramas ` ```mermaid ` | Se dibujan (secuencia, flujo, clases, estados, Gantt…) con los colores del tema y se leen como "Diagrama." |
 | `---` | Pausa extra, como cambio de tema |
 | Enlaces | Solo se lee el texto. Las URL sueltas se leen como "enlace" |
 | Imágenes, HTML y front matter YAML | Se omiten |

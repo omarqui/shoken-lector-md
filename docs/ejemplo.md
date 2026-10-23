@@ -33,3 +33,24 @@ docker compose up -d
 ```
 
 Si algo falla, revisa los registros (p. ej. `docker logs api`) & reporta en <https://soporte.ejemplo.com>.
+
+## Cómo fluye una descarga
+
+```mermaid
+sequenceDiagram
+  actor U as Usuario
+  participant FE as Frontend
+  participant BE as Backend
+  participant AZ as Azure Blob
+  U->>FE: Abre /archivos/descargar/fileId
+  FE->>BE: Pide la URL de descarga (GraphQL)
+  BE-->>FE: SAS de lectura (5 min)
+  FE->>AZ: Redirige y descarga
+```
+
+```mermaid
+flowchart LR
+  A[Subir archivo] --> B{¿Es público?}
+  B -- Sí --> C[Enlace público]
+  B -- No --> D[SAS temporal]
+```

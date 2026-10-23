@@ -1,0 +1,2 @@
+# Mermaid empaquetado tal cual (minificado, una sola línea): sin conversión de fin de línea ni diffs.
+src/LectorMd.App/Assets/mermaid.min.js -text -diff
