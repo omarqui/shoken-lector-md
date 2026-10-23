@@ -111,7 +111,8 @@
                     <Border Width="46" />
                 </StackPanel>
 
-                <StackPanel x:Name="RightPanel" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <StackPanel x:Name="RightPanel" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            SizeChanged="OnRightPanelSizeChanged">
                     <!-- Velocidad -->
                     <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="16,0,10,0"
                             AutomationProperties.Name="Velocidad">

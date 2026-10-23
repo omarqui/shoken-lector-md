@@ -46,7 +46,8 @@ public sealed class EngineServices : IDisposable
 
     public HybridTtsEngine Engine { get; }
 
-    public static EngineServices Create(AppSettings settings, AppPaths paths)
+    /// <param name="dictionary">Para escuchar una pronunciación antes de guardarla; null = la del archivo del usuario.</param>
+    public static EngineServices Create(AppSettings settings, AppPaths paths, PronunciationDictionary? dictionary = null)
     {
         paths.EnsureCreated();
 
@@ -56,7 +57,7 @@ public sealed class EngineServices : IDisposable
             Tables = settings.Tables,
             ReadImageAltText = settings.ReadImageAltText,
         });
-        var normalizer = new SpeechTextNormalizer(PronunciationDictionary.LoadOrCreate(paths.PronunciationFile));
+        var normalizer = new SpeechTextNormalizer(dictionary ?? PronunciationDictionary.LoadOrCreate(paths.PronunciationFile));
         var cache = new AudioCache(paths.CacheDirectory);
         var usage = new UsageTracker(paths.UsageFile, settings.MonthlyCharacterLimit);
 

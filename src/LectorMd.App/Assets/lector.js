@@ -143,5 +143,42 @@
     }
   });
 
+  // Selección de 1 a 3 palabras: la app muestra un botón para editar su pronunciación. Se espera un instante
+  // porque el doble clic (leer desde aquí) también selecciona una palabra y luego la quita.
+  let selectionTimer = 0;
+  let selectionShown = false;
+  document.addEventListener('mouseup', () => {
+    clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(() => {
+      const selection = window.getSelection();
+      const text = selection ? selection.toString().trim() : '';
+      const words = text.split(/\s+/).filter(Boolean);
+      if (!selection || selection.rangeCount === 0 || text.length === 0 || text.length > 40 || words.length > 3 || /\n/.test(text)) {
+        if (selectionShown) {
+          selectionShown = false;
+          post({ type: 'selectionCleared' });
+        }
+        return;
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      const node = selection.anchorNode && selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode && selection.anchorNode.parentElement;
+      const block = node ? node.closest('[data-seg]') : null;
+      selectionShown = true;
+      post({
+        type: 'selection',
+        text: text.replace(/^[^\p{L}\p{N}#.]+|[^\p{L}\p{N}#+]+$/gu, ''),
+        x: rect.left, y: rect.bottom,
+        anchor: block ? block.getAttribute('data-seg') : null,
+      });
+    }, 350);
+  });
+  // Al desplazar, el botón quedaría en otro lugar: se esconde (solo si estaba visible, para no inundar mensajes).
+  window.addEventListener('scroll', () => {
+    if (selectionShown) {
+      selectionShown = false;
+      post({ type: 'selectionCleared' });
+    }
+  }, { passive: true });
+
   window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY };
 })();

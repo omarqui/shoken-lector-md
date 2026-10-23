@@ -129,6 +129,8 @@ public partial class MainWindow : Window
             _view.CommandRequested += command => Dispatcher.InvokeAsync(() => ExecuteCommand(command));
             _view.LinkActivated += uri => Dispatcher.InvokeAsync(() => OnLinkActivated(uri));
             _view.FileDropped += path => Dispatcher.InvokeAsync(() => _ = OpenFilesAsync([path]));
+            _view.SelectionMade += (text, at, anchor) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor));
+            _view.SelectionCleared += () => Dispatcher.InvokeAsync(OnSelectionCleared);
             _view.ScrollChanged += y => Dispatcher.InvokeAsync(() =>
             {
                 // Mientras se carga otra pestaña, la página que sigue a la vista es la anterior.

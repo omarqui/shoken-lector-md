@@ -276,6 +276,42 @@ public sealed class PronunciationDictionary
         return _regex.Replace(text, m => _entries.TryGetValue(m.Value, out string? replacement) ? replacement : m.Value);
     }
 
+    /// <summary>Una copia con un término agregado o cambiado (para escuchar cómo queda antes de guardar).</summary>
+    public PronunciationDictionary WithEntry(string term, string spoken)
+    {
+        var copy = new Dictionary<string, string>(_entries, StringComparer.OrdinalIgnoreCase) { [term.Trim()] = spoken };
+        return new PronunciationDictionary(copy);
+    }
+
+    /// <summary>
+    /// Agrega o cambia un término en el archivo del usuario (sin distinguir mayúsculas y conservando cómo estaba
+    /// escrito), o lo quita si <paramref name="spoken"/> es null. Los demás términos quedan igual.
+    /// Los comentarios que el usuario haya escrito en el JSON no se conservan.
+    /// </summary>
+    public static void Upsert(string path, string term, string? spoken)
+    {
+        Dictionary<string, string> entries = File.Exists(path)
+            ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path), JsonOptions) ?? []
+            : new Dictionary<string, string>(Defaults);
+
+        string key = term.Trim();
+        string? existing = entries.Keys.FirstOrDefault(k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
+        if (spoken is null)
+        {
+            if (existing is not null)
+            {
+                entries.Remove(existing);
+            }
+        }
+        else
+        {
+            entries[existing ?? key] = spoken.Trim();
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        File.WriteAllText(path, ToJson(entries));
+    }
+
     public static PronunciationDictionary FromJson(string json)
     {
         var entries = JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOptions)

@@ -356,7 +356,12 @@ public partial class PlayerBar : UserControl
     /// Como Spotify, el transporte va centrado en la ventana (las dos columnas laterales iguales). Si no alcanza el
     /// ancho, la columna derecha toma solo lo que necesita: el transporte se corre un poco, pero nada se corta.
     /// </summary>
-    private void OnControlsSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnControlsSizeChanged(object sender, SizeChangedEventArgs e) => UpdateColumns();
+
+    // El lado derecho también crece sin que cambie la ventana (aparece el porcentaje, cambia el motor): se recalcula.
+    private void OnRightPanelSizeChanged(object sender, SizeChangedEventArgs e) => UpdateColumns();
+
+    private void UpdateColumns()
     {
         RightPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         TransportPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
