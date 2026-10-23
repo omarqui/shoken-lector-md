@@ -6,10 +6,7 @@ public sealed record OutlineEntry(int SegmentId, string AnchorId, int Level, int
 /// <summary>Estados del botón de contraer del índice, en el orden en que los recorre.</summary>
 public enum OutlineFold
 {
-    /// <summary>Solo los títulos de primer nivel.</summary>
-    All,
-
-    /// <summary>Los de primer nivel con sus subtítulos directos; lo más hondo, contraído.</summary>
+    /// <summary>Los de primer nivel con sus subtítulos directos; lo más hondo, contraído. Es como abre cada documento.</summary>
     FirstLevel,
 
     /// <summary>Todo expandido.</summary>
@@ -89,17 +86,17 @@ public static class DocumentOutline
     /// <summary>Títulos que quedan contraídos (por su ancla) en cada estado del botón.</summary>
     public static IReadOnlySet<string> Folded(IReadOnlyList<OutlineEntry> outline, OutlineFold fold) =>
         outline
-            .Where((entry, i) => fold != OutlineFold.None && HasChildren(outline, i) && (fold == OutlineFold.All || entry.Indent >= 1))
+            .Where((entry, i) => fold == OutlineFold.FirstLevel && HasChildren(outline, i) && entry.Indent >= 1)
             .Select(entry => entry.AnchorId)
             .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
-    /// El siguiente estado del botón: contraer todo → primer nivel → expandir todo → contraer todo. Se salta un
-    /// estado que se vería igual que el anterior; desde un estado hecho a mano, empieza por contraer todo.
+    /// El siguiente estado del botón: primer nivel ↔ expandir todo. Si los dos se verían igual queda uno solo;
+    /// desde un estado hecho a mano, va al primer nivel.
     /// </summary>
     public static OutlineFold NextFold(IReadOnlyList<OutlineEntry> outline, IReadOnlySet<string> collapsedAnchors)
     {
-        OutlineFold[] order = [OutlineFold.All, OutlineFold.FirstLevel, OutlineFold.None];
+        OutlineFold[] order = [OutlineFold.FirstLevel, OutlineFold.None];
         List<OutlineFold> cycle = order
             .Where((fold, i) => i == 0 || !Folded(outline, fold).SetEquals(Folded(outline, order[i - 1])))
             .ToList();

@@ -224,34 +224,33 @@ public class TabsAndOutlineTests
     }
 
     [Fact]
-    public void Outline_FoldAllShowsTopLevel_FirstLevelShowsOneMore_NoneShowsEverything()
+    public void Outline_FoldFirstLevelShowsTopLevelWithItsSections_NoneShowsEverything()
     {
         IReadOnlyList<OutlineEntry> outline = Tree();
 
-        Assert.Equal([0, 4], DocumentOutline.VisibleRows(outline, DocumentOutline.Folded(outline, OutlineFold.All)));
         Assert.Equal([0, 1, 3, 4, 5], DocumentOutline.VisibleRows(outline, DocumentOutline.Folded(outline, OutlineFold.FirstLevel)));
         Assert.Empty(DocumentOutline.Folded(outline, OutlineFold.None));
     }
 
     [Fact]
-    public void Outline_FoldButtonCycles_All_FirstLevel_None_AndStartsWithAllFromAHandMadeState()
+    public void Outline_FoldButtonAlternatesFirstLevelAndExpanded_AndGoesToFirstLevelFromAHandMadeState()
     {
         IReadOnlyList<OutlineEntry> outline = Tree();
 
-        Assert.Equal(OutlineFold.All, DocumentOutline.NextFold(outline, Collapsed(outline)));
-        Assert.Equal(OutlineFold.FirstLevel, DocumentOutline.NextFold(outline, DocumentOutline.Folded(outline, OutlineFold.All)));
+        Assert.Equal(OutlineFold.FirstLevel, DocumentOutline.NextFold(outline, Collapsed(outline)));
         Assert.Equal(OutlineFold.None, DocumentOutline.NextFold(outline, DocumentOutline.Folded(outline, OutlineFold.FirstLevel)));
-        Assert.Equal(OutlineFold.All, DocumentOutline.NextFold(outline, Collapsed(outline, "B"))); // contraído a mano
+        Assert.Equal(OutlineFold.FirstLevel, DocumentOutline.NextFold(outline, Collapsed(outline, "B"))); // contraído a mano
+        Assert.Equal(OutlineFold.FirstLevel, DocumentOutline.NextFold(outline, Collapsed(outline, "A", "A1", "B"))); // todo, a mano
     }
 
     [Fact]
-    public void Outline_FoldButtonSkipsFirstLevel_WhenItWouldShowTheSameAsExpanded()
+    public void Outline_WithTwoLevelsFirstLevelIsExpanded_SoTheButtonOnlyUndoesHandMadeFolds()
     {
-        // Dos niveles: "primer nivel" y "expandir todo" se ven igual, así que el botón alterna entre dos estados.
+        // Dos niveles: contraer al primer nivel no oculta nada; el botón solo sirve para deshacer lo contraído a mano.
         IReadOnlyList<OutlineEntry> outline = DocumentOutline.Build(Parse("# A\n\nx\n\n## A1\n\nx\n\n# B\n\nx"));
 
-        Assert.Equal(OutlineFold.All, DocumentOutline.NextFold(outline, Collapsed(outline)));
-        Assert.Empty(DocumentOutline.Folded(outline, DocumentOutline.NextFold(outline, DocumentOutline.Folded(outline, OutlineFold.All))));
+        Assert.Empty(DocumentOutline.Folded(outline, OutlineFold.FirstLevel));
+        Assert.Empty(DocumentOutline.Folded(outline, DocumentOutline.NextFold(outline, Collapsed(outline, "A"))));
     }
 
     [Theory]

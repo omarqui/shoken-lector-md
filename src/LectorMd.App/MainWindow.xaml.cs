@@ -722,6 +722,14 @@ public partial class MainWindow : Window
         OutlineEmpty.Visibility = _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         _markedEntry = -1; // otro documento: la sección marcada del anterior no aplica
         _findCounts = null; // la página nueva empieza sin búsqueda
+
+        // Cada pestaña abre contraída al primer nivel; después se respeta lo que el usuario expanda o contraiga.
+        if (document is not null && _active is { OutlineFoldApplied: false } tab)
+        {
+            tab.CollapsedOutline.UnionWith(DocumentOutline.Folded(_outline, OutlineFold.FirstLevel));
+            tab.OutlineFoldApplied = true;
+        }
+
         RefreshOutline();
     }
 
@@ -776,22 +784,19 @@ public partial class MainWindow : Window
             ? viewer
             : null;
 
-    /// <summary>El botón del encabezado muestra lo que hará al pulsarlo: contraer todo, al primer nivel o expandir.</summary>
+    /// <summary>
+    /// El botón del encabezado alterna entre contraer al primer nivel y expandir todo, y muestra lo que hará al
+    /// pulsarlo. Si no cambiaría nada (un índice de dos niveles sin nada contraído), no se muestra.
+    /// </summary>
     private void UpdateCollapseAllButton()
     {
-        bool hasParents = _outline.Where((_, i) => DocumentOutline.HasChildren(_outline, i)).Any();
-        OutlineCollapseAll.Visibility = hasParents ? Visibility.Visible : Visibility.Collapsed;
-        if (!hasParents)
-        {
-            return;
-        }
-
         OutlineFold next = DocumentOutline.NextFold(_outline, CollapsedOutline);
-        (string glyph, string label) = DocumentOutline.Folded(_outline, next).Count == 0
+        IReadOnlySet<string> result = DocumentOutline.Folded(_outline, next);
+        bool changesSomething = _outline.Count > 0 && !result.SetEquals(CollapsedOutline.Intersect(_outline.Select(e => e.AnchorId)));
+        OutlineCollapseAll.Visibility = changesSomething ? Visibility.Visible : Visibility.Collapsed;
+        (string glyph, string label) = result.Count == 0
             ? ("", "Expandir todas las secciones")
-            : next == OutlineFold.All
-                ? ("", "Contraer todas las secciones")
-                : ("", "Contraer al primer nivel");
+            : ("", "Contraer al primer nivel");
         OutlineCollapseAllIcon.Text = glyph;
         OutlineCollapseAll.ToolTip = label;
         System.Windows.Automation.AutomationProperties.SetName(OutlineCollapseAll, label);
@@ -823,7 +828,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Contraer todo → primer nivel → expandir todo (desde lo contraído a mano, empieza por contraer todo).
+        // Primer nivel ↔ expandir todo (desde lo contraído a mano, va al primer nivel).
         OutlineFold next = DocumentOutline.NextFold(_outline, _active.CollapsedOutline);
         _active.CollapsedOutline.Clear();
         _active.CollapsedOutline.UnionWith(DocumentOutline.Folded(_outline, next));

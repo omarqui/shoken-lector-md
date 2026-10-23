@@ -15,6 +15,9 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
     /// <summary>Títulos contraídos en el índice (por su ancla). Se recuerdan mientras la app está abierta.</summary>
     public HashSet<string> CollapsedOutline { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>Ya se aplicó el "contraído al primer nivel" con que abre su índice; desde ahí manda el usuario.</summary>
+    public bool OutlineFoldApplied { get; set; }
+
     public string Name => State.Name;
 
     /// <summary>Texto pegado (en memoria): su ícono va en otro color que el de los archivos .md.</summary>
