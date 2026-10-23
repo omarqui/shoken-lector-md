@@ -77,6 +77,20 @@ internal sealed class DocumentView
         _core.NewWindowRequested += OnNewWindowRequested;
     }
 
+    /// <summary>Colores del documento: lector.css responde a prefers-color-scheme sin recargar la página.</summary>
+    public void SetColorScheme(AppTheme theme)
+    {
+        if (_core is not null)
+        {
+            _core.Profile.PreferredColorScheme = theme switch
+            {
+                AppTheme.Light => CoreWebView2PreferredColorScheme.Light,
+                AppTheme.Dark => CoreWebView2PreferredColorScheme.Dark,
+                _ => CoreWebView2PreferredColorScheme.Auto,
+            };
+        }
+    }
+
     public Task ShowWelcomeAsync() => NavigateAsync($"bienvenida-{_instance}.html", HtmlPages.Welcome());
 
     public Task ShowEmptyTabAsync() => NavigateAsync($"vacia-{_instance}.html", HtmlPages.EmptyTab());

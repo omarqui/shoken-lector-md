@@ -49,10 +49,11 @@ public partial class MainWindow : Window
 
     public MainWindow(string? fileToOpen)
     {
-        InitializeComponent();
-        _fileFromCommandLine = fileToOpen;
         _settingsStore = new SettingsStore(_paths);
         _settings = _settingsStore.Load();
+        ThemeService.Apply(_settings.Theme); // antes de crear los controles, para que no parpadeen
+        InitializeComponent();
+        _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
         TabList.ItemsSource = _tabs;
 
@@ -74,6 +75,7 @@ public partial class MainWindow : Window
         SpeedSlider.Value = Math.Clamp(_settings.PlaybackSpeed, SpeedSlider.Minimum, SpeedSlider.Maximum);
         UpdateSpeedLabel();
         ApplyOutlineVisibility();
+        UpdateThemeButton();
         UpdateButtons();
     }
 
@@ -100,6 +102,7 @@ public partial class MainWindow : Window
                 }
             });
             await _view.InitializeAsync();
+            _view.SetColorScheme(_settings.Theme);
         }
         catch (Exception ex)
         {
@@ -558,6 +561,27 @@ public partial class MainWindow : Window
     }
 
     private void OnOutlineToggleClick(object sender, RoutedEventArgs e) => ToggleOutline();
+
+    // ------------------------------------------------------------------ tema
+
+    private void OnThemeClick(object sender, RoutedEventArgs e)
+    {
+        _settings.Theme = ThemeService.Toggled();
+        ThemeService.Apply(_settings.Theme);
+        _view?.SetColorScheme(_settings.Theme);
+        UpdateThemeButton();
+        _settingsStore.Save(_settings);
+    }
+
+    /// <summary>Un solo botón: muestra el sol en oscuro (pasa a claro) y la luna en claro (pasa a oscuro).</summary>
+    private void UpdateThemeButton()
+    {
+        bool dark = ThemeService.IsDark;
+        ThemeIcon.Text = dark ? "" : "";
+        string label = dark ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
+        ThemeButton.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(ThemeButton, label);
+    }
 
     private void OnOutlineItemClick(object sender, MouseButtonEventArgs e)
     {
