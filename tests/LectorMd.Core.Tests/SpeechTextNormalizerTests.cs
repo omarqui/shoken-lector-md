@@ -19,6 +19,27 @@ public class SpeechTextNormalizerTests
         Assert.Equal(expected, _normalizer.Normalize(input));
     }
 
+    [Theory]
+    [InlineData("Edita settings.json y AGENTS.md", "Edita settings punto yéison y éiyents punto eme de")]
+    [InlineData("Abre README.md.", "Abre ríd mi punto eme de.")]
+    [InlineData("Compila LectorMd.App.csproj", "Compila LectorMd punto App punto ce ese proy")]
+    [InlineData("Corre main.prg y Deploy.PS1", "Corre main punto pe erre gue y diplói punto pe ese uno")]
+    [InlineData("Revisa datos.pqr", "Revisa datos punto pe cu erre")]
+    public void FileNames_ReadTheDotAsPuntoAndPronounceTheExtension(string input, string expected)
+    {
+        Assert.Equal(expected, _normalizer.Normalize(input));
+    }
+
+    [Theory]
+    [InlineData("Usa Node.js y ASP.NET", "Usa nod yei es y a ese pe dot net")]
+    [InlineData("Ver e.g. la versión 1.2", "Ver por ejemplo la versión 1.2")]
+    [InlineData("Terminé.Luego sigo", "Terminé.Luego sigo")]
+    [InlineData("El namespace LectorMd.App", "El namespace LectorMd.App")]
+    public void FileNames_LeaveDictionaryTermsVersionsAndSentencesAlone(string input, string expected)
+    {
+        Assert.Equal(expected, _normalizer.Normalize(input));
+    }
+
     [Fact]
     public void Dictionary_DoesNotReplaceInsideWords()
     {

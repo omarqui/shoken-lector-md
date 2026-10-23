@@ -61,6 +61,7 @@ public sealed class SpeechTextNormalizer
 
         result = Approximately.Replace(result, "aproximadamente ");
         result = SnakeCase.Replace(result, " ");
+        result = FileNameReader.Apply(result, term => _dictionary.Entries.ContainsKey(term));
         result = _dictionary.Apply(result);
         result = StripPictographs(result);
         result = Spaces.Replace(result, " ");
