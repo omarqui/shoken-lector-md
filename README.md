@@ -61,8 +61,8 @@ Lo que conviene saber de la capa F0:
 
 - Incluye 500 000 caracteres al mes y hasta 20 peticiones por minuto. La app agrupa los párrafos en bloques de unos 700 caracteres y adelanta solo 2, así que no llega a ese límite.
 - **Las etiquetas también cuentan.** Azure cobra todo el SSML excepto `<speak>` y `<voice>`: cada pausa, cada marca de resaltado y cada negrita. En documentos con párrafos normales, el total es aproximadamente 1.5 veces el texto. Con muchas listas o tablas cortas puede llegar a 2.5 veces.
-- La app lleva un **contador local** (en el reproductor, abajo a la derecha). El límite por defecto es de 480 000 caracteres para dejar margen; al llegar, cambia a Piper. El contador se reinicia el día 1 de cada mes (UTC).
-- **Consumo real:** el botón ⟳ junto al contador consulta en Azure Monitor la métrica *Synthesized Characters* del mes. Si Azure reporta más que el contador local (por ejemplo, porque usas la misma clave en otras apps), el contador sube a esa cifra; nunca baja. La primera vez se abre el navegador para que inicies sesión con la cuenta que tiene el recurso. Después la sesión queda guardada en la caché cifrada de Windows. Si la cuenta tiene varios recursos de Speech, la app te pide elegir uno y lo recuerda. Azure tarda de 1 a 3 minutos en reflejar lo más reciente. Si tu cuenta es personal (Microsoft) y no encuentra el recurso, escribe el **Id de directorio** en Configuración: está en el portal, en *Microsoft Entra ID → Información general*.
+- La app lleva un **contador local**. Abajo a la derecha del reproductor, el estado de Azure muestra un punto (verde: funciona; ámbar: respaldo; rojo: sin motor), una barra corta y el porcentaje del mes; la barra realza los consumos bajos para que se noten, y el porcentaje es el exacto. Al pasar el mouse se abre un panel con el detalle (voz, si el audio sale de la caché, caracteres usados, fecha de reinicio y última consulta a Azure). El límite por defecto es de 480 000 caracteres para dejar margen; al llegar, cambia a Piper. El contador se reinicia el día 1 de cada mes (UTC).
+- **Consumo real:** el botón *Consultar consumo real en Azure* del panel consulta en Azure Monitor la métrica *Synthesized Characters* del mes. Si Azure reporta más que el contador local (por ejemplo, porque usas la misma clave en otras apps), el contador sube a esa cifra; nunca baja. La primera vez se abre el navegador para que inicies sesión con la cuenta que tiene el recurso. Después la sesión queda guardada en la caché cifrada de Windows. Si la cuenta tiene varios recursos de Speech, la app te pide elegir uno y lo recuerda. Azure tarda de 1 a 3 minutos en reflejar lo más reciente. Si tu cuenta es personal (Microsoft) y no encuentra el recurso, escribe el **Id de directorio** en Configuración: está en el portal, en *Microsoft Entra ID → Información general*.
 - La clave se guarda cifrada con DPAPI: solo tu usuario de Windows puede leerla.
 
 Voces es-MX: **Dalia** (mujer) y **Jorge** (hombre) son las más naturales. También están Beatriz, Candela, Carlota, Cecilio, Gerardo, Larissa, Liberto, Luciano, Marina, Nuria, Pelayo, Renata y Yago. El campo es editable, así que puedes escribir cualquier otra voz de Azure.
@@ -93,7 +93,7 @@ Para cada bloque de audio, en este orden:
 | Demasiadas peticiones (429) | Reintenta 2 veces y luego usa Piper durante 60 s |
 | Clave o región inválida | Usa Piper hasta que corrijas la configuración |
 
-Mientras se usa el respaldo, el punto junto a la voz (en el reproductor) se pone **ámbar** y el motivo aparece al pasar el mouse.
+Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **ámbar** y el motivo aparece en su panel al pasar el mouse.
 
 ## Uso
 
@@ -110,13 +110,17 @@ Mientras se usa el respaldo, el punto junto a la voz (en el reproductor) se pone
 | Mostrar u ocultar el índice | `Ctrl` + `B` |
 | Recargar (y releer el diccionario) | `F5` |
 | Configuración | `Ctrl` + `,` |
+| Leer lo copiado, desde cualquier app | `Ctrl` + `Alt` + `L` |
 
 - **Pestañas:** viven en la barra de título (con muchas, se recorren con la rueda del mouse o Ctrl+Tab). Cada documento se abre en su pestaña, con un ícono que distingue los archivos `.md` (al pasar el mouse muestran su ruta) del texto pegado. Si ya estaba abierto, la app va a esa pestaña. Al cambiar de pestaña la lectura se pausa, y cada una recuerda su párrafo y su posición. Al cerrar la app se guardan las pestañas abiertas y se reabren al iniciar.
 - **Pegar (`Ctrl` + `V`):** si el portapapeles tiene rutas (una por línea, con o sin comillas, o archivos copiados en el Explorador), se abren. Si tiene otro texto, se lee como Markdown en una pestaña nueva, o en la vacía si estás en una. El texto pegado se guarda hasta que cierras su pestaña.
 - **Índice:** el panel izquierdo muestra los títulos (h1 a h3) con la duración de cada sección (con ≈ mientras es estimada). Con un clic vas al título, con doble clic (o `Enter`) empieza a leer ahí, y mientras lee se marca la sección actual.
-- **Reproductor (abajo):** la línea de tiempo está dividida por capítulos (los títulos del índice); un clic en un tramo lee desde ahí. Muestra el tiempo transcurrido y el que falta, la sección y el párrafo, la voz y si el audio sale de la caché (sin gastar cuota), y el consumo de Azure. Las duraciones de lo que todavía no se generó son estimadas (≈) y se corrigen cuando se genera su audio.
+- **Reproductor (abajo):** la línea de tiempo está dividida por capítulos (los títulos del índice); un clic en un tramo lee desde ahí. Debajo, como en Spotify: la sección y el párrafo a la izquierda, los controles al centro, y la velocidad y el estado de Azure a la derecha. Las duraciones de lo que todavía no se generó son estimadas (≈) y se corrigen cuando se genera su audio.
 - **Velocidad** (selector del reproductor, de 0.75× a 1.75×): acelera o frena la reproducción al instante, sin volver a generar audio ni gastar cuota.
 - **Tema:** el botón sol/luna alterna claro y oscuro (la primera vez sigue el tema de Windows). El documento cambia de colores sin recargarse.
+- **Bandeja del sistema:** cerrar la ventana no cierra la app: queda en la bandeja (doble clic la abre; clic derecho: *Abrir*, *Leer portapapeles*, *Salir*). Hay una sola instancia: abrir un `.md` desde el Explorador con la app abierta lo agrega como pestaña.
+- **Leer lo copiado (`Ctrl` + `Alt` + `L`):** desde cualquier app, lee lo que hay en el portapapeles (rutas a `.md` o texto Markdown). El texto queda como pestaña pegada, así puedes retomarlo y su audio queda en caché. Si otra app ya usa la combinación, se avisa al iniciar.
+- **Mini reproductor:** si la ventana está oculta o minimizada mientras lee, aparece abajo a la derecha con la sección, el avance, los controles y la velocidad. No roba el foco y se cierra solo tras 10 segundos en pausa o detenido (con el mouse encima espera).
 - **Velocidad de la voz** (Configuración): cambia la síntesis misma. Como el texto enviado cambia, el audio se vuelve a generar.
 - Los enlaces a otros `.md` de la misma carpeta se abren en la app, en una pestaña nueva. Los enlaces web se abren en tu navegador.
 

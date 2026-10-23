@@ -821,7 +821,9 @@ public partial class MainWindow : Window
             _player.TogglePlayPause();
         }
 
-        if (!IsVisible || WindowState == WindowState.Minimized)
+        // Si la ventana no está al frente (oculta en la bandeja, minimizada o detrás de la app desde la que se copió),
+        // el mini reproductor da los controles sin tener que buscarla. Al activarla, el mini se cierra.
+        if (!IsVisible || WindowState == WindowState.Minimized || !IsActive)
         {
             ShowMiniPlayer();
         }
