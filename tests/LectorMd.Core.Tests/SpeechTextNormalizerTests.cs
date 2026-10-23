@@ -11,6 +11,9 @@ public class SpeechTextNormalizerTests
     [InlineData("Usa ASP.NET Core", "Usa a ese pe dot net Core")]
     [InlineData("El archivo JSON", "El archivo yéison")]
     [InlineData("Ver el README, etc.", "Ver el ríd mi, etcétera")]
+    [InlineData("Un archivo Markdown en VS Code", "Un archivo márkdaun en ve ese cod")]
+    [InlineData("Haz merge del pull request", "Haz merch del pul ricuést")]
+    [InlineData("Pulsa Ctrl + O", "Pulsa control + O")]
     public void Dictionary_ReplacesWholeTerms(string input, string expected)
     {
         Assert.Equal(expected, _normalizer.Normalize(input));
@@ -25,7 +28,7 @@ public class SpeechTextNormalizerTests
     [Fact]
     public void Checkmarks_BecomeSiAndNo_AndOtherEmojisAreRemoved()
     {
-        Assert.Equal("Azure: sí. Piper: no.", _normalizer.Normalize("Azure: ✅. Piper: ❌."));
+        Assert.Equal("Nube: sí. Sin conexión: no.", _normalizer.Normalize("Nube: ✅. Sin conexión: ❌."));
         Assert.Equal("Listo para despegar", _normalizer.Normalize("Listo para despegar 🚀"));
     }
 
