@@ -1,10 +1,134 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using System.Xml.Linq;
+using LectorMd.Core.Caching;
+using LectorMd.Core.Model;
+using LectorMd.Core.Parsing;
+using LectorMd.Core.Planning;
 using LectorMd.Core.Ssml;
+using LectorMd.Core.Text;
+using LectorMd.Core.Tts;
+using LectorMd.Core.Usage;
 
 namespace LectorMd.Core.Tests;
 
-public class GoogleTtsTests
+public sealed class GoogleTtsTests : IDisposable
 {
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "lectormd-tests-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir))
+        {
+            Directory.Delete(_dir, recursive: true);
+        }
+    }
+
+    // ------------------------------------------------------------------ motor
+
+    private sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        public List<(Uri Uri, string Body)> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add((request.RequestUri!, request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken)));
+            return respond(request);
+        }
+    }
+
+    private static HttpResponseMessage Ok() => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(
+            """{"audioContent":"AQID","timepoints":[{"markName":"0","timeSeconds":0},{"markName":"1","timeSeconds":1.25}]}""",
+            Encoding.UTF8, "application/json"),
+    };
+
+    private (GoogleTtsEngine Engine, SpeechChunk Chunk, UsageTracker Usage) Create(FakeHandler handler, int limit = 100_000)
+    {
+        SpeechDocument doc = new MarkdownSpeechParser().Parse("# Título\n\nHola.");
+        var chunk = new SpeechChunk { Index = 0, Segments = doc.Segments };
+        var usage = new UsageTracker(Path.Combine(_dir, "uso-google.json"), limit);
+        var engine = new GoogleTtsEngine(
+            new GoogleTtsOptions { ApiKey = "CLAVE", Voice = "es-US-Neural2-A" },
+            new SsmlBuilder(new SpeechTextNormalizer()), new AudioCache(Path.Combine(_dir, "cache")), usage, new HttpClient(handler));
+        return (engine, chunk, usage);
+    }
+
+    [Fact]
+    public async Task Synthesize_SendsTheSsmlWithMarks_TheVoiceAndTimepointing()
+    {
+        var handler = new FakeHandler(_ => Ok());
+        (GoogleTtsEngine engine, SpeechChunk chunk, _) = Create(handler);
+
+        await engine.SynthesizeAsync(chunk, CancellationToken.None);
+
+        (Uri uri, string body) = Assert.Single(handler.Requests);
+        Assert.Equal("https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=CLAVE", uri.AbsoluteUri);
+        using JsonDocument json = JsonDocument.Parse(body);
+        JsonElement root = json.RootElement;
+        Assert.Contains("<mark name=\"0\"", root.GetProperty("input").GetProperty("ssml").GetString());
+        Assert.Equal("es-US", root.GetProperty("voice").GetProperty("languageCode").GetString());
+        Assert.Equal("es-US-Neural2-A", root.GetProperty("voice").GetProperty("name").GetString());
+        Assert.Equal("MP3", root.GetProperty("audioConfig").GetProperty("audioEncoding").GetString());
+        Assert.Equal("SSML_MARK", root.GetProperty("enableTimePointing")[0].GetString());
+    }
+
+    [Fact]
+    public async Task Synthesize_CachesTheAudioWithItsMarks_AndCountsUsage()
+    {
+        var handler = new FakeHandler(_ => Ok());
+        (GoogleTtsEngine engine, SpeechChunk chunk, UsageTracker usage) = Create(handler);
+
+        AudioChunk audio = await engine.SynthesizeAsync(chunk, CancellationToken.None);
+        AudioChunk again = await engine.SynthesizeAsync(chunk, CancellationToken.None);
+
+        Assert.Equal([TimeSpan.Zero, TimeSpan.FromSeconds(1.25)], audio.Marks.Select(m => m.Offset));
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(audio.FilePath));
+        Assert.True(again.FromCache);
+        Assert.NotNull(engine.TryGetCached(chunk));
+        Assert.Single(handler.Requests); // la segunda vez salió de la caché
+        Assert.True(usage.Used > 0);
+    }
+
+    [Fact]
+    public async Task Synthesize_WithoutLocalQuota_DoesNotCallGoogle()
+    {
+        var handler = new FakeHandler(_ => Ok());
+        (GoogleTtsEngine engine, SpeechChunk chunk, _) = Create(handler, limit: 10);
+
+        TtsException ex = await Assert.ThrowsAsync<TtsException>(() => engine.SynthesizeAsync(chunk, CancellationToken.None));
+
+        Assert.Equal(TtsFailureKind.LocalLimitReached, ex.Kind);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task Synthesize_NetworkFailure_IsNetwork()
+    {
+        var handler = new FakeHandler(_ => throw new HttpRequestException("sin red"));
+        (GoogleTtsEngine engine, SpeechChunk chunk, _) = Create(handler);
+
+        TtsException ex = await Assert.ThrowsAsync<TtsException>(() => engine.SynthesizeAsync(chunk, CancellationToken.None));
+
+        Assert.Equal(TtsFailureKind.Network, ex.Kind);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, TtsFailureKind.Authentication)]
+    [InlineData(HttpStatusCode.Unauthorized, TtsFailureKind.Authentication)]
+    [InlineData(HttpStatusCode.TooManyRequests, TtsFailureKind.RateLimited)]
+    [InlineData(HttpStatusCode.BadRequest, TtsFailureKind.Other)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, TtsFailureKind.Network)]
+    public void MapError_ClassifiesGoogleResponses(HttpStatusCode status, TtsFailureKind expected)
+    {
+        TtsException ex = GoogleTtsEngine.MapError(status, """{"error":{"code":0,"message":"detalle de Google"}}""");
+
+        Assert.Equal(expected, ex.Kind);
+        Assert.Contains("detalle de Google", ex.Message);
+    }
+
     private const string Azure =
         "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"es-MX\">" +
         "<voice name=\"es-MX-DaliaNeural\"><break time=\"300ms\"/><bookmark mark=\"0\"/>" +
