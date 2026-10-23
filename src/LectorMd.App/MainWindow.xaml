@@ -177,12 +177,12 @@
                 <Grid Margin="16,0">
                     <!-- Reserva el alto de las dos líneas (sigue el tamaño del texto): mostrar la ruta no mueve la barra. -->
                     <StackPanel Visibility="Hidden" IsHitTestVisible="False">
-                        <TextBlock Text="Ay" FontWeight="SemiBold" />
+                        <TextBlock Text="Ay" FontWeight="SemiBold" FontSize="{DynamicResource LectorFontSize16}" />
                         <TextBlock Text="Ay" Margin="0,-1,0,0" FontSize="{DynamicResource LectorFontSize12}" />
                     </StackPanel>
                     <StackPanel x:Name="DocumentHeader" VerticalAlignment="Center" HorizontalAlignment="Center" Background="Transparent"
                                 MouseEnter="OnDocumentHeaderMouseEnter" MouseLeave="OnDocumentHeaderMouseLeave">
-                        <TextBlock x:Name="DocumentTitle" HorizontalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                        <TextBlock x:Name="DocumentTitle" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="{DynamicResource LectorFontSize16}" TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource LectorTextBrush}" />
                         <TextBlock x:Name="DocumentPath" HorizontalAlignment="Center" Margin="0,-1,0,0" Visibility="Collapsed"
                                    FontSize="{DynamicResource LectorFontSize12}" TextTrimming="CharacterEllipsis"

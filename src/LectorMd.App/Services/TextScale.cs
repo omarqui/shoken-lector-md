@@ -11,7 +11,7 @@ namespace LectorMd.App.Services;
 /// </summary>
 internal static class TextScale
 {
-    private static readonly double[] DesignSizes = [10, 11, 12, 13, 14, 15, 17, 18];
+    private static readonly double[] DesignSizes = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 
     public static void Apply(TextSize size)
     {
