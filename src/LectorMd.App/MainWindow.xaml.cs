@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private SpeechDocument? _document;
     private DocumentTab? _active;
     private IReadOnlyList<OutlineEntry> _outline = [];
+    private IReadOnlyList<int>? _findCounts; // resultados de Ctrl+F por entrada del índice
     private IReadOnlyList<SpeechChunk> _chunks = [];
     private TimeSpan _lastElapsed; // última posición mostrada en la línea de tiempo (base para −10 s / +10 s)
     private ReadingTimeline? _timeline;
@@ -130,6 +131,7 @@ public partial class MainWindow : Window
             _view.FileDropped += path => Dispatcher.InvokeAsync(() => _ = OpenFilesAsync([path]));
             _view.SelectionMade += (text, at, anchor) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor));
             _view.SelectionCleared += () => Dispatcher.InvokeAsync(OnSelectionCleared);
+            _view.FindChanged += counts => Dispatcher.InvokeAsync(() => ShowFindCounts(counts));
             _view.ScrollChanged += y => Dispatcher.InvokeAsync(() =>
             {
                 // Mientras se carga otra pestaña, la página que sigue a la vista es la anterior.
@@ -710,20 +712,38 @@ public partial class MainWindow : Window
         OutlineEmpty.Text = document is null ? "Abre un documento para ver sus títulos." : "Este documento no tiene títulos.";
         OutlineEmpty.Visibility = _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         OutlineList.SelectedIndex = -1; // otro documento: la sección marcada del anterior no aplica
+        _findCounts = null; // la página nueva empieza sin búsqueda
         RefreshOutlineTimes();
     }
 
-    /// <summary>Pone a cada título la duración de su capítulo (≈ si todavía es estimada).</summary>
+    /// <summary>Pone a cada título la duración de su capítulo (≈ si todavía es estimada) y los resultados de la búsqueda.</summary>
     private void RefreshOutlineTimes()
     {
         int selected = OutlineList.SelectedIndex;
-        OutlineList.ItemsSource = _outline.Select(entry =>
+        OutlineList.ItemsSource = _outline.Select((entry, i) =>
         {
             TimelineChapter? chapter = _timeline?.Chapters.FirstOrDefault(c => c.AnchorId == entry.AnchorId);
             string time = chapter is null ? "" : (chapter.IsEstimated ? "≈" : "") + PlayerBar.Format(chapter.Duration);
-            return new OutlineItem(entry, time);
+            return new OutlineItem(entry, time, _findCounts is { } counts && i < counts.Count ? counts[i] : 0);
         }).ToList();
         OutlineList.SelectedIndex = selected < _outline.Count ? selected : -1;
+    }
+
+    /// <param name="matchesByAnchor">Resultados por bloque, o null si la búsqueda se cerró.</param>
+    private void ShowFindCounts(IReadOnlyDictionary<string, int>? matchesByAnchor)
+    {
+        _findCounts = matchesByAnchor is null || _document is null
+            ? null
+            : DocumentOutline.CountMatches(_outline, _document, matchesByAnchor);
+        RefreshOutlineTimes();
+    }
+
+    private void OpenFind()
+    {
+        if (_view is not null && _active is { State.IsEmpty: false })
+        {
+            _ = _view.OpenFindAsync();
+        }
     }
 
     private void MarkOutline(int segmentId)
@@ -997,6 +1017,7 @@ public partial class MainWindow : Window
             case "nextTab": SwitchTab(1); break;
             case "previousTab": SwitchTab(-1); break;
             case "outline": ToggleOutline(); break;
+            case "find": OpenFind(); break;
             case "back10": SkipBy(TimeSpan.FromSeconds(-10)); break;
             case "forward10": SkipBy(TimeSpan.FromSeconds(10)); break;
         }
@@ -1068,6 +1089,7 @@ public partial class MainWindow : Window
             Key.F4 when ctrl => "closeTab",
             Key.Tab when ctrl => shift ? "previousTab" : "nextTab",
             Key.B when ctrl => "outline",
+            Key.F when ctrl => "find",
             // Flechas solas: −10 s / +10 s (en las listas de pestañas e índice siguen moviendo la selección).
             Key.Left when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "back10",
             Key.Right when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "forward10",
@@ -1084,6 +1106,7 @@ public partial class MainWindow : Window
     private void OnOpenClick(object sender, RoutedEventArgs e) => _ = OpenWithDialogAsync();
     private void OnPasteClick(object sender, RoutedEventArgs e) => _ = PasteAsync();
     private void OnReloadClick(object sender, RoutedEventArgs e) => _ = ReloadAsync();
+    private void OnFindClick(object sender, RoutedEventArgs e) => OpenFind();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
     private void OnSpeedChanged(double speed)
@@ -1514,6 +1537,7 @@ public partial class MainWindow : Window
     {
         Player.SetState(_player.State, _player.HasDocument);
         ReloadButton.IsEnabled = _active is { State.IsEmpty: false }; // pestaña vacía o bienvenida: nada que recargar
+        FindButton.IsEnabled = ReloadButton.IsEnabled;
     }
 }
 

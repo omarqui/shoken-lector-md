@@ -53,6 +53,9 @@ internal sealed class DocumentView
     /// <summary>La selección se quitó o el documento se desplazó.</summary>
     public event Action? SelectionCleared;
 
+    /// <summary>Cambió la búsqueda (Ctrl+F): resultados por bloque (su data-seg), o null si se cerró o está vacía.</summary>
+    public event Action<IReadOnlyDictionary<string, int>?>? FindChanged;
+
     public static bool IsOpenableFile(string path) =>
         OpenableExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
@@ -138,6 +141,13 @@ internal sealed class DocumentView
     /// <summary>Lleva un título al borde superior (desde el índice).</summary>
     public Task ScrollToHeadingAsync(string anchor) =>
         RunScriptAsync($"window.lector && window.lector.scrollToHeading({JsonSerializer.Serialize(anchor)})");
+
+    /// <summary>Abre la barra de búsqueda del documento (o la enfoca si ya está abierta).</summary>
+    public Task OpenFindAsync()
+    {
+        _webView.Focus(); // el cuadro de búsqueda vive en la página: necesita el foco del WebView2
+        return RunScriptAsync("window.lector && window.lector.find.open()");
+    }
 
     public Task ScrollToYAsync(double y) =>
         RunScriptAsync($"window.lector && window.lector.scrollToY({Math.Max(0, Math.Round(y)).ToString(System.Globalization.CultureInfo.InvariantCulture)})");
@@ -268,6 +278,9 @@ internal sealed class DocumentView
                 case "selectionCleared":
                     SelectionCleared?.Invoke();
                     break;
+                case "find" when IsCurrentPage(e.Source):
+                    FindChanged?.Invoke(ReadFindCounts(root));
+                    break;
                 case "scroll" when IsCurrentPage(e.Source)
                                    && root.TryGetProperty("y", out JsonElement y) && y.ValueKind == JsonValueKind.Number:
                     ScrollChanged?.Invoke(y.GetDouble());
@@ -278,6 +291,26 @@ internal sealed class DocumentView
         {
             // Mensaje malformado: se ignora.
         }
+    }
+
+    private static Dictionary<string, int>? ReadFindCounts(JsonElement root)
+    {
+        if (!root.TryGetProperty("active", out JsonElement active) || active.ValueKind != JsonValueKind.True
+            || !root.TryGetProperty("counts", out JsonElement counts) || counts.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var result = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (JsonProperty block in counts.EnumerateObject())
+        {
+            if (block.Value.ValueKind == JsonValueKind.Number && block.Value.TryGetInt32(out int matches) && matches > 0)
+            {
+                result[block.Name] = matches;
+            }
+        }
+
+        return result;
     }
 
     private bool IsCurrentPage(string? source) =>

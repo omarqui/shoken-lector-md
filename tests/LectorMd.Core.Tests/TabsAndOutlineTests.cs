@@ -182,4 +182,24 @@ public class TabsAndOutlineTests
     {
         Assert.Empty(DocumentOutline.Build(Parse("Solo un párrafo.")));
     }
+
+    [Fact]
+    public void Outline_CountsSearchMatchesPerSection_IncludingTheHeadingAndSkippingTheIntro()
+    {
+        var doc = Parse("Intro.\n\n# A\n\nTexto a.\n\nOtro a.\n\n# B\n\nTexto b.");
+        IReadOnlyList<OutlineEntry> outline = DocumentOutline.Build(doc);
+        string Anchor(string start) => doc.Segments.First(s => s.PlainText.StartsWith(start, StringComparison.Ordinal)).AnchorId;
+
+        var matchesByAnchor = new Dictionary<string, int>
+        {
+            [Anchor("Intro")] = 4, // antes del primer título: no tiene fila en el índice
+            [Anchor("A")] = 1,
+            [Anchor("Texto a")] = 2,
+            [Anchor("Otro a")] = 1,
+            [Anchor("Texto b")] = 3,
+            ["s-que-no-existe"] = 9,
+        };
+
+        Assert.Equal([4, 3], DocumentOutline.CountMatches(outline, doc, matchesByAnchor));
+    }
 }

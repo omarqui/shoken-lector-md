@@ -10,6 +10,9 @@
   --accent-fg: #ffffff;
   --reading: #eaf2fb;
   --reading-edge: #005fb8;
+  --find: #fff0a8;
+  --find-current: #f2a33a;
+  --find-current-fg: #1b1b1b;
   --note: #0969da;
   --tip: #1a7f37;
   --important: #8250df;
@@ -28,6 +31,9 @@
     --accent-fg: #00344d;
     --reading: #1e3a4c;
     --reading-edge: #60cdff;
+    --find: #5c4d12;
+    --find-current: #d68a1e;
+    --find-current-fg: #1b1b1b;
     --note: #4493f8;
     --tip: #3fb950;
     --important: #ab7df8;
@@ -141,6 +147,65 @@ pre.lector-reading { box-shadow: -6px 0 0 0 var(--reading-edge); }
 .markdown-alert.lector-reading .markdown-alert-title { color: var(--fg); }
 
 ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* ---- Búsqueda (Ctrl+F) ---- */
+::highlight(lector-find) { background-color: var(--find); color: inherit; }
+::highlight(lector-find-current) { background-color: var(--find-current); color: var(--find-current-fg); }
+
+.lector-find {
+  position: fixed;
+  top: 10px;
+  right: 18px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  font-size: 14px;
+  line-height: 1;
+}
+.lector-find[hidden] { display: none; }
+.lector-find-icon, .lector-find button {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 12px;
+}
+.lector-find-icon { color: var(--muted); margin-right: 6px; }
+.lector-find input {
+  width: 220px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 5px 8px;
+  outline: none;
+}
+.lector-find-none input { border-bottom-color: var(--caution); }
+.lector-find-count {
+  min-width: 92px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+.lector-find button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.lector-find button:hover:not(:disabled) { background: var(--soft); }
+.lector-find button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+.lector-find button[data-find="play"]:not(:disabled) { color: var(--accent); }
 
 /* ---- Pantalla de bienvenida ---- */
 .welcome {

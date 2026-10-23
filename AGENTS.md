@@ -55,6 +55,8 @@ El flujo, de punta a punta:
 - Los datos del usuario viven en `%LOCALAPPDATA%\LectorMd\`. No se versionan.
 - **Una sola instancia** (`Core/Ipc/SingleInstanceChannel`, mutex + named pipe): la segunda instancia le pasa su archivo a la primera y termina. Cerrar la ventana la oculta en la bandeja (`TrayIcon`); solo *Salir* o el cierre de sesión terminan la app. `Ctrl+Alt+L` es `GlobalHotkey` (RegisterHotKey) y el `MiniPlayerWindow` lo alimenta `MainWindow` con los mismos eventos que el `PlayerBar`.
 - **WinForms solo para `NotifyIcon`:** el proyecto quita los `using` implícitos de `System.Windows.Forms` y `System.Drawing`; úsalos con alias (`Forms.`, `Drawing.`) para no chocar con WPF.
+- **Popups y foco de teclado:** los `Popup` de WPF no se activan (`WS_EX_NOACTIVATE`); sus teclas les llegan por la ventana principal. Si el foco de Windows está en el WebView2 (el usuario acaba de hacer clic en el documento), `Focus()` sobre un control del popup no basta: las teclas siguen yendo a `lector.js`. Enfoca primero la ventana (`Focus()`) y luego el control, como `OnPronounceChipClick`.
+- **La búsqueda (Ctrl+F) vive en la página** (`lector.js`, `CSS.highlights`), no en WPF: así no tapa el documento con otra ventana ni pelea por el foco. La app solo recibe los resultados por bloque (`find`) para el índice (`DocumentOutline.CountMatches`).
 - **Colores del diseño en dos lugares:** `ThemeService.ApplyPalette` (recursos `Lector*Brush` de la ventana) y las variables de `Assets/lector.css` (el documento). Si cambias uno, cambia el otro.
 - `ReadingTimeline` (Core) da la duración por segmento y capítulo: real para los bloques en caché (`AudioChunk.Duration`, guardada en la caché) y estimada (15 caracteres/s + pausas) para el resto.
 

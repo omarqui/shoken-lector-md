@@ -151,6 +151,10 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="FindButton" Style="{StaticResource FlatIconButton}" Click="OnFindClick" ToolTip="Buscar en el documento (Ctrl+F)"
+                            AutomationProperties.Name="Buscar" Width="36" Height="36" Margin="0,0,2,0">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE721;" />
+                    </Button>
                     <Button x:Name="ThemeButton" Style="{StaticResource FlatIconButton}" Click="OnThemeClick" Width="36" Height="36" Margin="0,0,2,0">
                         <TextBlock x:Name="ThemeIcon" Style="{StaticResource IconText}" FontSize="15" />
                     </Button>
@@ -217,6 +221,12 @@
                                     <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
                                     <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
+                                    <!-- Resultados de la búsqueda (Ctrl+F) en esta sección. -->
+                                    <Border DockPanel.Dock="Right" Visibility="{Binding MatchesVisibility}" Background="{DynamicResource LectorAccentBrush}"
+                                            CornerRadius="8" MinWidth="18" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Matches}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource LectorOnAccentBrush}" />
+                                    </Border>
                                     <TextBlock Text="{Binding Text}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis"
                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
                                 </DockPanel>

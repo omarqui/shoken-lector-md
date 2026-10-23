@@ -40,4 +40,23 @@ public static class DocumentOutline
 
         return index;
     }
+
+    /// <summary>
+    /// Resultados de una búsqueda por entrada del índice. Recibe cuántos hay en cada bloque (su <c>data-seg</c>);
+    /// los de antes del primer título y los de anclas que no son del documento no se cuentan.
+    /// </summary>
+    public static IReadOnlyList<int> CountMatches(
+        IReadOnlyList<OutlineEntry> outline, SpeechDocument document, IReadOnlyDictionary<string, int> matchesByAnchor)
+    {
+        var counts = new int[outline.Count];
+        foreach ((string anchor, int matches) in matchesByAnchor)
+        {
+            if (document.FirstForAnchor(anchor) is { } segment && IndexOf(outline, segment.Id) is var index and >= 0)
+            {
+                counts[index] += matches;
+            }
+        }
+
+        return counts;
+    }
 }

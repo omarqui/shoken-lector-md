@@ -116,7 +116,242 @@
     post({ type: 'link', href: link.href });
   });
 
+  // Búsqueda (Ctrl+F): sin distinguir acentos ni mayúsculas. Se compara una copia "plegada" del texto que recuerda
+  // de qué nodo y posición salió cada carácter, y los resultados se pintan con la API de resaltado de CSS, sin tocar
+  // el DOM. La app recibe cuántos hay en cada bloque para mostrarlos en el índice.
+  const find = (() => {
+    const MAX_MATCHES = 5000;
+    const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+    let bar = null;
+    let input = null;
+    let count = null;
+    let playButton = null;
+    let index = null;
+    let matches = []; // { range, seg }
+    let current = -1;
+    let timer = 0;
+
+    // El texto no cambia mientras la página está abierta: se indexa una sola vez.
+    function buildIndex() {
+      const root = document.querySelector('main.doc') || document.body;
+      const nodes = [], segs = [], nodeOf = [], offsetOf = [];
+      let text = '';
+      let space = true;
+      let lastSeg = null;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (n) => (n.parentElement && n.parentElement.closest('script, style')
+          ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      });
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const block = n.parentElement.closest('[data-seg]');
+        lastSeg = block ? block.getAttribute('data-seg') : lastSeg; // fuera de un bloque legible: el anterior
+        const k = nodes.push(n) - 1;
+        segs.push(lastSeg);
+        const s = n.nodeValue;
+        for (let i = 0; i < s.length; i++) {
+          const c = s.charCodeAt(i);
+          const f = c <= 32 || (c > 127 && /\s/.test(s[i])) ? ' ' : (c < 128 ? s[i].toLowerCase() : fold(s[i]));
+          if (f === ' ') {
+            if (space) continue; // los espacios seguidos (y los saltos de línea del HTML) cuentan como uno
+            space = true;
+          } else if (f) {
+            space = false;
+          }
+          for (let j = 0; j < f.length; j++) {
+            text += f[j];
+            nodeOf.push(k);
+            offsetOf.push(i);
+          }
+        }
+      }
+      return { text, nodes, segs, nodeOf, offsetOf };
+    }
+
+    function ensureBar() {
+      if (bar) {
+        return;
+      }
+      bar = document.createElement('div');
+      bar.className = 'lector-find';
+      bar.setAttribute('role', 'search');
+      bar.hidden = true;
+      bar.innerHTML =
+        '<span class="lector-find-icon" aria-hidden="true">&#xE721;</span>' +
+        '<input type="text" placeholder="Buscar en el documento" aria-label="Buscar en el documento" spellcheck="false" autocomplete="off">' +
+        '<span class="lector-find-count" aria-live="polite"></span>' +
+        '<button type="button" data-find="previous" title="Anterior (Shift+Enter)" aria-label="Resultado anterior">&#xE70E;</button>' +
+        '<button type="button" data-find="next" title="Siguiente (Enter)" aria-label="Resultado siguiente">&#xE70D;</button>' +
+        '<button type="button" data-find="play" title="Leer desde aquí (Ctrl+Enter)" aria-label="Leer desde este resultado">&#xE768;</button>' +
+        '<button type="button" data-find="close" title="Cerrar (Esc)" aria-label="Cerrar la búsqueda">&#xE711;</button>';
+      document.body.appendChild(bar);
+      input = bar.querySelector('input');
+      count = bar.querySelector('.lector-find-count');
+      playButton = bar.querySelector('[data-find="play"]');
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(search, 120);
+      });
+      bar.addEventListener('click', (e) => {
+        const button = e.target instanceof Element ? e.target.closest('[data-find]') : null;
+        if (!button) {
+          return;
+        }
+        const action = button.getAttribute('data-find');
+        if (action === 'close') close();
+        else if (action === 'play') play();
+        else go(action === 'next' ? 1 : -1);
+      });
+      // Que la selección dentro de la barra no abra el botón de pronunciación.
+      bar.addEventListener('mouseup', (e) => e.stopPropagation());
+    }
+
+    function search() {
+      clearTimeout(timer);
+      timer = 0;
+      const query = fold(input.value).replace(/\s+/g, ' ').trim();
+      matches = [];
+      current = -1;
+      if (query) {
+        index = index || buildIndex();
+        const { text, nodes, segs, nodeOf, offsetOf } = index;
+        for (let at = text.indexOf(query); at >= 0 && matches.length < MAX_MATCHES; at = text.indexOf(query, at + query.length)) {
+          const end = at + query.length - 1;
+          const range = document.createRange();
+          range.setStart(nodes[nodeOf[at]], offsetOf[at]);
+          range.setEnd(nodes[nodeOf[end]], offsetOf[end] + 1);
+          matches.push({ range, seg: segs[nodeOf[at]] });
+        }
+        // Se empieza por el primer resultado visible (o el siguiente), no por el principio del documento.
+        current = matches.length ? Math.max(0, matches.findIndex((m) => m.range.getBoundingClientRect().bottom >= 0)) : -1;
+      }
+      paint();
+      reveal();
+      report(query.length > 0);
+    }
+
+    function paint() {
+      bar.classList.toggle('lector-find-none', input.value.trim() !== '' && matches.length === 0);
+      count.textContent = matches.length
+        ? (current + 1) + ' de ' + matches.length + (matches.length >= MAX_MATCHES ? '+' : '')
+        : (input.value.trim() ? 'Sin resultados' : '');
+      playButton.disabled = !(current >= 0 && matches[current].seg);
+      if (!(window.CSS && CSS.highlights)) {
+        return;
+      }
+      CSS.highlights.set('lector-find', new Highlight(...matches.map((m) => m.range)));
+      const active = new Highlight(...(current >= 0 ? [matches[current].range] : []));
+      active.priority = 1;
+      CSS.highlights.set('lector-find-current', active);
+    }
+
+    function reveal() {
+      if (current < 0) {
+        return;
+      }
+      const rect = matches[current].range.getBoundingClientRect();
+      const height = window.innerHeight || document.documentElement.clientHeight;
+      if (rect.top < height * 0.15 || rect.bottom > height * 0.85) {
+        pauseFollow(); // que el resaltado de la lectura no se lleve la vista mientras se busca
+        window.scrollBy({ top: rect.top - height * 0.4, behavior: 'smooth' });
+      }
+    }
+
+    function report(active) {
+      const counts = {};
+      for (const m of matches) {
+        if (m.seg) counts[m.seg] = (counts[m.seg] || 0) + 1;
+      }
+      post({ type: 'find', active, counts });
+    }
+
+    function go(step) {
+      if (timer) {
+        search(); // Enter antes de que termine la espera de la escritura: se queda en el primer resultado
+        return;
+      }
+      if (!matches.length) {
+        return;
+      }
+      current = (current + step + matches.length) % matches.length;
+      paint();
+      reveal();
+    }
+
+    function play() {
+      if (timer) {
+        search();
+      }
+      const seg = current >= 0 ? matches[current].seg : null;
+      if (seg) {
+        follow = true;
+        post({ type: 'playFrom', anchor: seg });
+      }
+    }
+
+    function open() {
+      if (!document.querySelector('[data-seg]')) {
+        return; // bienvenida o pestaña vacía: no hay nada que buscar
+      }
+      ensureBar();
+      const reopened = bar.hidden && input.value.trim() !== '';
+      bar.hidden = false;
+      input.focus();
+      input.select();
+      if (reopened) {
+        search(); // vuelve con la búsqueda anterior
+      } else {
+        paint(); // contador y ▶ según lo que haya (al abrir por primera vez, nada)
+      }
+    }
+
+    function close() {
+      if (!bar || bar.hidden) {
+        return;
+      }
+      clearTimeout(timer);
+      timer = 0;
+      bar.hidden = true;
+      matches = [];
+      current = -1;
+      paint();
+      report(false);
+      input.blur(); // el foco queda en el documento: los atajos vuelven a funcionar
+    }
+
+    // true si la tecla ya se atendió aquí y no debe llegar a los atajos del lector.
+    function handleKey(e) {
+      if (e.ctrlKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        open();
+        return true;
+      }
+      const isOpen = bar && !bar.hidden;
+      if (e.key === 'F3' && isOpen) {
+        e.preventDefault();
+        go(e.shiftKey ? -1 : 1);
+        return true;
+      }
+      if (!(isOpen && e.target instanceof Element && bar.contains(e.target))) {
+        return false;
+      }
+      if (e.key === 'Enter' && e.target === input) {
+        e.preventDefault();
+        if (e.ctrlKey) play();
+        else go(e.shiftKey ? -1 : 1);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+      return true; // dentro de la barra las teclas escriben o pulsan sus botones: ningún atajo del lector
+    }
+
+    return { open, close, handleKey };
+  })();
+
   document.addEventListener('keydown', (e) => {
+    if (find.handleKey(e)) {
+      return;
+    }
     if (e.repeat) {
       if (e.key === ' ') e.preventDefault(); // mantener presionado Espacio no alterna una y otra vez
       return;
@@ -180,5 +415,5 @@
     }
   }, { passive: true });
 
-  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY };
+  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, find };
 })();

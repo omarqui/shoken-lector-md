@@ -40,7 +40,7 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 }
 
 /// <summary>Un título en el panel del índice.</summary>
-internal sealed class OutlineItem(OutlineEntry entry, string time)
+internal sealed class OutlineItem(OutlineEntry entry, string time, int matches = 0)
 {
     public OutlineEntry Entry { get; } = entry;
 
@@ -49,10 +49,15 @@ internal sealed class OutlineItem(OutlineEntry entry, string time)
     /// <summary>Duración de la sección ("01:12", "≈00:58"), o vacío si no se sabe.</summary>
     public string Time { get; } = time;
 
+    /// <summary>Resultados de la búsqueda (Ctrl+F) en la sección; la insignia solo se ve si hay alguno.</summary>
+    public string Matches => matches.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    public Visibility MatchesVisibility => matches > 0 ? Visibility.Visible : Visibility.Collapsed;
+
     public Thickness Margin => new(Entry.Indent * 14, 0, 0, 0);
 
     public FontWeight Weight => Entry.Indent == 0 ? FontWeights.SemiBold : FontWeights.Normal;
 
     // Lo que anuncia un lector de pantalla para el elemento de la lista.
-    public override string ToString() => Text;
+    public override string ToString() => matches > 0 ? $"{Text}, {matches} resultados" : Text;
 }

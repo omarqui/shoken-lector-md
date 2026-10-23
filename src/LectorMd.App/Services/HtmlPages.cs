@@ -65,6 +65,7 @@ internal static class HtmlPages
             <dt><kbd>Ctrl</kbd> + <kbd>T</kbd> / <kbd>W</kbd></dt><dd>Pestaña nueva o cerrar pestaña</dd>
             <dt><kbd>Ctrl</kbd> + <kbd>Tab</kbd></dt><dd>Pestaña siguiente</dd>
             <dt><kbd>Ctrl</kbd> + <kbd>B</kbd></dt><dd>Mostrar u ocultar el índice</dd>
+            <dt><kbd>Ctrl</kbd> + <kbd>F</kbd></dt><dd>Buscar en el documento</dd>
             <dt><kbd>F5</kbd></dt><dd>Recargar el documento</dd>
           </dl>
         </section>

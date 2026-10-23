@@ -120,6 +120,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 | Pestaña nueva / cerrar pestaña | `Ctrl` + `T` / `Ctrl` + `W` (o clic central en la pestaña) |
 | Pestaña siguiente / anterior | `Ctrl` + `Tab` / `Ctrl` + `Shift` + `Tab` |
 | Mostrar u ocultar el índice | `Ctrl` + `B` |
+| Buscar en el documento | `Ctrl` + `F`, o la lupa de la barra de comandos |
 | Recargar (y releer el diccionario) | `F5` |
 | Configuración | `Ctrl` + `,` |
 | Leer lo copiado, desde cualquier app | `Ctrl` + `Alt` + `L` |
@@ -128,6 +129,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 - **Pestañas:** viven en la barra de título (con muchas, se recorren con la rueda del mouse o Ctrl+Tab). Cada documento se abre en su pestaña, con un ícono que distingue los archivos `.md` (al pasar el mouse muestran su ruta) del texto pegado. Si ya estaba abierto, la app va a esa pestaña. Al cambiar de pestaña la lectura se pausa, y cada una recuerda su párrafo y su posición. Al cerrar la app se guardan las pestañas abiertas y se reabren al iniciar.
 - **Pegar (`Ctrl` + `V`):** si el portapapeles tiene rutas (una por línea, con o sin comillas, o archivos copiados en el Explorador), se abren. Si tiene otro texto, se lee como Markdown en una pestaña nueva, o en la vacía si estás en una. El texto pegado se guarda hasta que cierras su pestaña.
 - **Índice:** el panel izquierdo muestra los títulos (h1 a h3) con la duración de cada sección (con ≈ mientras es estimada). Con un clic vas al título, con doble clic (o `Enter`) empieza a leer ahí, y mientras lee se marca la sección actual.
+- **Buscar (`Ctrl` + `F`):** abre una barra arriba a la derecha del documento. No distingue acentos ni mayúsculas (`configuracion` encuentra «Configuración»), resalta todos los resultados y empieza por el primero visible. `Enter` / `Shift` + `Enter` (o `F3` / `Shift` + `F3`) van al siguiente o al anterior, `Ctrl` + `Enter` (o ▶) lee desde el párrafo del resultado y `Esc` cierra la barra sin detener la lectura. Mientras buscas, el índice muestra cuántos resultados hay en cada sección. Al reabrirla vuelve la búsqueda anterior.
 - **Reproductor (abajo):** la línea de tiempo está dividida por capítulos (los títulos del índice); un clic en un tramo lee desde ahí. Debajo, como en Spotify: la sección y el párrafo a la izquierda, los controles al centro, y la velocidad y el estado de Azure a la derecha. Las duraciones de lo que todavía no se generó son estimadas (≈) y se corrigen cuando se genera su audio.
 - **Velocidad** (selector del reproductor, de 0.75× a 1.75×): acelera o frena la reproducción al instante, sin volver a generar audio ni gastar cuota.
 - **Tema:** el botón sol/luna alterna claro y oscuro (la primera vez sigue el tema de Windows). El documento cambia de colores sin recargarse.
