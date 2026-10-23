@@ -442,6 +442,29 @@ public partial class MainWindow : Window
         SaveSession();
     }
 
+    /// <summary>
+    /// Otra instancia nos pasó un archivo (abierto desde el Explorador) o pidió que nos mostremos:
+    /// aparece la ventana y el archivo se abre en su pestaña.
+    /// </summary>
+    public async Task BringToFrontAsync(string? file)
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        if (file is not null && File.Exists(file) && DocumentView.IsOpenableFile(file))
+        {
+            await OpenFilesAsync([file]);
+        }
+    }
+
     private void SwitchTab(int delta)
     {
         if (_tabs.Count < 2)
