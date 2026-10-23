@@ -115,6 +115,57 @@ public sealed class GoogleTtsTests : IDisposable
         Assert.Equal(TtsFailureKind.Network, ex.Kind);
     }
 
+    [Fact]
+    public void MapError_InvalidKeyComesAs400_AndIsAuthentication()
+    {
+        const string body = """
+            {"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT",
+             "details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"API_KEY_INVALID"}]}}
+            """;
+
+        Assert.Equal(TtsFailureKind.Authentication, GoogleTtsEngine.MapError(HttpStatusCode.BadRequest, body).Kind);
+    }
+
+    [Fact]
+    public async Task Synthesize_UnexpectedSuccessBody_IsATtsError()
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
+        (GoogleTtsEngine engine, SpeechChunk chunk, _) = Create(handler);
+
+        TtsException ex = await Assert.ThrowsAsync<TtsException>(() => engine.SynthesizeAsync(chunk, CancellationToken.None));
+
+        Assert.Equal(TtsFailureKind.Other, ex.Kind);
+    }
+
+    [Fact]
+    public async Task Synthesize_OnceSent_IsNotCancelled_AndIsCounted()
+    {
+        // Detener o saltar no aborta un pedido ya enviado: Google lo cobraría y la app no lo contaría.
+        using var cancel = new CancellationTokenSource();
+        var handler = new FakeHandler(_ =>
+        {
+            cancel.Cancel(); // el usuario detiene justo cuando Google ya respondió
+            byte[] body = Encoding.UTF8.GetBytes(
+                """{"audioContent":"AQID","timepoints":[{"markName":"0","timeSeconds":0}]}""");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new MemoryStream(body)) };
+        });
+        (GoogleTtsEngine engine, SpeechChunk chunk, UsageTracker usage) = Create(handler);
+
+        await engine.SynthesizeAsync(chunk, cancel.Token);
+
+        Assert.True(usage.Used > 0);
+        Assert.NotNull(engine.TryGetCached(chunk));
+    }
+
+    [Fact]
+    public void GoogleSsml_KeepsTheSpaceBetweenTwoStyledWords()
+    {
+        string azure = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"es-MX\"><voice name=\"v\">" +
+                       "<prosody rate=\"-4%\">negrita</prosody> <prosody rate=\"-4%\">otra</prosody></voice></speak>";
+
+        Assert.Contains("</prosody> <prosody", GoogleSsml.FromAzure(azure));
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, TtsFailureKind.Authentication)]
     [InlineData(HttpStatusCode.Unauthorized, TtsFailureKind.Authentication)]

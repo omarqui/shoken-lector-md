@@ -65,13 +65,16 @@ public sealed class GoogleTtsEngine(GoogleTtsOptions options, SsmlBuilder ssml, 
             enableTimePointing = new[] { "SSML_MARK" },
         });
 
+        // Una vez enviado, el pedido no se cancela (igual que con Azure): si el usuario se movió, Google lo cobra
+        // igual, así que se cuenta y el audio queda en la caché para cuando vuelva. El límite es el Timeout.
+        cancellationToken.ThrowIfCancellationRequested();
         string responseBody;
         try
         {
             using var content = new StringContent(body, Encoding.UTF8, "application/json");
             using HttpResponseMessage response = await http.PostAsync(
-                $"{Endpoint}?key={Uri.EscapeDataString(options.ApiKey.Trim())}", content, cancellationToken).ConfigureAwait(false);
-            responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                $"{Endpoint}?key={Uri.EscapeDataString(options.ApiKey.Trim())}", content, CancellationToken.None).ConfigureAwait(false);
+            responseBody = await response.Content.ReadAsStringAsync(CancellationToken.None).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 throw MapError(response.StatusCode, responseBody);
@@ -81,13 +84,14 @@ public sealed class GoogleTtsEngine(GoogleTtsOptions options, SsmlBuilder ssml, 
         {
             throw new TtsException(TtsFailureKind.Network, $"sin conexión con Google ({ex.Message})", ex);
         }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException ex)
         {
             throw new TtsException(TtsFailureKind.Network, "Google tardó demasiado en responder", ex);
         }
 
-        (byte[] audio, List<(int Index, TimeSpan Offset)> marks) = ParseResponse(responseBody);
+        // Google ya respondió (y cobró): se cuenta aunque la respuesta venga mal formada.
         usage.Add(billable);
+        (byte[] audio, List<(int Index, TimeSpan Offset)> marks) = ParseResponse(responseBody);
         return cache.Store(key, audio, ".mp3", marks, chunk, Name);
     }
 
@@ -95,6 +99,13 @@ public sealed class GoogleTtsEngine(GoogleTtsOptions options, SsmlBuilder ssml, 
     {
         string detail = ErrorMessage(body);
         string info = detail.Length > 0 ? $" ({detail})" : "";
+
+        // Una clave inválida o vencida llega como 400 (no 403): si no se reconoce, se reintentaría en cada bloque.
+        if (body.Contains("API_KEY_INVALID", StringComparison.Ordinal) || body.Contains("API_KEY_EXPIRED", StringComparison.Ordinal))
+        {
+            return new TtsException(TtsFailureKind.Authentication, "Google rechazó la clave de API" + info);
+        }
+
         return status switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
@@ -118,6 +129,19 @@ public sealed class GoogleTtsEngine(GoogleTtsOptions options, SsmlBuilder ssml, 
     }
 
     private static (byte[] Audio, List<(int Index, TimeSpan Offset)> Marks) ParseResponse(string body)
+    {
+        try
+        {
+            return ParseResponseCore(body);
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or FormatException or InvalidOperationException)
+        {
+            // Una respuesta inesperada no debe cortar la lectura: el motor híbrido pasa al siguiente.
+            throw new TtsException(TtsFailureKind.Other, "Google respondió algo que no es audio", ex);
+        }
+    }
+
+    private static (byte[] Audio, List<(int Index, TimeSpan Offset)> Marks) ParseResponseCore(string body)
     {
         using JsonDocument json = JsonDocument.Parse(body);
         JsonElement root = json.RootElement;

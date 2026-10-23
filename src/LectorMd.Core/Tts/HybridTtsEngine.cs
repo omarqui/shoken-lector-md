@@ -121,7 +121,8 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
                 }
             }
 
-            fallbackReason ??= reason;
+            // Se juntan los motivos de todos los motores que no se pudieron usar (no solo el del primero).
+            fallbackReason = fallbackReason is null ? reason : $"{fallbackReason}; {slot.Label}: {reason}";
         }
 
         if (LocalConfigured)
@@ -135,8 +136,12 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 
         string message = fallbackReason is null
             ? "No hay ningún motor de voz configurado. Abre Configuración y agrega tu clave de Azure o de Google, o Piper."
-            : $"No hay motor disponible ({fallbackReason}) y Piper no está configurado como respaldo.";
-        throw new TtsException(TtsFailureKind.NotConfigured, message);
+            : _local is null
+                ? $"No hay motor disponible ({fallbackReason}). Con el motor elegido no hay respaldo: prueba con Automático."
+                : $"No hay motor disponible ({fallbackReason}) y Piper no está configurado como respaldo.";
+        // Con un motor elegido a mano que falló no hay nada que configurar: no se ofrece abrir Configuración.
+        TtsFailureKind kind = _local is null && fallbackReason is not null ? TtsFailureKind.Other : TtsFailureKind.NotConfigured;
+        throw new TtsException(kind, message);
     }
 
     private string? UnavailableReason(Slot slot)

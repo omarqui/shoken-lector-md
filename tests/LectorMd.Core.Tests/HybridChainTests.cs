@@ -113,6 +113,19 @@ public sealed class HybridChainTests : IDisposable
     }
 
     [Fact]
+    public async Task AzureAndGoogleFail_TheReasonMentionsBoth()
+    {
+        (HybridTtsEngine hybrid, FakeEngine azure, FakeEngine google, _) = Chain();
+        azure.FailWith = TtsFailureKind.Network;
+        google.FailWith = TtsFailureKind.Authentication;
+
+        await hybrid.SynthesizeAsync(Chunk, CancellationToken.None);
+
+        Assert.Contains("Azure falló", hybrid.Status.Reason);
+        Assert.Contains("Google falló", hybrid.Status.Reason);
+    }
+
+    [Fact]
     public async Task AzureComesBackAfterItsCooldown()
     {
         (HybridTtsEngine hybrid, FakeEngine azure, _, _) = Chain();

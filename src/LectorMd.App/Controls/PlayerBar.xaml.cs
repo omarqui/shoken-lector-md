@@ -311,6 +311,7 @@ public partial class PlayerBar : UserControl
                 _ => true,
             };
             button.ToolTip = button.IsEnabled ? null : "Configúralo en ⚙ Configuración";
+            ToolTipService.SetShowOnDisabled(button, true); // si no, el aviso no aparece en un botón deshabilitado
             if (on)
             {
                 button.SetResourceReference(BackgroundProperty, "LectorSurfaceBrush");

@@ -286,6 +286,7 @@ internal sealed class ReadAloudController : IDisposable
     private async Task RunAsync(ITtsEngine engine, int startSegmentId, TimeSpan intoSegment = default)
     {
         Stop();
+        _resumeSegmentId = startSegmentId; // mientras carga, CurrentSegmentId es el párrafo pedido
         var session = new CancellationTokenSource();
         _session = session;
         CancellationToken token = session.Token;

@@ -157,7 +157,7 @@ public partial class MainWindow : Window
 
         if (_services is { Engine.IsConfigured: false })
         {
-            ShowStatus("Para empezar, configura Azure o Piper en ⚙ Configuración.");
+            ShowStatus("Para empezar, configura Azure, Google o Piper en ⚙ Configuración.");
         }
         else if (_hotkey is null)
         {
@@ -429,6 +429,7 @@ public partial class MainWindow : Window
         _player.Load(document, chunks, resume);
         _document = document;
         _chunks = chunks;
+        _lastElapsed = TimeSpan.Zero; // otro documento: la posición del anterior no sirve para −10/+10
         RebuildTimeline();
         if (tab.State.IsPasted)
         {
@@ -867,7 +868,7 @@ public partial class MainWindow : Window
 
         if (_services is { Engine.IsConfigured: false })
         {
-            ShowStatus("Para leer, configura Azure o Piper en ⚙ Configuración.");
+            ShowStatus("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
             if (inBackground)
             {
                 _tray?.ShowHint("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
@@ -1068,8 +1069,8 @@ public partial class MainWindow : Window
             Key.Tab when ctrl => shift ? "previousTab" : "nextTab",
             Key.B when ctrl => "outline",
             // Flechas solas: −10 s / +10 s (en las listas de pestañas e índice siguen moviendo la selección).
-            Key.Left when !ctrl && e.OriginalSource is not ListBoxItem => "back10",
-            Key.Right when !ctrl && e.OriginalSource is not ListBoxItem => "forward10",
+            Key.Left when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "back10",
+            Key.Right when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "forward10",
             _ => null,
         };
 
@@ -1304,6 +1305,7 @@ public partial class MainWindow : Window
         string detail = $"Párrafo {segmentId + 1} de {_document.Segments.Count} · capítulo {chapter + 1} de {_timeline.Chapters.Count}";
         Player.SetPosition(section, detail);
         Player.SetProgress(_timeline.StartOf(segmentId), chapter);
+        _lastElapsed = _timeline.StartOf(segmentId);
         _mini?.SetPosition(section, detail);
         _mini?.SetProgress(_timeline.StartOf(segmentId), _timeline.Total);
     }
@@ -1335,9 +1337,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        TimeSpan from = _player.State == PlaybackState.Stopped
-            ? _timeline.StartOf(Math.Max(0, _player.CurrentSegmentId))
-            : _lastElapsed;
+        // Sonando o en pausa: desde donde va. Cargando o detenido: desde el párrafo pedido (lo último mostrado
+        // podría ser de otro documento o de antes de saltar).
+        TimeSpan from = _player.State is PlaybackState.Playing or PlaybackState.Paused
+            ? _lastElapsed
+            : _timeline.StartOf(Math.Max(0, _player.CurrentSegmentId));
         TimeSpan target = from + delta;
         target = target < TimeSpan.Zero ? TimeSpan.Zero : target > _timeline.Total ? _timeline.Total : target;
         (int segmentId, TimeSpan into) = _timeline.PositionAt(target);
@@ -1380,10 +1384,11 @@ public partial class MainWindow : Window
 
         EngineStatus status = _services.Engine.Status;
         bool isPiper = audio.EngineName.StartsWith("Piper", StringComparison.Ordinal);
-        bool fallback = isPiper && status.UsingFallback;
+        // Respaldo = el motor que suena no es el principal (Google cuando Azure falla, o Piper).
+        bool fallback = status.UsingFallback && status.ActiveEngine == audio.EngineName;
         string source = audio.FromCache ? "Desde caché · sin gastar cuota"
             : isPiper ? "Generado sin conexión"
-            : "Generado con Azure";
+            : $"Generado con {Provider(audio.EngineName)}";
         ShowEngine(audio.EngineName, fallback, fallback ? status.Reason : null, source);
         UpdateUsage();
 
@@ -1399,7 +1404,7 @@ public partial class MainWindow : Window
         if (status.UsingFallback && status.Reason is { } reason && reason != _lastFallbackReason)
         {
             _lastFallbackReason = reason;
-            ShowStatus($"Azure no disponible ({reason}). Sigo con Piper.");
+            ShowStatus($"No disponible: {reason}. Sigo con {Provider(status.ActiveEngine)}.");
         }
         else if (!status.UsingFallback)
         {
@@ -1460,6 +1465,9 @@ public partial class MainWindow : Window
             none ? StatusBrushes.Error : fallback ? StatusBrushes.Fallback : StatusBrushes.Ok,
             reason);
     }
+
+    /// <summary>"Google · es-US-Neural2-A" → "Google".</summary>
+    private static string Provider(string engineName) => engineName.Split(" · ", 2)[0];
 
     /// <summary>"Azure · es-MX-DaliaNeural" → "Dalia · Azure"; "Piper · es_MX-claude-high" → "Claude · Piper".</summary>
     private static string FriendlyEngineName(string name)

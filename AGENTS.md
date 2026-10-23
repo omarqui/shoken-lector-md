@@ -30,7 +30,7 @@ El flujo, de punta a punta:
 2. `Text/SpeechTextNormalizer` y `PronunciationDictionary` preparan el texto para la voz.
 3. `Planning/ChunkPlanner` agrupa los segmentos en bloques de audio (~700 caracteres).
 4. `Ssml/SsmlBuilder` arma el SSML con un `<bookmark>` por segmento, pausas y prosodia.
-5. `Tts/HybridTtsEngine` decide el motor: caché → Azure (`AzureTtsEngine`) → Piper (`PiperTtsEngine`).
+5. `Tts/HybridTtsEngine` decide el motor: caché → Azure (`AzureTtsEngine`) → Google (`GoogleTtsEngine`) → Piper (`PiperTtsEngine`). El selector "Usar" del panel del estado puede dejar uno solo, sin respaldo.
 6. `Caching/AudioCache` guarda el audio; `Usage/UsageTracker` lleva la cuota mensual de Azure.
 
 `EngineServices.Create` arma todas las piezas a partir de `AppSettings`.

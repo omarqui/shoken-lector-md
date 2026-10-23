@@ -11,7 +11,8 @@ public static class GoogleSsml
 {
     public static string FromAzure(string azureSsml)
     {
-        XElement source = XElement.Parse(azureSsml);
+        // PreserveWhitespace: el espacio entre dos palabras con estilo ("negrita</prosody> <prosody>otra") se conserva.
+        XElement source = XElement.Parse(azureSsml, LoadOptions.PreserveWhitespace);
         XElement content = source.Elements().FirstOrDefault(e => e.Name.LocalName == "voice") ?? source;
         return new XElement("speak", content.Nodes().Select(Convert)).ToString(SaveOptions.DisableFormatting);
     }
