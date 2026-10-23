@@ -61,7 +61,7 @@ Lo que conviene saber de la capa F0:
 
 - Incluye 500 000 caracteres al mes y hasta 20 peticiones por minuto. La app agrupa los párrafos en bloques de unos 700 caracteres y adelanta solo 2, así que no llega a ese límite.
 - **Las etiquetas también cuentan.** Azure cobra todo el SSML excepto `<speak>` y `<voice>`: cada pausa, cada marca de resaltado y cada negrita. En documentos con párrafos normales, el total es aproximadamente 1.5 veces el texto. Con muchas listas o tablas cortas puede llegar a 2.5 veces.
-- La app lleva un **contador local** (barra inferior). El límite por defecto es de 480 000 caracteres para dejar margen; al llegar, cambia a Piper. El contador se reinicia el día 1 de cada mes (UTC).
+- La app lleva un **contador local** (en el reproductor, abajo a la derecha). El límite por defecto es de 480 000 caracteres para dejar margen; al llegar, cambia a Piper. El contador se reinicia el día 1 de cada mes (UTC).
 - **Consumo real:** el botón ⟳ junto al contador consulta en Azure Monitor la métrica *Synthesized Characters* del mes. Si Azure reporta más que el contador local (por ejemplo, porque usas la misma clave en otras apps), el contador sube a esa cifra; nunca baja. La primera vez se abre el navegador para que inicies sesión con la cuenta que tiene el recurso. Después la sesión queda guardada en la caché cifrada de Windows. Si la cuenta tiene varios recursos de Speech, la app te pide elegir uno y lo recuerda. Azure tarda de 1 a 3 minutos en reflejar lo más reciente. Si tu cuenta es personal (Microsoft) y no encuentra el recurso, escribe el **Id de directorio** en Configuración: está en el portal, en *Microsoft Entra ID → Información general*.
 - La clave se guarda cifrada con DPAPI: solo tu usuario de Windows puede leerla.
 
@@ -93,7 +93,7 @@ Para cada bloque de audio, en este orden:
 | Demasiadas peticiones (429) | Reintenta 2 veces y luego usa Piper durante 60 s |
 | Clave o región inválida | Usa Piper hasta que corrijas la configuración |
 
-Mientras se usa el respaldo, el punto de la barra inferior se pone **ámbar** y el motivo aparece al pasar el mouse.
+Mientras se usa el respaldo, el punto junto a la voz (en el reproductor) se pone **ámbar** y el motivo aparece al pasar el mouse.
 
 ## Uso
 
@@ -111,10 +111,12 @@ Mientras se usa el respaldo, el punto de la barra inferior se pone **ámbar** y 
 | Recargar (y releer el diccionario) | `F5` |
 | Configuración | `Ctrl` + `,` |
 
-- **Pestañas:** cada documento se abre en su pestaña. Si ya estaba abierto, la app va a esa pestaña. Al cambiar de pestaña la lectura se pausa, y cada una recuerda su párrafo y su posición. Al cerrar la app se guardan las pestañas abiertas y se reabren al iniciar.
+- **Pestañas:** viven en la barra de título. Cada documento se abre en su pestaña, con un ícono que distingue los archivos `.md` (al pasar el mouse muestran su ruta) del texto pegado. Si ya estaba abierto, la app va a esa pestaña. Al cambiar de pestaña la lectura se pausa, y cada una recuerda su párrafo y su posición. Al cerrar la app se guardan las pestañas abiertas y se reabren al iniciar.
 - **Pegar (`Ctrl` + `V`):** si el portapapeles tiene rutas (una por línea, con o sin comillas, o archivos copiados en el Explorador), se abren. Si tiene otro texto, se lee como Markdown en una pestaña nueva, o en la vacía si estás en una. El texto pegado se guarda hasta que cierras su pestaña.
-- **Índice:** el panel izquierdo muestra los títulos (h1 a h3). Con un clic vas al título, con doble clic (o `Enter`) empieza a leer ahí, y mientras lee se marca la sección actual.
-- **Velocidad** (barra superior): acelera o frena la reproducción al instante, sin volver a generar audio ni gastar cuota.
+- **Índice:** el panel izquierdo muestra los títulos (h1 a h3) con la duración de cada sección (con ≈ mientras es estimada). Con un clic vas al título, con doble clic (o `Enter`) empieza a leer ahí, y mientras lee se marca la sección actual.
+- **Reproductor (abajo):** la línea de tiempo está dividida por capítulos (los títulos del índice); un clic en un tramo lee desde ahí. Muestra el tiempo transcurrido y el que falta, la sección y el párrafo, la voz y si el audio sale de la caché (sin gastar cuota), y el consumo de Azure. Las duraciones de lo que todavía no se generó son estimadas (≈) y se corrigen solas al generarse.
+- **Velocidad** (selector del reproductor, de 0.75× a 1.75×): acelera o frena la reproducción al instante, sin volver a generar audio ni gastar cuota.
+- **Tema:** el botón sol/luna alterna claro y oscuro (la primera vez sigue el tema de Windows). El documento cambia de colores sin recargarse.
 - **Velocidad de la voz** (Configuración): cambia la síntesis misma. Como el texto enviado cambia, el audio se vuelve a generar.
 - Los enlaces a otros `.md` de la misma carpeta se abren en la app, en una pestaña nueva. Los enlaces web se abren en tu navegador.
 
@@ -159,6 +161,7 @@ src/LectorMd.Core          Lógica sin dependencias de interfaz (net10.0)
   Tts/                     Azure (Speech SDK), Piper (proceso persistente --json-input) e híbrido
   Caching/, Usage/         Caché de audio, contador mensual de cuota y consumo real (Azure Monitor)
 src/LectorMd.App           WPF: WebView2 para el documento, MediaPlayer para el audio
+  Controls/                Barra de título (botones de ventana) y reproductor con línea de tiempo
 tests/LectorMd.Core.Tests  Pruebas unitarias xUnit del núcleo
 docs/ejemplo.md            Documento de prueba con todos los elementos
 docs/demo-lector.md        Guía rápida (la del audio de demostración)

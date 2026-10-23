@@ -20,7 +20,7 @@ Requiere el SDK de .NET 10 y el runtime de WebView2. Corre `dotnet test` antes d
 | Proyecto | Qué contiene |
 |---|---|
 | `src/LectorMd.Core` (`net10.0`) | Toda la lógica. Sin dependencias de interfaz: no referenciar WPF aquí |
-| `src/LectorMd.App` (`net10.0-windows`) | WPF: WebView2 muestra el documento y `MediaPlayer` reproduce el audio |
+| `src/LectorMd.App` (`net10.0-windows`) | WPF: WebView2 muestra el documento y `MediaPlayer` reproduce el audio. `Controls/` tiene la barra de título y el reproductor (`PlayerBar`) |
 | `tests/LectorMd.Core.Tests` | Pruebas xUnit del núcleo (`InternalsVisibleTo` habilitado) |
 | `docs/ejemplo.md` | Documento con todos los elementos de Markdown: úsalo para probar a mano |
 
@@ -53,6 +53,8 @@ El flujo, de punta a punta:
 - La clave de Azure se guarda cifrada con DPAPI (`SettingsStore`). Nunca la escribas en texto
   plano, en logs ni en pruebas.
 - Los datos del usuario viven en `%LOCALAPPDATA%\LectorMd\`. No se versionan.
+- **Colores del diseño en dos lugares:** `ThemeService.ApplyPalette` (recursos `Lector*Brush` de la ventana) y las variables de `Assets/lector.css` (el documento). Si cambias uno, cambia el otro.
+- `ReadingTimeline` (Core) da la duración por segmento y capítulo: real para los bloques en caché (`AudioChunk.Duration`, guardada en la caché) y estimada (15 caracteres/s + pausas) para el resto.
 
 ## Estilo
 
