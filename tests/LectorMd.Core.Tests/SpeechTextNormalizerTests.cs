@@ -8,13 +8,14 @@ public class SpeechTextNormalizerTests
 
     [Theory]
     [InlineData("Proyecto en C# y .NET", "Proyecto en si sharp y dot net")]
-    [InlineData("Usa ASP.NET Core", "Usa a ese pe dot net Core")]
+    [InlineData("Usa ASP.NET Core", "u sa a ese pe dot net Core")]
     [InlineData("El archivo JSON", "El archivo yéison")]
     [InlineData("Ver el README, etc.", "Ver el ríd mi, etcétera")]
     [InlineData("Un archivo Markdown en VS Code", "Un archivo márkdaun en ve ese cod")]
     [InlineData("Haz merge del pull request", "Haz merch del pul ricuést")]
     [InlineData("Pulsa Ctrl + O", "Pulsa control + O")]
-    [InlineData("Usa Azure Speech", "Usa áchur Speech")]
+    [InlineData("Usa Azure Speech", "u sa áchur Speech")] // la voz leía "Usa" como la sigla USA
+    [InlineData("Guarda la key del backend", "Guarda la qui del bák end")]
     public void Dictionary_ReplacesWholeTerms(string input, string expected)
     {
         Assert.Equal(expected, _normalizer.Normalize(input));
@@ -32,7 +33,7 @@ public class SpeechTextNormalizerTests
     }
 
     [Theory]
-    [InlineData("Usa Node.js y ASP.NET", "Usa nod yei es y a ese pe dot net")]
+    [InlineData("Usa Node.js y ASP.NET", "u sa nod yei es y a ese pe dot net")]
     [InlineData("Ver e.g. la versión 1.2", "Ver por ejemplo la versión 1.2")]
     [InlineData("Terminé.Luego sigo", "Terminé.Luego sigo")]
     [InlineData("El namespace LectorMd.App", "El namespace LectorMd.App")]

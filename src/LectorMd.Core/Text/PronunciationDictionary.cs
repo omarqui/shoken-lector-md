@@ -141,7 +141,7 @@ public sealed class PronunciationDictionary
         ["scripts"] = "escripts",
         ["framework"] = "fréimuork",
         ["runtime"] = "rántaim",
-        ["backend"] = "bákend",
+        ["backend"] = "bák end",
         ["frontend"] = "frónt end",
         ["endpoint"] = "éndpoint",
         ["endpoints"] = "éndpoints",
@@ -260,6 +260,10 @@ public sealed class PronunciationDictionary
         ["aprox."] = "aproximadamente",
         ["vs."] = "versus",
         ["vs"] = "versus",
+
+        // Palabras en español que la voz leía mal: "Usa" al inicio de oración sonaba como la sigla USA.
+        ["Usa"] = "u sa",
+        ["key"] = "qui",
     };
 
     public int Count => _entries.Count;
