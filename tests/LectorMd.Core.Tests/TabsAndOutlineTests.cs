@@ -183,6 +183,46 @@ public class TabsAndOutlineTests
         Assert.Empty(DocumentOutline.Build(Parse("Solo un párrafo.")));
     }
 
+    // A > A1 > A1a, A > A2, B > B1
+    private static IReadOnlyList<OutlineEntry> Tree() =>
+        DocumentOutline.Build(Parse("# A\n\nx\n\n## A1\n\nx\n\n### A1a\n\nx\n\n## A2\n\nx\n\n# B\n\nx\n\n## B1\n\nx"));
+
+    private static HashSet<string> Collapsed(IReadOnlyList<OutlineEntry> outline, params string[] titles) =>
+        outline.Where(e => titles.Contains(e.Text)).Select(e => e.AnchorId).ToHashSet(StringComparer.Ordinal);
+
+    [Fact]
+    public void Outline_KnowsWhichHeadingsHaveSubheadingsAndWhereEachSectionEnds()
+    {
+        IReadOnlyList<OutlineEntry> outline = Tree();
+
+        Assert.Equal([true, true, false, false, true, false], outline.Select((_, i) => DocumentOutline.HasChildren(outline, i)));
+        Assert.Equal([4, 3, 3, 4, 6, 6], outline.Select((_, i) => DocumentOutline.SectionEnd(outline, i)));
+    }
+
+    [Fact]
+    public void Outline_CollapsingAHeadingHidesOnlyItsSubheadings()
+    {
+        IReadOnlyList<OutlineEntry> outline = Tree();
+
+        Assert.Equal([0, 1, 2, 3, 4, 5], DocumentOutline.VisibleRows(outline, Collapsed(outline)));
+        Assert.Equal([0, 1, 3, 4, 5], DocumentOutline.VisibleRows(outline, Collapsed(outline, "A1")));
+        Assert.Equal([0, 4, 5], DocumentOutline.VisibleRows(outline, Collapsed(outline, "A")));
+        Assert.Equal([0, 4], DocumentOutline.VisibleRows(outline, Collapsed(outline, "A", "A1", "B")));
+    }
+
+    [Fact]
+    public void Outline_AHiddenSectionIsShownByItsCollapsedAncestorsRow()
+    {
+        IReadOnlyList<OutlineEntry> outline = Tree();
+        IReadOnlyList<int> rows = DocumentOutline.VisibleRows(outline, Collapsed(outline, "A"));
+
+        Assert.Equal(0, DocumentOutline.RowOf(rows, 0));
+        Assert.Equal(0, DocumentOutline.RowOf(rows, 2)); // A1a, dentro de A contraído
+        Assert.Equal(1, DocumentOutline.RowOf(rows, 4));
+        Assert.Equal(2, DocumentOutline.RowOf(rows, 5));
+        Assert.Equal(-1, DocumentOutline.RowOf(rows, -1)); // antes del primer título
+    }
+
     [Fact]
     public void Outline_CountsSearchMatchesPerSection_IncludingTheHeadingAndSkippingTheIntro()
     {

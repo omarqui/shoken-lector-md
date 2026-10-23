@@ -42,6 +42,10 @@ public partial class MainWindow : Window
     private DocumentTab? _active;
     private IReadOnlyList<OutlineEntry> _outline = [];
     private IReadOnlyList<int>? _findCounts; // resultados de Ctrl+F por entrada del índice
+    private IReadOnlyList<int> _outlineRows = []; // entradas que se ven (sin los subtítulos de las secciones contraídas)
+    private int _markedEntry = -1; // entrada marcada en el índice: la que se lee o la que eligió el usuario
+    private bool _settingOutline; // la selección del índice la está cambiando la app, no el usuario
+    private static readonly HashSet<string> NoCollapsedOutline = new(StringComparer.Ordinal);
     private IReadOnlyList<SpeechChunk> _chunks = [];
     private TimeSpan _lastElapsed; // última posición mostrada en la línea de tiempo (base para −10 s / +10 s)
     private ReadingTimeline? _timeline;
@@ -711,22 +715,135 @@ public partial class MainWindow : Window
         _outline = document is null ? [] : DocumentOutline.Build(document);
         OutlineEmpty.Text = document is null ? "Abre un documento para ver sus títulos." : "Este documento no tiene títulos.";
         OutlineEmpty.Visibility = _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        OutlineList.SelectedIndex = -1; // otro documento: la sección marcada del anterior no aplica
+        _markedEntry = -1; // otro documento: la sección marcada del anterior no aplica
         _findCounts = null; // la página nueva empieza sin búsqueda
-        RefreshOutlineTimes();
+        RefreshOutline();
     }
 
-    /// <summary>Pone a cada título la duración de su capítulo (≈ si todavía es estimada) y los resultados de la búsqueda.</summary>
-    private void RefreshOutlineTimes()
+    private IReadOnlySet<string> CollapsedOutline => _active?.CollapsedOutline ?? NoCollapsedOutline;
+
+    /// <summary>
+    /// Arma las filas visibles del índice (los subtítulos de un título contraído se ocultan) con la duración de cada
+    /// sección (≈ si todavía es estimada) y los resultados de la búsqueda. Una fila contraída suma toda su sección.
+    /// </summary>
+    private void RefreshOutline()
     {
-        int selected = OutlineList.SelectedIndex;
-        OutlineList.ItemsSource = _outline.Select((entry, i) =>
+        int? focusedEntry = OutlineList.IsKeyboardFocusWithin && Keyboard.FocusedElement is ListBoxItem { DataContext: OutlineItem focused }
+            ? focused.Index
+            : null;
+        double scroll = OutlineScroll?.VerticalOffset ?? 0;
+
+        IReadOnlySet<string> collapsed = CollapsedOutline;
+        _outlineRows = DocumentOutline.VisibleRows(_outline, collapsed);
+        _settingOutline = true;
+        OutlineList.ItemsSource = _outlineRows.Select(i =>
         {
-            TimelineChapter? chapter = _timeline?.Chapters.FirstOrDefault(c => c.AnchorId == entry.AnchorId);
-            string time = chapter is null ? "" : (chapter.IsEstimated ? "≈" : "") + PlayerBar.Format(chapter.Duration);
-            return new OutlineItem(entry, time, _findCounts is { } counts && i < counts.Count ? counts[i] : 0);
+            bool hasChildren = DocumentOutline.HasChildren(_outline, i);
+            bool isCollapsed = hasChildren && collapsed.Contains(_outline[i].AnchorId);
+            int end = isCollapsed ? DocumentOutline.SectionEnd(_outline, i) : i + 1;
+            List<TimelineChapter> chapters = _outline.Take(end).Skip(i)
+                .Select(e => _timeline?.Chapters.FirstOrDefault(c => c.AnchorId == e.AnchorId))
+                .OfType<TimelineChapter>()
+                .ToList();
+            string time = chapters.Count == 0
+                ? ""
+                : (chapters.Any(c => c.IsEstimated) ? "≈" : "") + PlayerBar.Format(TimeSpan.FromTicks(chapters.Sum(c => c.Duration.Ticks)));
+            int matches = _findCounts is { } counts ? counts.Take(end).Skip(i).Sum() : 0;
+            return new OutlineItem(_outline[i], i, time, matches, hasChildren, isCollapsed);
         }).ToList();
-        OutlineList.SelectedIndex = selected < _outline.Count ? selected : -1;
+        OutlineList.SelectedIndex = DocumentOutline.RowOf(_outlineRows, _markedEntry);
+        _settingOutline = false;
+
+        // Rehacer la lista no debe mover el panel ni quitarle el teclado a quien lo recorre con las flechas.
+        OutlineScroll?.ScrollToVerticalOffset(scroll);
+        if (focusedEntry is { } entry)
+        {
+            OutlineList.UpdateLayout();
+            int row = DocumentOutline.RowOf(_outlineRows, entry);
+            (OutlineList.ItemContainerGenerator.ContainerFromIndex(row) as ListBoxItem)?.Focus();
+        }
+
+        UpdateCollapseAllButton();
+    }
+
+    private ScrollViewer? OutlineScroll =>
+        VisualTreeHelper.GetChildrenCount(OutlineList) > 0 && VisualTreeHelper.GetChild(OutlineList, 0) is Border { Child: ScrollViewer viewer }
+            ? viewer
+            : null;
+
+    private void UpdateCollapseAllButton()
+    {
+        List<OutlineEntry> parents = _outline.Where((_, i) => DocumentOutline.HasChildren(_outline, i)).ToList();
+        OutlineCollapseAll.Visibility = parents.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        bool allCollapsed = parents.All(e => CollapsedOutline.Contains(e.AnchorId));
+        OutlineCollapseAllIcon.Text = allCollapsed ? "" : "";
+        string label = allCollapsed ? "Expandir todas las secciones" : "Contraer todas las secciones";
+        OutlineCollapseAll.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(OutlineCollapseAll, label);
+    }
+
+    private void SetCollapsed(OutlineItem item, bool collapse)
+    {
+        if (_active is null || !item.HasChildren || item.IsCollapsed == collapse)
+        {
+            return;
+        }
+
+        if (collapse)
+        {
+            _active.CollapsedOutline.Add(item.Entry.AnchorId);
+        }
+        else
+        {
+            _active.CollapsedOutline.Remove(item.Entry.AnchorId);
+        }
+
+        RefreshOutline();
+    }
+
+    private void OnOutlineCollapseAllClick(object sender, RoutedEventArgs e)
+    {
+        if (_active is null)
+        {
+            return;
+        }
+
+        List<string> parents = _outline.Where((_, i) => DocumentOutline.HasChildren(_outline, i)).Select(entry => entry.AnchorId).ToList();
+        if (parents.All(_active.CollapsedOutline.Contains))
+        {
+            _active.CollapsedOutline.Clear();
+        }
+        else
+        {
+            _active.CollapsedOutline.UnionWith(parents);
+        }
+
+        RefreshOutline();
+    }
+
+    private void OnOutlineChevronClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: OutlineItem item })
+        {
+            SetCollapsed(item, !item.IsCollapsed);
+        }
+    }
+
+    private void OnOutlinePlayClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: OutlineItem item })
+        {
+            OnPlayFromRequested(item.Entry.AnchorId);
+        }
+    }
+
+    // La fila marcada sigue a lo que se lee, pero también a lo que el usuario elige con el mouse o las flechas.
+    private void OnOutlineSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingOutline && OutlineList.SelectedItem is OutlineItem item)
+        {
+            _markedEntry = item.Index;
+        }
     }
 
     /// <param name="matchesByAnchor">Resultados por bloque, o null si la búsqueda se cerró.</param>
@@ -735,7 +852,7 @@ public partial class MainWindow : Window
         _findCounts = matchesByAnchor is null || _document is null
             ? null
             : DocumentOutline.CountMatches(_outline, _document, matchesByAnchor);
-        RefreshOutlineTimes();
+        RefreshOutline();
     }
 
     private void OpenFind()
@@ -746,13 +863,16 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Marca la sección que se lee; si está dentro de un título contraído, se marca ese título.</summary>
     private void MarkOutline(int segmentId)
     {
-        int index = DocumentOutline.IndexOf(_outline, segmentId);
-        OutlineList.SelectedIndex = index;
-        if (index >= 0)
+        _markedEntry = DocumentOutline.IndexOf(_outline, segmentId);
+        _settingOutline = true;
+        OutlineList.SelectedIndex = DocumentOutline.RowOf(_outlineRows, _markedEntry);
+        _settingOutline = false;
+        if (OutlineList.SelectedItem is { } row)
         {
-            OutlineList.ScrollIntoView(OutlineList.Items[index]);
+            OutlineList.ScrollIntoView(row);
         }
     }
 
@@ -818,29 +938,47 @@ public partial class MainWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(ThemeButton, label);
     }
 
+    /// <summary>Clic en la fila: lleva al título. Leer es solo con su ▶ (o Enter); la flecha contrae o expande.</summary>
     private void OnOutlineItemClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is ListBoxItem { DataContext: OutlineItem item } && _view is not null)
+        if (sender is ListBoxItem { DataContext: OutlineItem item } && _view is not null && !IsInsideButton(e.OriginalSource as DependencyObject))
         {
             _ = _view.ScrollToHeadingAsync(item.Entry.AnchorId);
         }
     }
 
-    private void OnOutlineItemDoubleClick(object sender, MouseButtonEventArgs e)
+    private static bool IsInsideButton(DependencyObject? element)
     {
-        if (sender is ListBoxItem { DataContext: OutlineItem item })
+        for (; element is Visual; element = VisualTreeHelper.GetParent(element))
         {
-            e.Handled = true;
-            OnPlayFromRequested(item.Entry.AnchorId);
+            if (element is System.Windows.Controls.Primitives.ButtonBase)
+            {
+                return true;
+            }
         }
+
+        return false;
     }
 
+    /// <summary>Enter lee desde el título; ← lo contrae y → lo expande.</summary>
     private void OnOutlineKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && OutlineList.SelectedItem is OutlineItem item)
+        if (OutlineList.SelectedItem is not OutlineItem item)
         {
-            e.Handled = true;
-            OnPlayFromRequested(item.Entry.AnchorId);
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Enter:
+                e.Handled = true;
+                OnPlayFromRequested(item.Entry.AnchorId);
+                break;
+            case Key.Left when item.HasChildren && !item.IsCollapsed:
+            case Key.Right when item.IsCollapsed:
+                e.Handled = true;
+                SetCollapsed(item, e.Key == Key.Left);
+                break;
         }
     }
 
@@ -1380,7 +1518,7 @@ public partial class MainWindow : Window
             ? null
             : ReadingTimeline.Build(_document, _chunks, chunk => _services.Engine.TryGetCached(chunk));
         Player.SetTimeline(_timeline, keepProgress);
-        RefreshOutlineTimes();
+        RefreshOutline();
     }
 
     private void OnPlaybackStateChanged(PlaybackState state)

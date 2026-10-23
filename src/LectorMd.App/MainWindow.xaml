@@ -181,12 +181,42 @@
 
             <Border x:Name="OutlinePanel" Width="250" Margin="0,0,12,0">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="ÍNDICE" FontSize="12" FontWeight="SemiBold" Margin="12,10,12,8"
-                               Foreground="{DynamicResource LectorText2Brush}" />
+                    <DockPanel.Resources>
+                        <!-- Botones dentro de una fila: el fondo al pasar el mouse contrasta con el de la fila. -->
+                        <Style x:Key="OutlineRowButton" TargetType="Button">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="Focusable" Value="False" />
+                            <Setter Property="Cursor" Value="Hand" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Back" Property="Background" Value="{DynamicResource LectorTrackBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </DockPanel.Resources>
+                    <DockPanel DockPanel.Dock="Top" Margin="12,5,8,3">
+                        <Button x:Name="OutlineCollapseAll" DockPanel.Dock="Right" Style="{StaticResource FlatIconButton}" Width="28" Height="28"
+                                Click="OnOutlineCollapseAllClick" Visibility="Collapsed">
+                            <TextBlock x:Name="OutlineCollapseAllIcon" Style="{StaticResource IconText}" FontSize="12" />
+                        </Button>
+                        <TextBlock Text="ÍNDICE" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource LectorText2Brush}" />
+                    </DockPanel>
                     <TextBlock x:Name="OutlineEmpty" DockPanel.Dock="Top" Visibility="Collapsed" TextWrapping="Wrap"
                                Margin="12,4" Foreground="{DynamicResource LectorText2Brush}" />
                     <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent" Padding="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyDown="OnOutlineKeyDown">
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewKeyDown="OnOutlineKeyDown"
+                             SelectionChanged="OnOutlineSelectionChanged">
                         <ListBox.ItemContainerStyle>
                             <!-- La sección que se está leyendo se marca con el fondo de "actual" del diseño. -->
                             <Style TargetType="ListBoxItem">
@@ -196,7 +226,7 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="12,8" Margin="0,1">
+                                            <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="6,8,10,8" Margin="0,1">
                                                 <ContentPresenter />
                                             </Border>
                                             <ControlTemplate.Triggers>
@@ -212,12 +242,18 @@
                                     </Setter.Value>
                                 </Setter>
                                 <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnOutlineItemClick" />
-                                <EventSetter Event="MouseDoubleClick" Handler="OnOutlineItemDoubleClick" />
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="{Binding Margin}" ToolTip="{Binding Text}">
+                                    <!-- Contraer o expandir los subtítulos. Sin subtítulos no se ve, pero alinea el texto. -->
+                                    <Button DockPanel.Dock="Left" Style="{StaticResource OutlineRowButton}" Width="18" Height="20" Margin="0,-2,4,-2"
+                                            Visibility="{Binding ChevronVisibility}" Click="OnOutlineChevronClick"
+                                            ToolTip="{Binding ChevronName}" AutomationProperties.Name="{Binding ChevronName}">
+                                        <TextBlock Style="{StaticResource IconText}" FontSize="9" Text="{Binding Chevron}"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                                    </Button>
                                     <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
                                     <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
@@ -227,9 +263,24 @@
                                         <TextBlock Text="{Binding Matches}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"
                                                    Foreground="{DynamicResource LectorOnAccentBrush}" />
                                     </Border>
+                                    <!-- Leer desde aquí: aparece al pasar el mouse y en la sección actual. -->
+                                    <Button x:Name="PlayButton" DockPanel.Dock="Right" Style="{StaticResource OutlineRowButton}" Width="24" Height="22"
+                                            Margin="6,-3,0,-3" Visibility="Collapsed" Click="OnOutlinePlayClick"
+                                            ToolTip="{Binding PlayName}" AutomationProperties.Name="{Binding PlayName}">
+                                        <TextBlock Style="{StaticResource IconText}" FontSize="11" Text="&#xE768;"
+                                                   Foreground="{DynamicResource LectorAccentBrush}" />
+                                    </Button>
                                     <TextBlock Text="{Binding Text}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis"
                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
                                 </DockPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                        <Setter TargetName="PlayButton" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                        <Setter TargetName="PlayButton" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>

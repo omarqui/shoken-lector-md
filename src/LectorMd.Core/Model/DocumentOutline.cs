@@ -41,6 +41,52 @@ public static class DocumentOutline
         return index;
     }
 
+    /// <summary>Si la entrada tiene subtítulos debajo (la siguiente es de un nivel más hondo).</summary>
+    public static bool HasChildren(IReadOnlyList<OutlineEntry> outline, int index) =>
+        index + 1 < outline.Count && outline[index + 1].Level > outline[index].Level;
+
+    /// <summary>Primera entrada que ya no es parte de la sección (la siguiente de igual o mayor jerarquía), o el total.</summary>
+    public static int SectionEnd(IReadOnlyList<OutlineEntry> outline, int index)
+    {
+        int end = index + 1;
+        while (end < outline.Count && outline[end].Level > outline[index].Level)
+        {
+            end++;
+        }
+
+        return end;
+    }
+
+    /// <summary>Entradas que se ven con las secciones contraídas (por su ancla): sus subtítulos se ocultan.</summary>
+    public static IReadOnlyList<int> VisibleRows(IReadOnlyList<OutlineEntry> outline, IReadOnlySet<string> collapsedAnchors)
+    {
+        var rows = new List<int>(outline.Count);
+        for (int i = 0; i < outline.Count; i++)
+        {
+            rows.Add(i);
+            if (collapsedAnchors.Contains(outline[i].AnchorId))
+            {
+                i = SectionEnd(outline, i) - 1;
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Fila que muestra una entrada: la suya, o la del título contraído que la oculta. -1 para "antes del primer título".
+    /// </summary>
+    public static int RowOf(IReadOnlyList<int> visibleRows, int entryIndex)
+    {
+        int row = -1;
+        for (int r = 0; r < visibleRows.Count && visibleRows[r] <= entryIndex; r++)
+        {
+            row = r;
+        }
+
+        return row;
+    }
+
     /// <summary>
     /// Resultados de una búsqueda por entrada del índice. Recibe cuántos hay en cada bloque (su <c>data-seg</c>);
     /// los de antes del primer título y los de anclas que no son del documento no se cuentan.
