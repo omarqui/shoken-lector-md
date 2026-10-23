@@ -70,6 +70,10 @@ public partial class MainWindow
         PronounceEditor.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
         {
+            // El popup no se activa (WS_EX_NOACTIVATE): sus teclas le llegan por la ventana principal. Si el foco
+            // de Windows sigue en el WebView2 (se acaba de seleccionar en el documento), las teclas irían a los
+            // atajos de lector.js aunque WPF crea que el cuadro tiene el foco. Enfocar la ventana se lo devuelve.
+            Focus();
             PronounceBox.Focus();
             PronounceBox.SelectAll();
         });
@@ -91,15 +95,27 @@ public partial class MainWindow
         }
     }
 
-    private void OnPronounceCancelClick(object sender, RoutedEventArgs e) => PronouncePopup.IsOpen = false;
+    private void OnPronounceCancelClick(object sender, RoutedEventArgs e) => ClosePronounceEditor();
 
     private void OnPronounceBoxKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            PronouncePopup.IsOpen = false;
+            ClosePronounceEditor();
         }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            OnPronounceSaveClick(sender, e);
+        }
+    }
+
+    /// <summary>Cierra el editor y devuelve el teclado al documento (desplazamiento y atajos).</summary>
+    private void ClosePronounceEditor()
+    {
+        PronouncePopup.IsOpen = false;
+        Browser.Focus();
     }
 
     private void OnPronouncePopupClosed(object? sender, EventArgs e)
@@ -122,7 +138,7 @@ public partial class MainWindow
             return;
         }
 
-        PronouncePopup.IsOpen = false;
+        ClosePronounceEditor();
         int resume = _player.CurrentSegmentId;
         RebuildServices(); // vuelve a leer el diccionario
         if (_active is { State.IsEmpty: false })
