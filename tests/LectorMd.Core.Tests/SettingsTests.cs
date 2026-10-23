@@ -17,6 +17,32 @@ public class SettingsTests
         Assert.Equal(expected, PlaybackSpeeds.Nearest(value));
     }
 
+    [Theory]
+    [InlineData(1.25, 1.0, 1.5)]
+    [InlineData(1.0, 0.75, 1.25)]
+    [InlineData(1.1, 0.75, 1.25)] // una velocidad vieja fuera de los pasos cuenta como la más cercana (1×)
+    public void PlaybackSpeeds_SlowerAndFasterMoveOneStep(double speed, double slower, double faster)
+    {
+        Assert.Equal(slower, PlaybackSpeeds.Slower(speed));
+        Assert.Equal(faster, PlaybackSpeeds.Faster(speed));
+    }
+
+    [Fact]
+    public void PlaybackSpeeds_StopAtTheEnds()
+    {
+        Assert.Null(PlaybackSpeeds.Slower(0.75));
+        Assert.Null(PlaybackSpeeds.Faster(1.75));
+    }
+
+    [Theory]
+    [InlineData(1.0, "1×")]
+    [InlineData(1.25, "1.25×")]
+    [InlineData(0.75, "0.75×")]
+    public void PlaybackSpeeds_LabelHasNoTrailingZeros(double speed, string expected)
+    {
+        Assert.Equal(expected, PlaybackSpeeds.Label(speed));
+    }
+
     [Fact]
     public void PlaybackSpeeds_AreTheFiveSelectorSteps()
     {

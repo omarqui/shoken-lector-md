@@ -25,7 +25,7 @@ public partial class PlayerBar : UserControl
     private readonly DispatcherTimer _statusCloseTimer;
     private string? _usagePercent;
     private readonly List<(Border Fill, TextBlock Label, TimelineChapter Chapter)> _cells = [];
-    private readonly List<(Button Button, double Speed)> _speedButtons = [];
+    private double _speed = 1.0; // velocidad actual: base de los botones − y +
     private ReadingTimeline? _timeline;
     private string _detail = "";
     private TimeSpan _lastElapsed;
@@ -53,23 +53,6 @@ public partial class PlayerBar : UserControl
             }
         };
         StatusPopup.CustomPopupPlacementCallback = PlaceStatusPanel;
-
-        foreach (double speed in PlaybackSpeeds.Steps)
-        {
-            var button = new Button
-            {
-                Style = (Style)Resources["BareButton"],
-                Content = speed.ToString("0.##", CultureInfo.InvariantCulture) + "×",
-                Height = 32,
-                Padding = new Thickness(10, 0, 10, 0),
-            };
-            button.SetResourceReference(FontSizeProperty, "LectorFontSize13"); // sigue el tamaño del texto (Configuración)
-            AutomationProperties.SetName(button, "Velocidad " + button.Content);
-            button.Click += (_, _) => SpeedChanged?.Invoke(speed);
-            SpeedPanel.Children.Add(button);
-            _speedButtons.Add((button, speed));
-        }
-
         SetTimeline(null);
     }
 
@@ -382,21 +365,51 @@ public partial class PlayerBar : UserControl
 
     public void SetSpeed(double speed)
     {
-        foreach ((Button button, double step) in _speedButtons)
-        {
-            bool on = Math.Abs(step - speed) < 0.001;
-            if (on)
-            {
-                button.SetResourceReference(BackgroundProperty, "LectorSurfaceBrush");
-            }
-            else
-            {
-                button.Background = Brushes.Transparent;
-            }
+        _speed = speed;
+        SpeedValueText.Text = PlaybackSpeeds.Label(speed);
+        AutomationProperties.SetName(SpeedValueButton, $"Velocidad {PlaybackSpeeds.Label(speed)}, elegir otra");
+        SetStep(SlowerButton, PlaybackSpeeds.Slower(speed), "Más lento");
+        SetStep(FasterButton, PlaybackSpeeds.Faster(speed), "Más rápido");
+    }
 
-            button.SetResourceReference(ForegroundProperty, on ? "LectorTextBrush" : "LectorText2Brush");
-            button.FontWeight = on ? FontWeights.SemiBold : FontWeights.Normal;
+    private static void SetStep(Button button, double? step, string label)
+    {
+        button.IsEnabled = step is not null;
+        button.ToolTip = step is { } value ? $"{label} ({PlaybackSpeeds.Label(value)})" : null;
+    }
+
+    private void OnSlowerClick(object sender, RoutedEventArgs e)
+    {
+        if (PlaybackSpeeds.Slower(_speed) is { } speed)
+        {
+            SpeedChanged?.Invoke(speed);
         }
+    }
+
+    private void OnFasterClick(object sender, RoutedEventArgs e)
+    {
+        if (PlaybackSpeeds.Faster(_speed) is { } speed)
+        {
+            SpeedChanged?.Invoke(speed);
+        }
+    }
+
+    /// <summary>Todas las velocidades en un menú sobre el botón, con la actual marcada.</summary>
+    private void OnSpeedValueClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = SpeedValueButton, Placement = PlacementMode.Top };
+        foreach (double step in PlaybackSpeeds.Steps)
+        {
+            var item = new MenuItem
+            {
+                Header = PlaybackSpeeds.Label(step) + (step == 1.0 ? " · normal" : ""),
+                IsChecked = Math.Abs(step - _speed) < 0.001,
+            };
+            item.Click += (_, _) => SpeedChanged?.Invoke(step);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
     }
 
     public void SetState(PlaybackState state, bool hasDocument)
