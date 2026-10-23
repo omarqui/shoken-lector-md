@@ -191,6 +191,11 @@ public partial class PlayerBar : UserControl
     }
 
     /// <summary>Un aviso (antes iba en la barra de estado): se queda 8 s sobre el detalle de la posición.</summary>
+    /// <summary>Lo que muestra ahora (para pasarlo al mini reproductor).</summary>
+    public string CurrentSection => SectionText.Text;
+
+    public string CurrentDetail => DetailText.Text;
+
     /// <summary>Quita el aviso y vuelve al detalle de la posición (p. ej. "Preparando el audio…" cuando ya suena).</summary>
     public void ClearNotice()
     {

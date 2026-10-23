@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private int _shownActivation; // activación cuyo documento ya está en pantalla
     private TrayIcon? _tray;
     private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
+    private MiniPlayerWindow? _mini; // solo existe mientras la ventana está oculta o minimizada
     private bool _exiting;        // true = cerrar termina la app (si no, la ventana se oculta en la bandeja)
     private bool _syncingTabs;  // la selección de la barra la está cambiando el código, no el usuario
     private readonly string? _fileFromCommandLine;
@@ -60,6 +61,7 @@ public partial class MainWindow : Window
         ThemeService.Apply(_settings.Theme); // antes de crear los controles, para que no parpadeen
         ThemeService.WatchSystemTheme();
         ThemeService.Changed += UpdateThemeButton;
+        Activated += (_, _) => _mini?.Close(); // la ventana a la vista: el mini reproductor sobra
         InitializeComponent();
         _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
@@ -154,6 +156,11 @@ public partial class MainWindow : Window
             // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
             e.Cancel = true;
             Hide();
+            if (_player.State != PlaybackState.Stopped)
+            {
+                ShowMiniPlayer();
+            }
+
             if (!_settings.TrayHintShown)
             {
                 _tray?.ShowHint("Lector MD sigue en la bandeja. Ctrl+Alt+L lee lo que copiaste.");
@@ -702,8 +709,23 @@ public partial class MainWindow : Window
     private void OnOutlineToggleClick(object sender, RoutedEventArgs e) => ToggleOutline();
 
     // Con WindowChrome, una ventana maximizada se sale unos píxeles de la pantalla: se compensa.
-    private void OnWindowStateChanged(object? sender, EventArgs e) =>
+    private void OnWindowStateChanged(object? sender, EventArgs e)
+    {
         RootPanel.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+
+        // Minimizada mientras lee: aparece el mini reproductor; al volver, se va.
+        if (WindowState == WindowState.Minimized)
+        {
+            if (_player.State != PlaybackState.Stopped)
+            {
+                ShowMiniPlayer();
+            }
+        }
+        else
+        {
+            _mini?.Close();
+        }
+    }
 
     // ------------------------------------------------------------------ tema
 
@@ -798,6 +820,37 @@ public partial class MainWindow : Window
         {
             _player.TogglePlayPause();
         }
+
+        if (!IsVisible || WindowState == WindowState.Minimized)
+        {
+            ShowMiniPlayer();
+        }
+    }
+
+    /// <summary>Muestra (o actualiza) el reproductor flotante con el estado actual.</summary>
+    private void ShowMiniPlayer()
+    {
+        if (_mini is null)
+        {
+            _mini = new MiniPlayerWindow();
+            _mini.PlayPauseClicked += TogglePlay;
+            _mini.StopClicked += () => _player.Stop();
+            _mini.PreviousClicked += () => _player.PreviousSection();
+            _mini.NextClicked += () => _player.NextSection();
+            _mini.SpeedChanged += OnSpeedChanged;
+            _mini.OpenMainClicked += () => _ = BringToFrontAsync(null);
+            _mini.Closed += (_, _) => _mini = null;
+        }
+
+        _mini.SetPosition(Player.CurrentSection, Player.CurrentDetail);
+        _mini.SetSpeed(_settings.PlaybackSpeed);
+        _mini.SetState(_player.State);
+        if (_timeline is not null)
+        {
+            _mini.SetProgress(_timeline.StartOf(Math.Max(0, _player.CurrentSegmentId)), _timeline.Total);
+        }
+
+        _mini.Show();
     }
 
     /// <returns>True si abrió algo (archivos o el texto pegado).</returns>
@@ -960,6 +1013,7 @@ public partial class MainWindow : Window
         _player.PlaybackSpeed = speed;
         _settings.PlaybackSpeed = speed;
         Player.SetSpeed(speed);
+        _mini?.SetSpeed(speed);
         _settingsStore.Save(_settings);
     }
 
@@ -1171,16 +1225,20 @@ public partial class MainWindow : Window
 
         string section = _document.SectionOf(segmentId)?.PlainText is { Length: > 0 } title ? $"§ {title}" : _document.Title;
         int chapter = _timeline.ChapterIndexOf(segmentId);
-        Player.SetPosition(section,
-            $"Párrafo {segmentId + 1} de {_document.Segments.Count} · capítulo {chapter + 1} de {_timeline.Chapters.Count}");
+        string detail = $"Párrafo {segmentId + 1} de {_document.Segments.Count} · capítulo {chapter + 1} de {_timeline.Chapters.Count}";
+        Player.SetPosition(section, detail);
         Player.SetProgress(_timeline.StartOf(segmentId), chapter);
+        _mini?.SetPosition(section, detail);
+        _mini?.SetProgress(_timeline.StartOf(segmentId), _timeline.Total);
     }
 
     private void OnProgressChanged(int segmentId, TimeSpan intoSegment)
     {
         if (_timeline is not null)
         {
-            Player.SetProgress(_timeline.ElapsedAt(segmentId, intoSegment), _timeline.ChapterIndexOf(segmentId));
+            TimeSpan elapsed = _timeline.ElapsedAt(segmentId, intoSegment);
+            Player.SetProgress(elapsed, _timeline.ChapterIndexOf(segmentId));
+            _mini?.SetProgress(elapsed, _timeline.Total);
         }
     }
 
@@ -1208,6 +1266,7 @@ public partial class MainWindow : Window
         }
 
         UpdateButtons();
+        _mini?.SetState(state);
     }
 
     private void OnChunkStarted(AudioChunk audio)
@@ -1282,7 +1341,11 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ presentación
 
-    private void ShowStatus(string text) => Player.ShowNotice(text);
+    private void ShowStatus(string text)
+    {
+        Player.ShowNotice(text);
+        _mini?.ShowNotice(text);
+    }
 
     /// <param name="source">De dónde salió el último audio ("Desde caché · sin gastar cuota", …).</param>
     private void ShowEngine(string name, bool fallback, string? reason, string? source = null)
