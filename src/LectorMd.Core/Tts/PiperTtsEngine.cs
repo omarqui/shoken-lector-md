@@ -116,7 +116,7 @@ public sealed class PiperTtsEngine : ITtsEngine, IDisposable
 
         WavAudio combined = WavAudio.Concatenate(filled, out IReadOnlyList<TimeSpan> starts);
         var marks = starts.Select((offset, index) => (index, offset)).ToList();
-        return _cache.Store(key, combined.ToBytes(), ".wav", marks, chunk, Name);
+        return _cache.Store(key, combined.ToBytes(), ".wav", marks, chunk, Name, combined.Duration);
     }
 
     private (List<string> Texts, string Key) Prepare(SpeechChunk chunk)

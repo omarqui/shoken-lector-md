@@ -115,7 +115,7 @@ public sealed class AzureTtsEngine : ITtsEngine, IDisposable
                             snapshot = [.. marks];
                         }
 
-                        return _cache.Store(key, result.AudioData, ".mp3", snapshot, chunk, Name);
+                        return _cache.Store(key, result.AudioData, ".mp3", snapshot, chunk, Name, result.AudioDuration);
 
                     case ResultReason.Canceled:
                         var details = SpeechSynthesisCancellationDetails.FromResult(result);

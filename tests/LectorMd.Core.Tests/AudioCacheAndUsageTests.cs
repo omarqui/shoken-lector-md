@@ -2,6 +2,7 @@ using LectorMd.Core.Audio;
 using LectorMd.Core.Caching;
 using LectorMd.Core.Parsing;
 using LectorMd.Core.Planning;
+using LectorMd.Core.Tts;
 using LectorMd.Core.Usage;
 
 namespace LectorMd.Core.Tests;
@@ -55,6 +56,38 @@ public sealed class AudioCacheAndUsageTests : IDisposable
         Assert.Equal(new[] { 1, 2 }, hit.Marks.Select(m => m.SegmentId));
         Assert.Equal(2, hit.SegmentAt(TimeSpan.FromSeconds(2.5)));
         Assert.Equal(1, hit.SegmentAt(TimeSpan.FromSeconds(0.5)));
+    }
+
+    [Fact]
+    public void Cache_RoundTripsDuration()
+    {
+        var doc = new MarkdownSpeechParser().Parse("Uno.\n\nDos.");
+        var chunk = new SpeechChunk { Index = 0, Segments = doc.Segments };
+        var cache = new AudioCache(_dir);
+        string key = AudioCache.ComputeKey("duracion");
+
+        AudioChunk stored = cache.Store(key, [1], ".mp3", [(0, TimeSpan.Zero), (1, TimeSpan.FromSeconds(4))], chunk, "m",
+            duration: TimeSpan.FromSeconds(12.5));
+        AudioChunk? hit = cache.TryGet(key, chunk, "m");
+
+        Assert.Equal(TimeSpan.FromSeconds(12.5), stored.Duration);
+        Assert.Equal(TimeSpan.FromSeconds(12.5), hit!.Duration);
+    }
+
+    [Fact]
+    public void Cache_OldEntriesWithoutDuration_StillLoad()
+    {
+        var doc = new MarkdownSpeechParser().Parse("Uno.");
+        var chunk = new SpeechChunk { Index = 0, Segments = doc.Segments };
+        var cache = new AudioCache(_dir);
+        string key = AudioCache.ComputeKey("vieja");
+        File.WriteAllText(Path.Combine(_dir, key + ".json"), """{"Extension":".mp3","Marks":[{"Index":0,"OffsetTicks":0}]}""");
+        File.WriteAllBytes(Path.Combine(_dir, key + ".mp3"), [1]);
+
+        AudioChunk? hit = cache.TryGet(key, chunk, "m");
+
+        Assert.NotNull(hit);
+        Assert.Null(hit!.Duration);
     }
 
     [Fact]
