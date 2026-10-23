@@ -562,6 +562,10 @@ public partial class MainWindow : Window
 
     private void OnOutlineToggleClick(object sender, RoutedEventArgs e) => ToggleOutline();
 
+    // Con WindowChrome, una ventana maximizada se sale unos píxeles de la pantalla: se compensa.
+    private void OnWindowStateChanged(object? sender, EventArgs e) =>
+        RootPanel.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+
     // ------------------------------------------------------------------ tema
 
     private void OnThemeClick(object sender, RoutedEventArgs e)

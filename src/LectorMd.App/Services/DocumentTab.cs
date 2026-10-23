@@ -14,8 +14,11 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 
     public string Name => State.Name;
 
+    /// <summary>Ícono de Segoe Fluent: documento (archivo .md), portapapeles (texto pegado) o "+" (vacía).</summary>
+    public string Icon => State.IsEmpty ? "" : State.IsPasted ? "" : "";
+
     public string ToolTip => State.IsEmpty ? "Pega aquí (Ctrl+V) un texto Markdown o la ruta de un archivo"
-        : State.IsPasted ? "Texto pegado"
+        : State.IsPasted ? "Texto pegado (en memoria): se guarda hasta que cierres la pestaña"
         : State.Path;
 
     public bool IsFile(string path) =>
@@ -27,6 +30,7 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
     public void NotifyChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolTip)));
     }
 }
