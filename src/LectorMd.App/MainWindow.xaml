@@ -48,7 +48,7 @@
                     <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE710;" />
                 </Button>
                 <ListBox x:Name="TabList" SelectionChanged="OnTabSelectionChanged" PreviewMouseWheel="OnTabListMouseWheel"
-                         BorderThickness="0" Background="Transparent"
+                         BorderThickness="0" Background="Transparent" AllowDrop="True"
                          Padding="0" WindowChrome.IsHitTestVisibleInChrome="True"
                          ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                          KeyboardNavigation.TabNavigation="Once">
@@ -84,6 +84,11 @@
                                 </Setter.Value>
                             </Setter>
                             <EventSetter Event="PreviewMouseUp" Handler="OnTabMouseUp" />
+                            <!-- Arrastrar una pestaña la reordena. -->
+                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OnTabPreviewMouseLeftButtonDown" />
+                            <EventSetter Event="PreviewMouseMove" Handler="OnTabPreviewMouseMove" />
+                            <EventSetter Event="DragOver" Handler="OnTabDragOver" />
+                            <EventSetter Event="Drop" Handler="OnTabDrop" />
                             <!-- Clic derecho, tecla Menú o Shift+F10: las opciones se arman según la pestaña al abrirse. -->
                             <Setter Property="ContextMenu">
                                 <Setter.Value>

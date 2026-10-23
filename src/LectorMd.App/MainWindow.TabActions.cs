@@ -51,6 +51,82 @@ public partial class MainWindow
         }
     }
 
+    // ------------------------------------------------------------------ mover pestañas
+
+    private const string TabDragFormat = "LectorMd.Pestaña";
+    private Point? _tabDragStart;
+    private DocumentTab? _draggedTab;
+
+    private void OnTabPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _tabDragStart = IsInsideButton(e.OriginalSource as DependencyObject) ? null : e.GetPosition(TabList); // la × no arrastra
+
+    private void OnTabPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_tabDragStart is not { } start || e.LeftButton != MouseButtonState.Pressed
+            || sender is not ListBoxItem { DataContext: DocumentTab tab } item)
+        {
+            return;
+        }
+
+        Vector moved = e.GetPosition(TabList) - start;
+        if (Math.Abs(moved.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(moved.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _tabDragStart = null;
+        _draggedTab = tab;
+        try
+        {
+            DragDrop.DoDragDrop(item, new DataObject(TabDragFormat, tab), DragDropEffects.Move);
+        }
+        finally
+        {
+            _draggedTab = null;
+            SaveSession(); // el orden nuevo se recuerda al reabrir
+        }
+    }
+
+    /// <summary>
+    /// La pestaña arrastrada toma el lugar de la que está debajo apenas pasa su mitad (con anchos distintos, si se
+    /// moviera antes, saltaría de ida y vuelta).
+    /// </summary>
+    private void OnTabDragOver(object sender, DragEventArgs e)
+    {
+        if (_draggedTab is not { } dragged || !e.Data.GetDataPresent(TabDragFormat))
+        {
+            return; // un archivo arrastrado sobre las pestañas lo atiende la ventana
+        }
+
+        e.Handled = true;
+        e.Effects = DragDropEffects.Move;
+        if (sender is not ListBoxItem { DataContext: DocumentTab target } item)
+        {
+            return;
+        }
+
+        int from = _tabs.IndexOf(dragged);
+        int to = _tabs.IndexOf(target);
+        double x = e.GetPosition(item).X;
+        if (from < 0 || to < 0 || from == to || (to > from && x < item.ActualWidth / 2) || (to < from && x > item.ActualWidth / 2))
+        {
+            return;
+        }
+
+        _syncingTabs = true; // mover no es elegir otra pestaña
+        _tabs.Move(from, to);
+        _syncingTabs = false;
+    }
+
+    private void OnTabDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(TabDragFormat))
+        {
+            e.Handled = true;
+        }
+    }
+
     // ------------------------------------------------------------------ menú de la pestaña
 
     private void OnTabContextMenuOpening(object sender, ContextMenuEventArgs e)
