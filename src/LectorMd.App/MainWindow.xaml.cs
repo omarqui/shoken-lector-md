@@ -73,7 +73,11 @@ public partial class MainWindow : Window
         ThemeService.WatchSystemTheme();
         ThemeService.Changed += UpdateThemeButton;
         Activated += (_, _) => _mini?.Close(); // la ventana a la vista: el mini reproductor sobra
-        Deactivated += (_, _) => Player.ClosePopup(); // el panel del estado no debe flotar sobre otra app
+        Deactivated += (_, _) =>
+        {
+            Player.ClosePopup(); // el panel del estado no debe flotar sobre otra app
+            ToastPopup.IsOpen = false;
+        };
         InitializeComponent();
         _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
@@ -487,7 +491,7 @@ public partial class MainWindow : Window
                 : $"{(timeline.Chapters.Any(c => c.IsEstimated) ? "≈ " : "")}{PlayerBar.Format(timeline.Total)} de lectura · doble clic en un párrafo para empezar ahí");
         }
 
-        SetDocumentHeader(document.Title, tab.State.IsPasted ? "Texto pegado (en memoria)" : tab.State.Path);
+        SetDocumentHeader(document.Title, tab);
         Title = $"{document.Title} — Lector MD";
         UpdateButtons();
         SaveSession();
@@ -772,13 +776,23 @@ public partial class MainWindow : Window
             ? viewer
             : null;
 
+    /// <summary>El botón del encabezado muestra lo que hará al pulsarlo: contraer todo, al primer nivel o expandir.</summary>
     private void UpdateCollapseAllButton()
     {
-        List<OutlineEntry> parents = _outline.Where((_, i) => DocumentOutline.HasChildren(_outline, i)).ToList();
-        OutlineCollapseAll.Visibility = parents.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        bool allCollapsed = parents.All(e => CollapsedOutline.Contains(e.AnchorId));
-        OutlineCollapseAllIcon.Text = allCollapsed ? "" : "";
-        string label = allCollapsed ? "Expandir todas las secciones" : "Contraer todas las secciones";
+        bool hasParents = _outline.Where((_, i) => DocumentOutline.HasChildren(_outline, i)).Any();
+        OutlineCollapseAll.Visibility = hasParents ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasParents)
+        {
+            return;
+        }
+
+        OutlineFold next = DocumentOutline.NextFold(_outline, CollapsedOutline);
+        (string glyph, string label) = DocumentOutline.Folded(_outline, next).Count == 0
+            ? ("", "Expandir todas las secciones")
+            : next == OutlineFold.All
+                ? ("", "Contraer todas las secciones")
+                : ("", "Contraer al primer nivel");
+        OutlineCollapseAllIcon.Text = glyph;
         OutlineCollapseAll.ToolTip = label;
         System.Windows.Automation.AutomationProperties.SetName(OutlineCollapseAll, label);
     }
@@ -809,16 +823,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        List<string> parents = _outline.Where((_, i) => DocumentOutline.HasChildren(_outline, i)).Select(entry => entry.AnchorId).ToList();
-        if (parents.All(_active.CollapsedOutline.Contains))
-        {
-            _active.CollapsedOutline.Clear();
-        }
-        else
-        {
-            _active.CollapsedOutline.UnionWith(parents);
-        }
-
+        // Contraer todo → primer nivel → expandir todo (desde lo contraído a mano, empieza por contraer todo).
+        OutlineFold next = DocumentOutline.NextFold(_outline, _active.CollapsedOutline);
+        _active.CollapsedOutline.Clear();
+        _active.CollapsedOutline.UnionWith(DocumentOutline.Folded(_outline, next));
         RefreshOutline();
     }
 
@@ -1672,15 +1680,6 @@ public partial class MainWindow : Window
             ? $"Azure Monitor: {r.Characters.ToString("N0", Mexico)} a las {r.At.ToString("HH:mm", Mexico)}"
             : null;
         Player.SetUsage(true, _services.Usage.Used, Math.Max(1, _services.Usage.Limit), _services.Usage.ResetsOn, report);
-    }
-
-    /// <summary>Título en la barra de comandos y, debajo, de dónde viene (toda la ruta en el tooltip si no cabe).</summary>
-    private void SetDocumentHeader(string title, string? source)
-    {
-        DocumentTitle.Text = title;
-        DocumentPath.Text = source ?? "";
-        DocumentPath.ToolTip = source;
-        DocumentPath.Visibility = string.IsNullOrEmpty(source) ? Visibility.Hidden : Visibility.Visible;
     }
 
     private void UpdateButtons()

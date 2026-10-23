@@ -224,6 +224,47 @@ public class TabsAndOutlineTests
     }
 
     [Fact]
+    public void Outline_FoldAllShowsTopLevel_FirstLevelShowsOneMore_NoneShowsEverything()
+    {
+        IReadOnlyList<OutlineEntry> outline = Tree();
+
+        Assert.Equal([0, 4], DocumentOutline.VisibleRows(outline, DocumentOutline.Folded(outline, OutlineFold.All)));
+        Assert.Equal([0, 1, 3, 4, 5], DocumentOutline.VisibleRows(outline, DocumentOutline.Folded(outline, OutlineFold.FirstLevel)));
+        Assert.Empty(DocumentOutline.Folded(outline, OutlineFold.None));
+    }
+
+    [Fact]
+    public void Outline_FoldButtonCycles_All_FirstLevel_None_AndStartsWithAllFromAHandMadeState()
+    {
+        IReadOnlyList<OutlineEntry> outline = Tree();
+
+        Assert.Equal(OutlineFold.All, DocumentOutline.NextFold(outline, Collapsed(outline)));
+        Assert.Equal(OutlineFold.FirstLevel, DocumentOutline.NextFold(outline, DocumentOutline.Folded(outline, OutlineFold.All)));
+        Assert.Equal(OutlineFold.None, DocumentOutline.NextFold(outline, DocumentOutline.Folded(outline, OutlineFold.FirstLevel)));
+        Assert.Equal(OutlineFold.All, DocumentOutline.NextFold(outline, Collapsed(outline, "B"))); // contraído a mano
+    }
+
+    [Fact]
+    public void Outline_FoldButtonSkipsFirstLevel_WhenItWouldShowTheSameAsExpanded()
+    {
+        // Dos niveles: "primer nivel" y "expandir todo" se ven igual, así que el botón alterna entre dos estados.
+        IReadOnlyList<OutlineEntry> outline = DocumentOutline.Build(Parse("# A\n\nx\n\n## A1\n\nx\n\n# B\n\nx"));
+
+        Assert.Equal(OutlineFold.All, DocumentOutline.NextFold(outline, Collapsed(outline)));
+        Assert.Empty(DocumentOutline.Folded(outline, DocumentOutline.NextFold(outline, DocumentOutline.Folded(outline, OutlineFold.All))));
+    }
+
+    [Theory]
+    [InlineData("Propuesta: gestión de archivos", "Propuesta gestión de archivos.md")]
+    [InlineData("  ¿Qué es <esto>?  ", "¿Qué es esto.md")]
+    [InlineData("", "Pegado.md")]
+    [InlineData("***", "Pegado.md")]
+    public void PastedTab_SuggestsAFileNameFromItsTitle(string title, string expected)
+    {
+        Assert.Equal(expected, OpenTab.SuggestFileName(title));
+    }
+
+    [Fact]
     public void Outline_CountsSearchMatchesPerSection_IncludingTheHeadingAndSkippingTheIntro()
     {
         var doc = Parse("Intro.\n\n# A\n\nTexto a.\n\nOtro a.\n\n# B\n\nTexto b.");

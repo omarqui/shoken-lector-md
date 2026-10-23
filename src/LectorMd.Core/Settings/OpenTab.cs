@@ -29,6 +29,19 @@ public sealed class OpenTab
         : System.IO.Path.GetFileNameWithoutExtension(Path);
 
     public OpenTab Clone() => (OpenTab)MemberwiseClone();
+
+    /// <summary>Nombre de archivo para guardar un texto pegado: su título sin caracteres que Windows no acepta.</summary>
+    public static string SuggestFileName(string title)
+    {
+        string clean = new(title.Where(c => !char.IsControl(c) && "<>:\"/\\|?*".IndexOf(c) < 0).ToArray());
+        clean = string.Join(' ', clean.Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.', ' ');
+        if (clean.Length > 80)
+        {
+            clean = clean[..80].TrimEnd('.', ' ');
+        }
+
+        return (clean.Length == 0 ? "Pegado" : clean) + ".md";
+    }
 }
 
 public sealed record RestoredTabs(IReadOnlyList<OpenTab> Tabs, int ActiveIndex, IReadOnlyList<string> Missing);

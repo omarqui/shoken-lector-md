@@ -84,6 +84,13 @@
                                 </Setter.Value>
                             </Setter>
                             <EventSetter Event="PreviewMouseUp" Handler="OnTabMouseUp" />
+                            <!-- Clic derecho, tecla Menú o Shift+F10: las opciones se arman según la pestaña al abrirse. -->
+                            <Setter Property="ContextMenu">
+                                <Setter.Value>
+                                    <ContextMenu />
+                                </Setter.Value>
+                            </Setter>
+                            <EventSetter Event="ContextMenuOpening" Handler="OnTabContextMenuOpening" />
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
@@ -119,7 +126,7 @@
         </Grid>
 
         <!-- Barra de comandos (la reproducción vive abajo) -->
-        <Border DockPanel.Dock="Top" Padding="12,8" BorderThickness="0,0,0,1"
+        <Border x:Name="CommandBar" DockPanel.Dock="Top" Padding="12,8" BorderThickness="0,0,0,1"
                 Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
@@ -165,15 +172,23 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Título del documento y, debajo y más tenue, de dónde viene (la ruta del archivo o "texto pegado").
-                     Sin documento la segunda línea queda oculta pero ocupa su lugar: la barra no cambia de alto. -->
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16,0">
-                    <TextBlock x:Name="DocumentTitle" HorizontalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                               Foreground="{DynamicResource LectorTextBrush}" />
-                    <TextBlock x:Name="DocumentPath" HorizontalAlignment="Center" Margin="0,-1,0,0" Visibility="Hidden"
-                               FontSize="{DynamicResource LectorFontSize12}" TextTrimming="CharacterEllipsis"
-                               Foreground="{DynamicResource LectorText2Brush}" />
-                </StackPanel>
+                <!-- Título del documento. Al pasar el mouse aparece debajo, más tenue, de dónde viene (la ruta del
+                     archivo, que se copia con un clic, o "texto pegado"). -->
+                <Grid Margin="16,0">
+                    <!-- Reserva el alto de las dos líneas (sigue el tamaño del texto): mostrar la ruta no mueve la barra. -->
+                    <StackPanel Visibility="Hidden" IsHitTestVisible="False">
+                        <TextBlock Text="Ay" FontWeight="SemiBold" />
+                        <TextBlock Text="Ay" Margin="0,-1,0,0" FontSize="{DynamicResource LectorFontSize12}" />
+                    </StackPanel>
+                    <StackPanel x:Name="DocumentHeader" VerticalAlignment="Center" HorizontalAlignment="Center" Background="Transparent"
+                                MouseEnter="OnDocumentHeaderMouseEnter" MouseLeave="OnDocumentHeaderMouseLeave">
+                        <TextBlock x:Name="DocumentTitle" HorizontalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource LectorTextBrush}" />
+                        <TextBlock x:Name="DocumentPath" HorizontalAlignment="Center" Margin="0,-1,0,0" Visibility="Collapsed"
+                                   FontSize="{DynamicResource LectorFontSize12}" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource LectorText2Brush}" MouseLeftButtonUp="OnDocumentPathClick" />
+                    </StackPanel>
+                </Grid>
             </DockPanel>
         </Border>
 
@@ -294,6 +309,23 @@
                     </ListBox>
                 </DockPanel>
             </Border>
+
+            <!-- Aviso breve ("Ruta copiada"), centrado bajo la barra de comandos. Es un Popup porque el documento
+                 (WebView2) tapa cualquier otro elemento de WPF que se dibuje encima. -->
+            <Popup x:Name="ToastPopup" PlacementTarget="{Binding ElementName=CommandBar}" Placement="Custom"
+                   AllowsTransparency="True" StaysOpen="True" IsHitTestVisible="False" Focusable="False">
+                <Border x:Name="Toast" Margin="8" Padding="14,8" CornerRadius="8" Background="{DynamicResource LectorTextBrush}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.3" />
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ToastIcon" Style="{StaticResource IconText}" FontSize="13" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource LectorSurfaceBrush}" />
+                        <TextBlock x:Name="ToastText" VerticalAlignment="Center" Foreground="{DynamicResource LectorSurfaceBrush}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+                </Border>
+            </Popup>
 
             <!-- Pronunciación de lo seleccionado: primero un botón junto a la selección; al pulsarlo, el editor. -->
             <Popup x:Name="PronouncePopup" Grid.Column="1" PlacementTarget="{Binding ElementName=Browser}" Placement="Relative"
