@@ -45,7 +45,8 @@
                         Style="{StaticResource FlatIconButton}" Width="36" Height="32" Margin="2,0,0,2" VerticalAlignment="Bottom">
                     <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE710;" />
                 </Button>
-                <ListBox x:Name="TabList" SelectionChanged="OnTabSelectionChanged" BorderThickness="0" Background="Transparent"
+                <ListBox x:Name="TabList" SelectionChanged="OnTabSelectionChanged" PreviewMouseWheel="OnTabListMouseWheel"
+                         BorderThickness="0" Background="Transparent"
                          Padding="0" WindowChrome.IsHitTestVisibleInChrome="True"
                          ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                          KeyboardNavigation.TabNavigation="Once">

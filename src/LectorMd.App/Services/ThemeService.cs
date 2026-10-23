@@ -8,6 +8,8 @@ namespace LectorMd.App.Services;
 /// <summary>Tema de la ventana (tema Fluent de WPF): claro, oscuro o el del sistema.</summary>
 internal static class ThemeService
 {
+    private static bool _watching;
+
     public static AppTheme Current { get; private set; } = AppTheme.System;
 
     /// <summary>True si lo que se ve es oscuro (con "Sistema", según la configuración de Windows).</summary>
@@ -59,6 +61,34 @@ internal static class ThemeService
         var brush = new SolidColorBrush(color);
         brush.Freeze();
         return brush;
+    }
+
+    /// <summary>Cambió lo que se ve porque Windows cambió de tema (solo con "Sistema").</summary>
+    public static event Action? Changed;
+
+    /// <summary>
+    /// Con "Sistema", sigue los cambios de tema de Windows con la app abierta. El tema Fluent y el documento
+    /// lo hacen solos; los colores propios (Lector*Brush) hay que volver a aplicarlos, o la ventana queda a medias.
+    /// </summary>
+    public static void WatchSystemTheme()
+    {
+        if (_watching)
+        {
+            return;
+        }
+
+        _watching = true;
+        SystemEvents.UserPreferenceChanged += (_, e) =>
+        {
+            if (e.Category is UserPreferenceCategory.General or UserPreferenceCategory.Color && Current == AppTheme.System)
+            {
+                Application.Current?.Dispatcher.InvokeAsync(() =>
+                {
+                    ApplyPalette(IsDark);
+                    Changed?.Invoke();
+                });
+            }
+        };
     }
 
     /// <summary>El tema opuesto al que se ve: el botón alterna claro y oscuro.</summary>

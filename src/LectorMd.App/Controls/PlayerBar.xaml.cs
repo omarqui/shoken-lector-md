@@ -28,6 +28,8 @@ public partial class PlayerBar : UserControl
     private readonly List<(Button Button, double Speed)> _speedButtons = [];
     private ReadingTimeline? _timeline;
     private string _detail = "";
+    private TimeSpan _lastElapsed;
+    private int _lastChapter = -1;
     private bool _noticeShowing;
 
     public PlayerBar()
@@ -82,7 +84,11 @@ public partial class PlayerBar : UserControl
     public event Action<string?>? ChapterClicked;
 
     /// <summary>Arma la línea de tiempo; null = no hay documento (pestaña vacía o bienvenida).</summary>
-    public void SetTimeline(ReadingTimeline? timeline)
+    /// <param name="keepProgress">
+    /// True al corregir duraciones del mismo documento: se conserva el avance mostrado en vez de volver a 00:00
+    /// (si no, el tiempo retrocede un instante en cada bloque nuevo).
+    /// </param>
+    public void SetTimeline(ReadingTimeline? timeline, bool keepProgress = false)
     {
         _timeline = timeline;
         _cells.Clear();
@@ -143,12 +149,14 @@ public partial class PlayerBar : UserControl
             _cells.Add((fill, label, chapter));
         }
 
-        SetProgress(TimeSpan.Zero, -1);
+        SetProgress(keepProgress ? _lastElapsed : TimeSpan.Zero, keepProgress ? _lastChapter : -1);
     }
 
     /// <summary>Rellena lo escuchado hasta <paramref name="elapsed"/> y marca el capítulo actual.</summary>
     public void SetProgress(TimeSpan elapsed, int chapterIndex)
     {
+        _lastElapsed = elapsed;
+        _lastChapter = chapterIndex;
         if (_timeline is null)
         {
             return;
@@ -183,6 +191,14 @@ public partial class PlayerBar : UserControl
     }
 
     /// <summary>Un aviso (antes iba en la barra de estado): se queda 8 s sobre el detalle de la posición.</summary>
+    /// <summary>Quita el aviso y vuelve al detalle de la posición (p. ej. "Preparando el audio…" cuando ya suena).</summary>
+    public void ClearNotice()
+    {
+        _noticeTimer.Stop();
+        _noticeShowing = false;
+        ShowDetail(_detail);
+    }
+
     public void ShowNotice(string text)
     {
         _noticeShowing = true;

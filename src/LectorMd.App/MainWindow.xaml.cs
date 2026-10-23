@@ -55,6 +55,8 @@ public partial class MainWindow : Window
         _settingsStore = new SettingsStore(_paths);
         _settings = _settingsStore.Load();
         ThemeService.Apply(_settings.Theme); // antes de crear los controles, para que no parpadeen
+        ThemeService.WatchSystemTheme();
+        ThemeService.Changed += UpdateThemeButton;
         InitializeComponent();
         _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
@@ -364,6 +366,12 @@ public partial class MainWindow : Window
             await _view.ScrollToAsync(resumeAnchor);
         }
 
+        // Mientras se restauraba la vista pudo activarse otra pestaña: no pisar su reproductor ni su índice.
+        if (activation != _activation || _timeline is not { } timeline)
+        {
+            return;
+        }
+
         ShowOutline(document);
         if (resume is { } current)
         {
@@ -374,7 +382,7 @@ public partial class MainWindow : Window
         {
             Player.SetPosition(document.Title, document.Segments.Count == 0
                 ? "El documento no tiene texto para leer."
-                : $"{(_timeline!.Chapters.Any(c => c.IsEstimated) ? "≈ " : "")}{PlayerBar.Format(_timeline.Total)} de lectura · doble clic en un párrafo para empezar ahí");
+                : $"{(timeline.Chapters.Any(c => c.IsEstimated) ? "≈ " : "")}{PlayerBar.Format(timeline.Total)} de lectura · doble clic en un párrafo para empezar ahí");
         }
 
         DocumentTitle.Text = document.Title;
@@ -564,6 +572,41 @@ public partial class MainWindow : Window
 
     private void OnNewTabClick(object sender, RoutedEventArgs e) => _ = NewTabAsync();
 
+    // La barra de pestañas no muestra barra de desplazamiento: con muchas pestañas se recorren con la rueda.
+    private void OnTabListMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (FindDescendant<ScrollViewer>(TabList) is not { } scroller)
+        {
+            return;
+        }
+
+        if (e.Delta > 0)
+        {
+            scroller.LineLeft();
+        }
+        else
+        {
+            scroller.LineRight();
+        }
+
+        e.Handled = true;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, i);
+            T? found = child as T ?? FindDescendant<T>(child);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
     // ------------------------------------------------------------------ índice
 
     private void ShowOutline(SpeechDocument? document)
@@ -571,6 +614,7 @@ public partial class MainWindow : Window
         _outline = document is null ? [] : DocumentOutline.Build(document);
         OutlineEmpty.Text = document is null ? "Abre un documento para ver sus títulos." : "Este documento no tiene títulos.";
         OutlineEmpty.Visibility = _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        OutlineList.SelectedIndex = -1; // otro documento: la sección marcada del anterior no aplica
         RefreshOutlineTimes();
     }
 
@@ -1076,17 +1120,23 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Duraciones reales de lo que está en caché y estimadas del resto.</summary>
-    private void RebuildTimeline()
+    /// <param name="keepProgress">True al corregir duraciones del documento que suena (ver PlayerBar.SetTimeline).</param>
+    private void RebuildTimeline(bool keepProgress = false)
     {
         _timeline = _document is null || _services is null
             ? null
             : ReadingTimeline.Build(_document, _chunks, chunk => _services.Engine.TryGetCached(chunk));
-        Player.SetTimeline(_timeline);
+        Player.SetTimeline(_timeline, keepProgress);
         RefreshOutlineTimes();
     }
 
     private void OnPlaybackStateChanged(PlaybackState state)
     {
+        if (state == PlaybackState.Playing)
+        {
+            Player.ClearNotice(); // "Preparando el audio…" no debe quedarse mientras ya suena
+        }
+
         if (state == PlaybackState.Loading)
         {
             ShowStatus("Preparando el audio…");
@@ -1114,8 +1164,7 @@ public partial class MainWindow : Window
         // Un bloque recién generado ya tiene su duración real: se corrige la línea de tiempo.
         if (!audio.FromCache)
         {
-            RebuildTimeline();
-            ShowPosition(_player.CurrentSegmentId);
+            RebuildTimeline(keepProgress: true);
         }
     }
 
