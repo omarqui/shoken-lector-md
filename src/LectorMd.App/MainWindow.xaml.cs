@@ -897,10 +897,15 @@ public partial class MainWindow : Window
             }
 
             _azureReport = (characters, DateTime.Now);
-            _services.Usage.SyncFromService(characters);
+            int local = _services.Usage.Used;
+            bool raised = _services.Usage.SyncFromService(characters);
             UpdateUsage();
-            ShowStatus($"Azure reporta {characters.ToString("N0", Mexico)} caracteres este mes " +
-                       "(lo último puede tardar 1–3 min en aparecer).");
+            string reported = characters.ToString("N0", Mexico);
+            // El contador solo sube: si Azure reporta menos, se avisa por qué la cifra no cambió.
+            ShowStatus(raised
+                ? $"Azure reporta {reported} caracteres este mes: el contador subió de {local.ToString("N0", Mexico)} a {reported}."
+                : $"Azure reporta {reported} caracteres este mes. Tu estimado local ({local.ToString("N0", Mexico)}) es mayor y se mantiene " +
+                  "para no pasarte de la cuota (Azure tarda 1–3 min en reflejar lo último).");
         }
         catch (OperationCanceledException)
         {
