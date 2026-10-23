@@ -47,7 +47,6 @@ public sealed partial class MiniPlayerWindow : Window
     }
 
     public event Action? PlayPauseClicked;
-    public event Action? StopClicked;
     public event Action? PreviousClicked;
     public event Action? NextClicked;
     public event Action<double>? SpeedChanged;
@@ -86,7 +85,6 @@ public sealed partial class MiniPlayerWindow : Window
         bool playing = state is PlaybackState.Playing or PlaybackState.Loading;
         PlayIcon.Text = playing ? "" : "";
         AutomationProperties.SetName(PlayButton, playing ? "Pausar" : state == PlaybackState.Paused ? "Seguir" : "Leer");
-        StopButton.IsEnabled = state != PlaybackState.Stopped;
         UpdateAutoClose();
     }
 
@@ -135,7 +133,6 @@ public sealed partial class MiniPlayerWindow : Window
     private void OnPlayClick(object sender, RoutedEventArgs e) => PlayPauseClicked?.Invoke();
     private void OnBack10Click(object sender, RoutedEventArgs e) => SkipRequested?.Invoke(TimeSpan.FromSeconds(-10));
     private void OnForward10Click(object sender, RoutedEventArgs e) => SkipRequested?.Invoke(TimeSpan.FromSeconds(10));
-    private void OnStopClick(object sender, RoutedEventArgs e) => StopClicked?.Invoke();
     private void OnPreviousClick(object sender, RoutedEventArgs e) => PreviousClicked?.Invoke();
     private void OnNextClick(object sender, RoutedEventArgs e) => NextClicked?.Invoke();
     private void OnOpenMainClick(object sender, RoutedEventArgs e) => OpenMainClicked?.Invoke();

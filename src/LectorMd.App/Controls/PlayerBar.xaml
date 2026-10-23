@@ -80,12 +80,8 @@
                                Foreground="{DynamicResource LectorText2Brush}" />
                 </StackPanel>
 
+                <!-- Simétrico alrededor del play (sin Detener: Esc sigue deteniendo), así queda justo al centro. -->
                 <StackPanel x:Name="TransportPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="StopButton" Style="{StaticResource RoundButton}" Click="OnStopClick" Margin="0,0,6,0"
-                            Background="Transparent" Foreground="{DynamicResource LectorText2Brush}"
-                            ToolTip="Detener (Esc)" AutomationProperties.Name="Detener">
-                        <TextBlock Style="{StaticResource IconText}" FontSize="13" Text="&#xE71A;" />
-                    </Button>
                     <Button x:Name="PreviousButton" Style="{StaticResource RoundButton}" Click="OnPreviousClick"
                             ToolTip="Sección anterior (Ctrl+←)" AutomationProperties.Name="Sección anterior">
                         <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE892;" />
@@ -107,8 +103,6 @@
                             ToolTip="Sección siguiente (Ctrl+→)" AutomationProperties.Name="Sección siguiente">
                         <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE893;" />
                     </Button>
-                    <!-- Mismo ancho que Detener, para que el botón principal quede justo al centro. -->
-                    <Border Width="46" />
                 </StackPanel>
 
                 <StackPanel x:Name="RightPanel" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"

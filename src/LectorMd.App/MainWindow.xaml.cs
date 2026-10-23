@@ -87,7 +87,6 @@ public partial class MainWindow : Window
         _player.PreRoll = System.Windows.Forms.SystemInformation.TerminalServerSession ? TimeSpan.FromMilliseconds(500) : TimeSpan.Zero;
 
         Player.PlayPauseClicked += TogglePlay;
-        Player.StopClicked += () => _player.Stop();
         Player.PreviousClicked += () => _player.PreviousSection();
         Player.NextClicked += () => _player.NextSection();
         Player.SpeedChanged += OnSpeedChanged;
@@ -900,7 +899,6 @@ public partial class MainWindow : Window
         {
             _mini = new MiniPlayerWindow();
             _mini.PlayPauseClicked += TogglePlay;
-            _mini.StopClicked += () => _player.Stop();
             _mini.PreviousClicked += () => _player.PreviousSection();
             _mini.NextClicked += () => _player.NextSection();
             _mini.SpeedChanged += OnSpeedChanged;
