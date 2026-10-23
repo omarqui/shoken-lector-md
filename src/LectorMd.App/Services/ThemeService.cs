@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using LectorMd.Core.Settings;
 using Microsoft.Win32;
 
@@ -26,6 +27,37 @@ internal static class ThemeService
             AppTheme.Dark => ThemeMode.Dark,
             _ => ThemeMode.System,
         };
+        ApplyPalette(IsDark);
+    }
+
+    /// <summary>
+    /// Colores propios del diseño (pestañas, barra de comandos, reproductor), los mismos de la propuesta D.
+    /// Se usan como DynamicResource, así que cambian al alternar el tema sin recrear la ventana.
+    /// </summary>
+    private static void ApplyPalette(bool dark)
+    {
+        ResourceDictionary resources = Application.Current.Resources;
+        void Set(string key, string light, string darkColor) =>
+            resources[key] = Frozen((Color)ColorConverter.ConvertFromString(dark ? darkColor : light));
+
+        Set("LectorBackgroundBrush", "#F3F3F3", "#202020");
+        Set("LectorSurfaceBrush", "#FFFFFF", "#2B2B2B");
+        Set("LectorSurface2Brush", "#F0F0F0", "#363636");
+        Set("LectorBorderBrush", "#E5E5E5", "#3D3D3D");
+        Set("LectorTextBrush", "#1B1B1B", "#FFFFFF");
+        Set("LectorText2Brush", "#5D5D5D", "#C8C8C8");
+        Set("LectorAccentBrush", "#005FB8", "#60CDFF");
+        Set("LectorOnAccentBrush", "#FFFFFF", "#00344D");
+        Set("LectorCurrentBrush", "#DCE9F7", "#1E3A4C");
+        Set("LectorCurrentTextBrush", "#003D7A", "#99EBFF");
+        Set("LectorTrackBrush", "#E0E0E0", "#4A4A4A");
+    }
+
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>El tema opuesto al que se ve: el botón alterna claro y oscuro.</summary>
