@@ -21,6 +21,7 @@ public sealed partial class MiniPlayerWindow : Window
     private PlaybackState _state = PlaybackState.Stopped;
     private double _speed = 1.0;
     private string _detail = "";
+    private bool _moved;
 
     public MiniPlayerWindow()
     {
@@ -31,12 +32,16 @@ public sealed partial class MiniPlayerWindow : Window
             _autoClose.Stop();
             Close();
         };
-        Loaded += (_, _) =>
+        // Abajo a la derecha, sobre la barra de tareas (el margen de la tarjeta separa del borde). El alto sale del
+        // contenido, así que se acomoda cada vez que cambia (y el botón de play nunca queda cortado).
+        SizeChanged += (_, _) =>
         {
-            // Abajo a la derecha, sobre la barra de tareas (el margen de la tarjeta separa del borde).
-            Rect area = SystemParameters.WorkArea;
-            Left = area.Right - ActualWidth;
-            Top = area.Bottom - ActualHeight;
+            if (!_moved)
+            {
+                Rect area = SystemParameters.WorkArea;
+                Left = area.Right - ActualWidth;
+                Top = area.Bottom - ActualHeight;
+            }
         };
         Closed += (_, _) => _autoClose.Stop();
     }
@@ -112,6 +117,7 @@ public sealed partial class MiniPlayerWindow : Window
         if (e.ButtonState == MouseButtonState.Pressed)
         {
             DragMove();
+            _moved = true; // el usuario lo puso donde quiere: ya no se reacomoda solo
         }
     }
 
