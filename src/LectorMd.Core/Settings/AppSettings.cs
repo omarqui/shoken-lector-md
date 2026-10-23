@@ -48,6 +48,8 @@ public sealed class AppSettings
     /// <summary>Panel del índice de títulos visible.</summary>
     public bool ShowOutline { get; set; } = true;
 
+    public AppTheme Theme { get; set; } = AppTheme.System;
+
     /// <summary>Id de ARM del recurso de Speech, para consultar su consumo real en Azure Monitor.</summary>
     public string? AzureResourceId { get; set; }
 
@@ -66,6 +68,13 @@ public sealed class AppSettings
         clone.OpenTabs = OpenTabs.Select(t => t.Clone()).ToList();
         return clone;
     }
+}
+
+public enum AppTheme
+{
+    System,
+    Light,
+    Dark,
 }
 
 /// <summary>Rutas de datos de la app (por defecto en %LOCALAPPDATA%\LectorMd).</summary>
