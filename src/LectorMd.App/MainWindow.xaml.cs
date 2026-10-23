@@ -61,6 +61,8 @@ public partial class MainWindow : Window
         _player.ChunkStarted += OnChunkStarted;
         _player.DocumentFinished += OnDocumentFinished;
         _player.Failed += OnPlaybackFailed;
+        _player.AudioDeviceLost += () =>
+            ShowStatus("Se perdió la salida de audio (se desconectó o cambió). Quedó en pausa: pulsa Espacio para seguir desde el párrafo donde ibas.");
 
         _saveSpeedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
         _saveSpeedTimer.Tick += (_, _) =>

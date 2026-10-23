@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using System.Windows.Threading;
+using LectorMd.Core.Audio;
 using LectorMd.Core.Model;
 using LectorMd.Core.Planning;
 using LectorMd.Core.Tts;
@@ -59,6 +60,9 @@ internal sealed class ReadAloudController : IDisposable
     public event Action? DocumentFinished;
 
     public event Action<Exception>? Failed;
+
+    /// <summary>La salida de audio desapareció; la lectura quedó en pausa en el párrafo actual.</summary>
+    public event Action? AudioDeviceLost;
 
     public PlaybackState State { get; private set; }
 
@@ -146,6 +150,13 @@ internal sealed class ReadAloudController : IDisposable
     {
         if (State != PlaybackState.Paused)
         {
+            return;
+        }
+
+        if (_session is null)
+        {
+            // Pausa sin audio abierto (se perdió la salida de audio): se reanuda desde el párrafo guardado.
+            PlayFrom(_resumeSegmentId ?? 0);
             return;
         }
 
@@ -276,6 +287,13 @@ internal sealed class ReadAloudController : IDisposable
         catch (OperationCanceledException)
         {
             // Se detuvo o se saltó a otra parte.
+        }
+        catch (Exception ex) when (_session == session && MediaErrors.IsAudioDeviceLost(ex))
+        {
+            // No es una falla: queda en pausa en el párrafo actual y Resume() vuelve a empezar desde ahí.
+            Stop();
+            SetState(PlaybackState.Paused);
+            AudioDeviceLost?.Invoke();
         }
         catch (Exception ex) when (_session == session)
         {
