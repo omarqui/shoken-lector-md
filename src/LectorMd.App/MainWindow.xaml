@@ -139,27 +139,19 @@
                             ToolTip="Mostrar u ocultar el índice (Ctrl+B)" AutomationProperties.Name="Índice" Width="40" Height="36" Margin="0,0,4,0">
                         <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE8FD;" />
                     </Button>
+                    <!-- Solo íconos: el nombre está en el tooltip (y es lo que anuncia un lector de pantalla). -->
                     <Button Style="{StaticResource FlatIconButton}" Click="OnOpenClick" ToolTip="Abrir un archivo Markdown (Ctrl+O)"
-                            AutomationProperties.Name="Abrir" Height="36" Padding="12,0" Margin="0,0,2,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE8E5;" Margin="0,0,8,0" />
-                            <TextBlock Text="Abrir" VerticalAlignment="Center" />
-                        </StackPanel>
+                            AutomationProperties.Name="Abrir" Width="36" Height="36" Margin="0,0,2,0">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE8E5;" />
                     </Button>
                     <Button Style="{StaticResource FlatIconButton}" Click="OnPasteClick" ToolTip="Pegar una ruta o un texto Markdown (Ctrl+V)"
-                            AutomationProperties.Name="Pegar" Height="36" Padding="12,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE77F;" Margin="0,0,8,0" />
-                            <TextBlock Text="Pegar" VerticalAlignment="Center" />
-                        </StackPanel>
+                            AutomationProperties.Name="Pegar" Width="36" Height="36" Margin="0,0,2,0">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE77F;" />
                     </Button>
                     <Button x:Name="ReloadButton" Style="{StaticResource FlatIconButton}" Click="OnReloadClick"
                             ToolTip="Recargar el documento y el diccionario de pronunciación, siguiendo en el mismo párrafo (F5)"
-                            AutomationProperties.Name="Recargar" Height="36" Padding="12,0" Margin="2,0,0,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE72C;" Margin="0,0,8,0" />
-                            <TextBlock Text="Recargar" VerticalAlignment="Center" />
-                        </StackPanel>
+                            AutomationProperties.Name="Recargar" Width="36" Height="36">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE72C;" />
                     </Button>
                 </StackPanel>
 
