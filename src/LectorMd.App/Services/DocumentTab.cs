@@ -14,8 +14,14 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 
     public string Name => State.Name;
 
+    /// <summary>Texto pegado (en memoria): su ícono va en otro color que el de los archivos .md.</summary>
+    public bool IsPasted => State.IsPasted;
+
+    /// <summary>Ícono de Segoe Fluent: documento (archivo .md), portapapeles (texto pegado) o "+" (vacía).</summary>
+    public string Icon => State.IsEmpty ? "" : State.IsPasted ? "" : "";
+
     public string ToolTip => State.IsEmpty ? "Pega aquí (Ctrl+V) un texto Markdown o la ruta de un archivo"
-        : State.IsPasted ? "Texto pegado"
+        : State.IsPasted ? "Texto pegado (en memoria): se guarda hasta que cierres la pestaña"
         : State.Path;
 
     public bool IsFile(string path) =>
@@ -27,16 +33,21 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
     public void NotifyChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsPasted)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolTip)));
     }
 }
 
 /// <summary>Un título en el panel del índice.</summary>
-internal sealed class OutlineItem(OutlineEntry entry)
+internal sealed class OutlineItem(OutlineEntry entry, string time)
 {
     public OutlineEntry Entry { get; } = entry;
 
     public string Text => Entry.Text;
+
+    /// <summary>Duración de la sección ("01:12", "≈00:58"), o vacío si no se sabe.</summary>
+    public string Time { get; } = time;
 
     public Thickness Margin => new(Entry.Indent * 14, 0, 0, 0);
 

@@ -20,7 +20,7 @@ Requiere el SDK de .NET 10 y el runtime de WebView2. Corre `dotnet test` antes d
 | Proyecto | Qué contiene |
 |---|---|
 | `src/LectorMd.Core` (`net10.0`) | Toda la lógica. Sin dependencias de interfaz: no referenciar WPF aquí |
-| `src/LectorMd.App` (`net10.0-windows`) | WPF: WebView2 muestra el documento y `MediaPlayer` reproduce el audio |
+| `src/LectorMd.App` (`net10.0-windows`) | WPF: WebView2 muestra el documento y `MediaPlayer` reproduce el audio. `Controls/` tiene la barra de título y el reproductor (`PlayerBar`) |
 | `tests/LectorMd.Core.Tests` | Pruebas xUnit del núcleo (`InternalsVisibleTo` habilitado) |
 | `docs/ejemplo.md` | Documento con todos los elementos de Markdown: úsalo para probar a mano |
 
@@ -30,7 +30,7 @@ El flujo, de punta a punta:
 2. `Text/SpeechTextNormalizer` y `PronunciationDictionary` preparan el texto para la voz.
 3. `Planning/ChunkPlanner` agrupa los segmentos en bloques de audio (~700 caracteres).
 4. `Ssml/SsmlBuilder` arma el SSML con un `<bookmark>` por segmento, pausas y prosodia.
-5. `Tts/HybridTtsEngine` decide el motor: caché → Azure (`AzureTtsEngine`) → Piper (`PiperTtsEngine`).
+5. `Tts/HybridTtsEngine` decide el motor: caché → Azure (`AzureTtsEngine`) → Google (`GoogleTtsEngine`) → Piper (`PiperTtsEngine`). El selector "Usar" del panel del estado puede dejar uno solo, sin respaldo.
 6. `Caching/AudioCache` guarda el audio; `Usage/UsageTracker` lleva la cuota mensual de Azure.
 
 `EngineServices.Create` arma todas las piezas a partir de `AppSettings`.
@@ -53,6 +53,10 @@ El flujo, de punta a punta:
 - La clave de Azure se guarda cifrada con DPAPI (`SettingsStore`). Nunca la escribas en texto
   plano, en logs ni en pruebas.
 - Los datos del usuario viven en `%LOCALAPPDATA%\LectorMd\`. No se versionan.
+- **Una sola instancia** (`Core/Ipc/SingleInstanceChannel`, mutex + named pipe): la segunda instancia le pasa su archivo a la primera y termina. Cerrar la ventana la oculta en la bandeja (`TrayIcon`); solo *Salir* o el cierre de sesión terminan la app. `Ctrl+Alt+L` es `GlobalHotkey` (RegisterHotKey) y el `MiniPlayerWindow` lo alimenta `MainWindow` con los mismos eventos que el `PlayerBar`.
+- **WinForms solo para `NotifyIcon`:** el proyecto quita los `using` implícitos de `System.Windows.Forms` y `System.Drawing`; úsalos con alias (`Forms.`, `Drawing.`) para no chocar con WPF.
+- **Colores del diseño en dos lugares:** `ThemeService.ApplyPalette` (recursos `Lector*Brush` de la ventana) y las variables de `Assets/lector.css` (el documento). Si cambias uno, cambia el otro.
+- `ReadingTimeline` (Core) da la duración por segmento y capítulo: real para los bloques en caché (`AudioChunk.Duration`, guardada en la caché) y estimada (15 caracteres/s + pausas) para el resto.
 
 ## Estilo
 

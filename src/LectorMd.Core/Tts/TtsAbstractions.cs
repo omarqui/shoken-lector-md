@@ -17,6 +17,9 @@ public sealed class AudioChunk
 
     public bool FromCache { get; init; }
 
+    /// <summary>Duración total del audio; null en entradas de caché anteriores a que se guardara.</summary>
+    public TimeSpan? Duration { get; init; }
+
     public TimeSpan OffsetOf(int segmentId) =>
         Marks.FirstOrDefault(m => m.SegmentId == segmentId)?.Offset ?? TimeSpan.Zero;
 

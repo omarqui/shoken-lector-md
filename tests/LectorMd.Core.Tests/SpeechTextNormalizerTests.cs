@@ -14,6 +14,7 @@ public class SpeechTextNormalizerTests
     [InlineData("Un archivo Markdown en VS Code", "Un archivo márkdaun en ve ese cod")]
     [InlineData("Haz merge del pull request", "Haz merch del pul ricuést")]
     [InlineData("Pulsa Ctrl + O", "Pulsa control + O")]
+    [InlineData("Usa Azure Speech", "Usa áchur Speech")]
     public void Dictionary_ReplacesWholeTerms(string input, string expected)
     {
         Assert.Equal(expected, _normalizer.Normalize(input));

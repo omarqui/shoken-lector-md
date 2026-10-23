@@ -6,12 +6,14 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Azure.Identity;
+using LectorMd.App.Controls;
 using LectorMd.App.Services;
 using LectorMd.Core;
 using LectorMd.Core.Model;
@@ -31,7 +33,6 @@ public partial class MainWindow : Window
     private readonly AppPaths _paths = AppPaths.Default;
     private readonly SettingsStore _settingsStore;
     private readonly ReadAloudController _player = new();
-    private readonly DispatcherTimer _saveSpeedTimer;
     private readonly ObservableCollection<DocumentTab> _tabs = [];
     private readonly AzureAccount _azureAccount;
     private AppSettings _settings;
@@ -40,8 +41,19 @@ public partial class MainWindow : Window
     private SpeechDocument? _document;
     private DocumentTab? _active;
     private IReadOnlyList<OutlineEntry> _outline = [];
+    private IReadOnlyList<SpeechChunk> _chunks = [];
+    private TimeSpan _lastElapsed; // última posición mostrada en la línea de tiempo (base para −10 s / +10 s)
+    private ReadingTimeline? _timeline;
     private int _activation;    // cada activación de pestaña invalida las que todavía estaban cargando
     private int _shownActivation; // activación cuyo documento ya está en pantalla
+    private TrayIcon? _tray;
+    private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
+    private MiniPlayerWindow? _mini; // solo existe mientras la ventana está oculta o minimizada
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Sonando o preparando el audio (no en pausa ni detenido).</summary>
+    private bool IsReading => _player.State is PlaybackState.Playing or PlaybackState.Loading;
+    private bool _exiting;        // true = cerrar termina la app (si no, la ventana se oculta en la bandeja)
     private bool _syncingTabs;  // la selección de la barra la está cambiando el código, no el usuario
     private readonly string? _fileFromCommandLine;
     private string? _lastFallbackReason;
@@ -49,10 +61,15 @@ public partial class MainWindow : Window
 
     public MainWindow(string? fileToOpen)
     {
-        InitializeComponent();
-        _fileFromCommandLine = fileToOpen;
         _settingsStore = new SettingsStore(_paths);
         _settings = _settingsStore.Load();
+        ThemeService.Apply(_settings.Theme); // antes de crear los controles, para que no parpadeen
+        ThemeService.WatchSystemTheme();
+        ThemeService.Changed += UpdateThemeButton;
+        Activated += (_, _) => _mini?.Close(); // la ventana a la vista: el mini reproductor sobra
+        Deactivated += (_, _) => Player.ClosePopup(); // el panel del estado no debe flotar sobre otra app
+        InitializeComponent();
+        _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
         TabList.ItemsSource = _tabs;
 
@@ -64,16 +81,25 @@ public partial class MainWindow : Window
         _player.AudioDeviceLost += () =>
             ShowStatus("Se perdió la salida de audio (se desconectó o cambió). Quedó en pausa: pulsa Espacio para seguir desde el párrafo donde ibas.");
 
-        _saveSpeedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
-        _saveSpeedTimer.Tick += (_, _) =>
-        {
-            _saveSpeedTimer.Stop();
-            _settingsStore.Save(_settings);
-        };
+        _player.ProgressChanged += OnProgressChanged;
+        // RDP se come el inicio del audio tras un silencio (medido: la app arranca en el punto exacto); 0.5 s de
+        // pre-arranque lo absorbe. En el equipo local no hace falta.
+        _player.PreRoll = System.Windows.Forms.SystemInformation.TerminalServerSession ? TimeSpan.FromMilliseconds(500) : TimeSpan.Zero;
 
-        SpeedSlider.Value = Math.Clamp(_settings.PlaybackSpeed, SpeedSlider.Minimum, SpeedSlider.Maximum);
-        UpdateSpeedLabel();
+        Player.PlayPauseClicked += TogglePlay;
+        Player.PreviousClicked += () => _player.PreviousSection();
+        Player.NextClicked += () => _player.NextSection();
+        Player.SpeedChanged += OnSpeedChanged;
+        Player.RefreshUsageClicked += () => _ = RefreshAzureUsageAsync();
+        Player.ChapterClicked += OnChapterClicked;
+        Player.SkipRequested += SkipBy;
+        Player.EngineChoiceRequested += OnEngineChoiceRequested;
+
+        // Una velocidad del deslizador anterior (p. ej. 1.15) pasa al paso más cercano del selector.
+        _settings.PlaybackSpeed = PlaybackSpeeds.Nearest(_settings.PlaybackSpeed);
+        Player.SetSpeed(_settings.PlaybackSpeed);
         ApplyOutlineVisibility();
+        UpdateThemeButton();
         UpdateButtons();
     }
 
@@ -82,6 +108,17 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         RebuildServices();
+        _tray = new TrayIcon(
+            open: () => _ = BringToFrontAsync(null),
+            readClipboard: () => _ = ReadClipboardAloudAsync(),
+            exit: ExitApp);
+        // Al cerrar sesión o apagar, WPF no siempre pasa por Closing: la sesión se guarda aquí mismo.
+        Application.Current.SessionEnding += (_, _) =>
+        {
+            _exiting = true;
+            SaveSession();
+        };
+        _hotkey = GlobalHotkey.TryRegister(this, ModifierKeys.Control | ModifierKeys.Alt, Key.L, () => _ = ReadClipboardAloudAsync());
 
         try
         {
@@ -91,6 +128,8 @@ public partial class MainWindow : Window
             _view.CommandRequested += command => Dispatcher.InvokeAsync(() => ExecuteCommand(command));
             _view.LinkActivated += uri => Dispatcher.InvokeAsync(() => OnLinkActivated(uri));
             _view.FileDropped += path => Dispatcher.InvokeAsync(() => _ = OpenFilesAsync([path]));
+            _view.SelectionMade += (text, at, anchor) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor));
+            _view.SelectionCleared += () => Dispatcher.InvokeAsync(OnSelectionCleared);
             _view.ScrollChanged += y => Dispatcher.InvokeAsync(() =>
             {
                 // Mientras se carga otra pestaña, la página que sigue a la vista es la anterior.
@@ -100,6 +139,7 @@ public partial class MainWindow : Window
                 }
             });
             await _view.InitializeAsync();
+            _view.SetColorScheme(_settings.Theme);
         }
         catch (Exception ex)
         {
@@ -109,24 +149,66 @@ public partial class MainWindow : Window
             BrowserError.Visibility = Visibility.Visible;
             BrowserError.Text = "No se pudo iniciar el visor (WebView2). Instala o repara \"Microsoft Edge WebView2 Runtime\" " +
                                 $"y vuelve a abrir la app.\n\n{ex.Message}";
+            _ready.TrySetResult();
             return;
         }
 
         await RestoreTabsAsync();
+        _ready.TrySetResult();
 
         if (_services is { Engine.IsConfigured: false })
         {
-            ShowStatus("Para empezar, configura Azure o Piper en ⚙ Configuración.");
+            ShowStatus("Para empezar, configura Azure, Google o Piper en ⚙ Configuración.");
+        }
+        else if (_hotkey is null)
+        {
+            ShowStatus("Ctrl+Alt+L ya lo usa otra app: el atajo no está activo.");
         }
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        _settings.PlaybackSpeed = SpeedSlider.Value;
         SaveSession();
+        if (!_exiting)
+        {
+            // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
+            e.Cancel = true;
+            Hide();
+            Player.ClosePopup(); // el panel del estado es "siempre visible": no debe quedar flotando sobre otras apps
+            if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
+            {
+                ShowMiniPlayer();
+            }
+
+            if (!_settings.TrayHintShown)
+            {
+                _tray?.ShowHint("Lector MD sigue en la bandeja. Ctrl+Alt+L lee lo que copiaste.");
+                _settings.TrayHintShown = true;
+                _settingsStore.Save(_settings);
+            }
+
+            return;
+        }
+
+        // El mini reproductor es otra ventana: si quedara abierta, la app no terminaría y la siguiente apertura
+        // le pasaría su archivo a esta ventana ya cerrada.
+        _mini?.Close();
+        _hotkey?.Dispose();
+        _tray?.Dispose();
         _player.Dispose();
         _services?.Dispose();
     }
+
+    /// <summary>Salir de verdad (menú de la bandeja o cierre de sesión de Windows).</summary>
+    private void ExitApp()
+    {
+        _exiting = true;
+        _mini?.Close();
+        Close();
+    }
+
+    /// <summary>Se completa cuando las pestañas guardadas ya se restauraron (o el visor no pudo iniciar).</summary>
+    public Task Ready => _ready.Task;
 
     private void RebuildServices()
     {
@@ -142,14 +224,37 @@ public partial class MainWindow : Window
         _services.Engine.StatusChanged += OnEngineStatusChangedBackground;
         _services.Usage.Changed += OnUsageChangedBackground;
         _player.SetEngine(_services.Engine);
-        _player.PlaybackSpeed = SpeedSlider.Value;
+        _player.PlaybackSpeed = _settings.PlaybackSpeed;
         _lastFallbackReason = null;
 
         // Recorte de la caché en segundo plano (no bloquea el arranque).
         AudioCacheTrim(_services);
 
         ShowEngine(_services.Engine.Status.ActiveEngine, _services.Engine.Status.UsingFallback, _services.Engine.Status.Reason);
+        Player.SetEngineChoice(_settings.Engine, _settings.HasAzure, _settings.HasGoogle, _settings.HasPiper);
         UpdateUsage();
+    }
+
+    /// <summary>Otro motor elegido en el panel del estado: se reconstruye la cadena y se sigue en el mismo párrafo.</summary>
+    private void OnEngineChoiceRequested(EngineChoice choice)
+    {
+        if (choice == _settings.Engine)
+        {
+            return;
+        }
+
+        int resume = _player.CurrentSegmentId;
+        _settings.Engine = choice;
+        _settingsStore.Save(_settings);
+        RebuildServices();
+        if (_active is { State.IsEmpty: false })
+        {
+            _ = ActivateAsync(_active, force: true, resumeSegmentId: resume >= 0 ? resume : null);
+        }
+
+        ShowStatus(choice == EngineChoice.Auto
+            ? "Motor automático: Azure, y si no está disponible, Google y luego Piper."
+            : $"Leyendo solo con {choice} (sin respaldo). Vuelve a Automático para la cadena completa.");
     }
 
     // Estos eventos llegan desde hilos del motor.
@@ -287,6 +392,8 @@ public partial class MainWindow : Window
         if (tab.State.IsEmpty)
         {
             _document = null;
+            _chunks = [];
+            RebuildTimeline();
             ShowOutline(null);
             DocumentTitle.Text = "";
             Title = "Nueva pestaña — Lector MD";
@@ -322,6 +429,9 @@ public partial class MainWindow : Window
         int? resume = resumeSegmentId ?? (tab.State.ResumeSegmentId >= 0 ? tab.State.ResumeSegmentId : null);
         _player.Load(document, chunks, resume);
         _document = document;
+        _chunks = chunks;
+        _lastElapsed = TimeSpan.Zero; // otro documento: la posición del anterior no sirve para −10/+10
+        RebuildTimeline();
         if (tab.State.IsPasted)
         {
             tab.State.Title = document.Segments.FirstOrDefault(s => s.IsHeading)?.PlainText is { Length: > 0 } heading ? heading : "Pegado";
@@ -351,19 +461,27 @@ public partial class MainWindow : Window
             await _view.ScrollToAsync(resumeAnchor);
         }
 
+        // Mientras se restauraba la vista pudo activarse otra pestaña: no pisar su reproductor ni su índice.
+        if (activation != _activation || _timeline is not { } timeline)
+        {
+            return;
+        }
+
         ShowOutline(document);
         if (resume is { } current)
         {
             MarkOutline(current);
+            ShowPosition(current);
+        }
+        else
+        {
+            Player.SetPosition(document.Title, document.Segments.Count == 0
+                ? "El documento no tiene texto para leer."
+                : $"{(timeline.Chapters.Any(c => c.IsEstimated) ? "≈ " : "")}{PlayerBar.Format(timeline.Total)} de lectura · doble clic en un párrafo para empezar ahí");
         }
 
         DocumentTitle.Text = document.Title;
         Title = $"{document.Title} — Lector MD";
-
-        double minutes = document.CharacterCount / 15.0 / 60.0; // ~15 caracteres por segundo en español
-        ShowStatus(document.Segments.Count == 0
-            ? "El documento no tiene texto para leer."
-            : $"Listo · ≈ {Math.Max(1, Math.Round(minutes)):0} min de lectura · doble clic en un párrafo para empezar ahí");
         UpdateButtons();
         SaveSession();
     }
@@ -413,6 +531,8 @@ public partial class MainWindow : Window
         _player.Unload();
         _active = null;
         _document = null;
+        _chunks = [];
+        RebuildTimeline();
         ShowOutline(null);
         DocumentTitle.Text = "";
         Title = "Lector MD";
@@ -423,6 +543,29 @@ public partial class MainWindow : Window
 
         UpdateButtons();
         SaveSession();
+    }
+
+    /// <summary>
+    /// Otra instancia nos pasó un archivo (abierto desde el Explorador) o pidió que nos mostremos:
+    /// aparece la ventana y el archivo se abre en su pestaña.
+    /// </summary>
+    public async Task BringToFrontAsync(string? file)
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        if (file is not null && File.Exists(file) && DocumentView.IsOpenableFile(file))
+        {
+            await OpenFilesAsync([file]);
+        }
     }
 
     private void SwitchTab(int delta)
@@ -524,14 +667,63 @@ public partial class MainWindow : Window
 
     private void OnNewTabClick(object sender, RoutedEventArgs e) => _ = NewTabAsync();
 
+    // La barra de pestañas no muestra barra de desplazamiento: con muchas pestañas se recorren con la rueda.
+    private void OnTabListMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (FindDescendant<ScrollViewer>(TabList) is not { } scroller)
+        {
+            return;
+        }
+
+        if (e.Delta > 0)
+        {
+            scroller.LineLeft();
+        }
+        else
+        {
+            scroller.LineRight();
+        }
+
+        e.Handled = true;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, i);
+            T? found = child as T ?? FindDescendant<T>(child);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
     // ------------------------------------------------------------------ índice
 
     private void ShowOutline(SpeechDocument? document)
     {
         _outline = document is null ? [] : DocumentOutline.Build(document);
-        OutlineList.ItemsSource = _outline.Select(entry => new OutlineItem(entry)).ToList();
         OutlineEmpty.Text = document is null ? "Abre un documento para ver sus títulos." : "Este documento no tiene títulos.";
         OutlineEmpty.Visibility = _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        OutlineList.SelectedIndex = -1; // otro documento: la sección marcada del anterior no aplica
+        RefreshOutlineTimes();
+    }
+
+    /// <summary>Pone a cada título la duración de su capítulo (≈ si todavía es estimada).</summary>
+    private void RefreshOutlineTimes()
+    {
+        int selected = OutlineList.SelectedIndex;
+        OutlineList.ItemsSource = _outline.Select(entry =>
+        {
+            TimelineChapter? chapter = _timeline?.Chapters.FirstOrDefault(c => c.AnchorId == entry.AnchorId);
+            string time = chapter is null ? "" : (chapter.IsEstimated ? "≈" : "") + PlayerBar.Format(chapter.Duration);
+            return new OutlineItem(entry, time);
+        }).ToList();
+        OutlineList.SelectedIndex = selected < _outline.Count ? selected : -1;
     }
 
     private void MarkOutline(int segmentId)
@@ -547,7 +739,14 @@ public partial class MainWindow : Window
     private void ApplyOutlineVisibility()
     {
         OutlinePanel.Visibility = _settings.ShowOutline ? Visibility.Visible : Visibility.Collapsed;
-        OutlineToggle.IsChecked = _settings.ShowOutline;
+        if (_settings.ShowOutline)
+        {
+            OutlineToggle.SetResourceReference(BackgroundProperty, "LectorSurface2Brush");
+        }
+        else
+        {
+            OutlineToggle.Background = Brushes.Transparent;
+        }
     }
 
     private void ToggleOutline()
@@ -558,6 +757,46 @@ public partial class MainWindow : Window
     }
 
     private void OnOutlineToggleClick(object sender, RoutedEventArgs e) => ToggleOutline();
+
+    // Con WindowChrome, una ventana maximizada se sale unos píxeles de la pantalla: se compensa.
+    private void OnWindowStateChanged(object? sender, EventArgs e)
+    {
+        RootPanel.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+
+        // Minimizada mientras lee: aparece el mini reproductor; al volver, se va.
+        if (WindowState == WindowState.Minimized)
+        {
+            if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
+            {
+                ShowMiniPlayer();
+            }
+        }
+        else
+        {
+            _mini?.Close();
+        }
+    }
+
+    // ------------------------------------------------------------------ tema
+
+    private void OnThemeClick(object sender, RoutedEventArgs e)
+    {
+        _settings.Theme = ThemeService.Toggled();
+        ThemeService.Apply(_settings.Theme);
+        _view?.SetColorScheme(_settings.Theme);
+        UpdateThemeButton();
+        _settingsStore.Save(_settings);
+    }
+
+    /// <summary>Un solo botón: muestra el sol en oscuro (pasa a claro) y la luna en claro (pasa a oscuro).</summary>
+    private void UpdateThemeButton()
+    {
+        bool dark = ThemeService.IsDark;
+        ThemeIcon.Text = dark ? "" : "";
+        string label = dark ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
+        ThemeButton.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(ThemeButton, label);
+    }
 
     private void OnOutlineItemClick(object sender, MouseButtonEventArgs e)
     {
@@ -608,7 +847,79 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Ctrl+V: rutas de archivos (texto o archivos copiados en el Explorador) o un texto Markdown.</summary>
-    private async Task PasteAsync()
+    /// <summary>
+    /// Ctrl+Alt+L o "Leer portapapeles" de la bandeja: abre lo copiado (rutas .md o texto Markdown) en su pestaña
+    /// y empieza a leer, aunque la ventana esté oculta. El texto queda como pestaña pegada, para retomarlo y
+    /// para que su audio quede en caché.
+    /// </summary>
+    private async Task ReadClipboardAloudAsync()
+    {
+        // Con la ventana fuera de vista, un aviso en el reproductor no lo ve nadie: va como notificación.
+        bool inBackground = !IsVisible || WindowState == WindowState.Minimized || !IsActive;
+
+        if (!await PasteAsync() || _document is null)
+        {
+            if (inBackground && _mini is null)
+            {
+                _tray?.ShowHint(Player.CurrentDetail is { Length: > 0 } notice ? notice : "No hay nada que leer en el portapapeles.");
+            }
+
+            return;
+        }
+
+        if (_services is { Engine.IsConfigured: false })
+        {
+            ShowStatus("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
+            if (inBackground)
+            {
+                _tray?.ShowHint("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
+            }
+
+            return;
+        }
+
+        // Al activar la pestaña la lectura quedó detenida: esto empieza desde su párrafo guardado o desde el inicio.
+        if (_player.State == PlaybackState.Stopped)
+        {
+            _player.TogglePlayPause();
+        }
+
+        // Si la ventana no está al frente (oculta en la bandeja, minimizada o detrás de la app desde la que se copió),
+        // el mini reproductor da los controles sin tener que buscarla. Al activarla, el mini se cierra.
+        if (!IsVisible || WindowState == WindowState.Minimized || !IsActive)
+        {
+            ShowMiniPlayer();
+        }
+    }
+
+    /// <summary>Muestra (o actualiza) el reproductor flotante con el estado actual.</summary>
+    private void ShowMiniPlayer()
+    {
+        if (_mini is null)
+        {
+            _mini = new MiniPlayerWindow();
+            _mini.PlayPauseClicked += TogglePlay;
+            _mini.PreviousClicked += () => _player.PreviousSection();
+            _mini.NextClicked += () => _player.NextSection();
+            _mini.SpeedChanged += OnSpeedChanged;
+            _mini.OpenMainClicked += () => _ = BringToFrontAsync(null);
+            _mini.SkipRequested += SkipBy;
+            _mini.Closed += (_, _) => _mini = null;
+        }
+
+        _mini.SetPosition(Player.CurrentSection, Player.CurrentDetail);
+        _mini.SetSpeed(_settings.PlaybackSpeed);
+        _mini.SetState(_player.State);
+        if (_timeline is not null)
+        {
+            _mini.SetProgress(_timeline.StartOf(Math.Max(0, _player.CurrentSegmentId)), _timeline.Total);
+        }
+
+        _mini.Show();
+    }
+
+    /// <returns>True si abrió algo (archivos o el texto pegado).</returns>
+    private async Task<bool> PasteAsync()
     {
         List<string> files;
         string? text;
@@ -620,7 +931,7 @@ public partial class MainWindow : Window
         catch (ExternalException ex)
         {
             ShowStatus($"No se pudo leer el portapapeles: {ex.Message}");
-            return;
+            return false;
         }
 
         IReadOnlyList<string> paths = files.Count > 0 ? files : PastedPaths.Parse(text);
@@ -632,7 +943,7 @@ public partial class MainWindow : Window
                 ShowStatus(paths.Count == 1
                     ? $"No hay un documento Markdown en \"{paths[0]}\"."
                     : "Ninguna de las rutas pegadas es un documento Markdown que exista.");
-                return;
+                return false;
             }
 
             await OpenFilesAsync(openable);
@@ -641,16 +952,17 @@ public partial class MainWindow : Window
                 ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: las demás rutas no son documentos Markdown que existan.");
             }
 
-            return;
+            return true;
         }
 
         if (string.IsNullOrWhiteSpace(text))
         {
             ShowStatus("El portapapeles no tiene texto ni rutas de archivos para pegar.");
-            return;
+            return false;
         }
 
         await OpenPastedTextAsync(text);
+        return true;
     }
 
     private async Task ReloadAsync()
@@ -685,6 +997,8 @@ public partial class MainWindow : Window
             case "nextTab": SwitchTab(1); break;
             case "previousTab": SwitchTab(-1); break;
             case "outline": ToggleOutline(); break;
+            case "back10": SkipBy(TimeSpan.FromSeconds(-10)); break;
+            case "forward10": SkipBy(TimeSpan.FromSeconds(10)); break;
         }
     }
 
@@ -723,6 +1037,13 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && Player.IsPopupOpen)
+        {
+            Player.ClosePopup();
+            e.Handled = true;
+            return;
+        }
+
         // Solo cuando el foco está en la barra. Dentro del documento los atajos llegan por JavaScript.
         if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase or Microsoft.Web.WebView2.Wpf.WebView2
             || Browser.IsKeyboardFocusWithin)
@@ -747,6 +1068,9 @@ public partial class MainWindow : Window
             Key.F4 when ctrl => "closeTab",
             Key.Tab when ctrl => shift ? "previousTab" : "nextTab",
             Key.B when ctrl => "outline",
+            // Flechas solas: −10 s / +10 s (en las listas de pestañas e índice siguen moviendo la selección).
+            Key.Left when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "back10",
+            Key.Right when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "forward10",
             _ => null,
         };
 
@@ -758,24 +1082,38 @@ public partial class MainWindow : Window
     }
 
     private void OnOpenClick(object sender, RoutedEventArgs e) => _ = OpenWithDialogAsync();
-    private void OnPlayClick(object sender, RoutedEventArgs e) => TogglePlay();
-    private void OnStopClick(object sender, RoutedEventArgs e) => _player.Stop();
-    private void OnNextClick(object sender, RoutedEventArgs e) => _player.NextSection();
-    private void OnPreviousClick(object sender, RoutedEventArgs e) => _player.PreviousSection();
+    private void OnPasteClick(object sender, RoutedEventArgs e) => _ = PasteAsync();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
-    private void OnSpeedChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void OnSpeedChanged(double speed)
     {
-        if (!IsInitialized)
+        _player.PlaybackSpeed = speed;
+        _settings.PlaybackSpeed = speed;
+        Player.SetSpeed(speed);
+        _mini?.SetSpeed(speed);
+        _settingsStore.Save(_settings);
+    }
+
+    /// <summary>Clic en un tramo de la línea de tiempo: leer desde ese capítulo (null = desde el principio).</summary>
+    private void OnChapterClicked(string? anchor)
+    {
+        if (_document is null)
         {
             return;
         }
 
-        _player.PlaybackSpeed = SpeedSlider.Value;
-        _settings.PlaybackSpeed = SpeedSlider.Value;
-        UpdateSpeedLabel();
-        _saveSpeedTimer.Stop();
-        _saveSpeedTimer.Start();
+        if (anchor is not null)
+        {
+            OnPlayFromRequested(anchor);
+        }
+        else if (_services is { Engine.IsConfigured: false })
+        {
+            OpenSettings();
+        }
+        else
+        {
+            _player.PlayFrom(0);
+        }
     }
 
     private void OnDragOver(object sender, DragEventArgs e)
@@ -838,8 +1176,9 @@ public partial class MainWindow : Window
         }
 
         int resume = _player.CurrentSegmentId;
+        double speed = _settings.PlaybackSpeed; // la velocidad no se edita en Configuración
         _settings = window.Result;
-        _settings.PlaybackSpeed = SpeedSlider.Value;
+        _settings.PlaybackSpeed = speed;
         _settingsStore.Save(_settings);
         RebuildServices();
 
@@ -852,7 +1191,6 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ consumo real en Azure
 
-    private void OnUsageRefreshClick(object sender, RoutedEventArgs e) => _ = RefreshAzureUsageAsync();
 
     private async Task RefreshAzureUsageAsync()
     {
@@ -861,7 +1199,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        UsageRefreshButton.IsEnabled = false;
+        Player.SetRefreshing(true);
         ShowStatus(File.Exists(_paths.AzureAccountFile)
             ? "Consultando el consumo en Azure…"
             : "Consultando el consumo en Azure… Inicia sesión en el navegador que se abrió.");
@@ -923,7 +1261,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            UsageRefreshButton.IsEnabled = true;
+            Player.SetRefreshing(false);
         }
     }
 
@@ -951,21 +1289,82 @@ public partial class MainWindow : Window
         }
 
         MarkOutline(segment.Id);
-        if (_document?.SectionOf(segment.Id) is { } section)
+        ShowPosition(segment.Id);
+    }
+
+    /// <summary>"§ Sección" y "Párrafo N de M · capítulo X de Y" en el reproductor.</summary>
+    private void ShowPosition(int segmentId)
+    {
+        if (_document is null || _timeline is null || segmentId < 0 || segmentId >= _document.Segments.Count)
         {
-            ShowStatus($"§ {section.PlainText}");
+            return;
         }
+
+        string section = _document.SectionOf(segmentId)?.PlainText is { Length: > 0 } title ? $"§ {title}" : _document.Title;
+        int chapter = _timeline.ChapterIndexOf(segmentId);
+        string detail = $"Párrafo {segmentId + 1} de {_document.Segments.Count} · capítulo {chapter + 1} de {_timeline.Chapters.Count}";
+        Player.SetPosition(section, detail);
+        Player.SetProgress(_timeline.StartOf(segmentId), chapter);
+        _lastElapsed = _timeline.StartOf(segmentId);
+        _mini?.SetPosition(section, detail);
+        _mini?.SetProgress(_timeline.StartOf(segmentId), _timeline.Total);
+    }
+
+    private void OnProgressChanged(int segmentId, TimeSpan intoSegment)
+    {
+        if (_timeline is not null)
+        {
+            TimeSpan elapsed = _timeline.ElapsedAt(segmentId, intoSegment);
+            _lastElapsed = elapsed;
+            Player.SetProgress(elapsed, _timeline.ChapterIndexOf(segmentId));
+            _mini?.SetProgress(elapsed, _timeline.Total);
+        }
+    }
+
+    /// <summary>
+    /// Retrocede o adelanta (−10 s / +10 s). Dentro del bloque que suena mueve la posición sin cortar; si el
+    /// destino está en otro bloque, empieza a leer desde el párrafo y punto que da la línea de tiempo.
+    /// </summary>
+    private void SkipBy(TimeSpan delta)
+    {
+        if (_document is null || _timeline is null || _services is { Engine.IsConfigured: false })
+        {
+            return;
+        }
+
+        if (_player.State != PlaybackState.Stopped && _player.TrySeekWithinCurrent(delta))
+        {
+            return;
+        }
+
+        // Sonando o en pausa: desde donde va. Cargando o detenido: desde el párrafo pedido (lo último mostrado
+        // podría ser de otro documento o de antes de saltar).
+        TimeSpan from = _player.State is PlaybackState.Playing or PlaybackState.Paused
+            ? _lastElapsed
+            : _timeline.StartOf(Math.Max(0, _player.CurrentSegmentId));
+        TimeSpan target = from + delta;
+        target = target < TimeSpan.Zero ? TimeSpan.Zero : target > _timeline.Total ? _timeline.Total : target;
+        (int segmentId, TimeSpan into) = _timeline.PositionAt(target);
+        _player.PlayFrom(segmentId, into);
+    }
+
+    /// <summary>Duraciones reales de lo que está en caché y estimadas del resto.</summary>
+    /// <param name="keepProgress">True al corregir duraciones del documento que suena (ver PlayerBar.SetTimeline).</param>
+    private void RebuildTimeline(bool keepProgress = false)
+    {
+        _timeline = _document is null || _services is null
+            ? null
+            : ReadingTimeline.Build(_document, _chunks, chunk => _services.Engine.TryGetCached(chunk));
+        Player.SetTimeline(_timeline, keepProgress);
+        RefreshOutlineTimes();
     }
 
     private void OnPlaybackStateChanged(PlaybackState state)
     {
-        (PlayIcon.Text, PlayLabel.Text) = state switch
+        if (state == PlaybackState.Playing)
         {
-            PlaybackState.Playing => ("", "Pausar"),
-            PlaybackState.Paused => ("", "Seguir"),
-            PlaybackState.Loading => ("", "Cargando"),
-            _ => ("", "Leer"),
-        };
+            Player.ClearNotice(onlyIf: "Preparando el audio…"); // no debe quedarse mientras ya suena
+        }
 
         if (state == PlaybackState.Loading)
         {
@@ -973,6 +1372,7 @@ public partial class MainWindow : Window
         }
 
         UpdateButtons();
+        _mini?.SetState(state);
     }
 
     private void OnChunkStarted(AudioChunk audio)
@@ -984,9 +1384,19 @@ public partial class MainWindow : Window
 
         EngineStatus status = _services.Engine.Status;
         bool isPiper = audio.EngineName.StartsWith("Piper", StringComparison.Ordinal);
-        bool fallback = isPiper && status.UsingFallback;
-        ShowEngine(audio.EngineName, fallback, fallback ? status.Reason : null);
+        // Respaldo = el motor que suena no es el principal (Google cuando Azure falla, o Piper).
+        bool fallback = status.UsingFallback && status.ActiveEngine == audio.EngineName;
+        string source = audio.FromCache ? "Desde caché · sin gastar cuota"
+            : isPiper ? "Generado sin conexión"
+            : $"Generado con {Provider(audio.EngineName)}";
+        ShowEngine(audio.EngineName, fallback, fallback ? status.Reason : null, source);
         UpdateUsage();
+
+        // Un bloque recién generado ya tiene su duración real: se corrige la línea de tiempo.
+        if (!audio.FromCache)
+        {
+            RebuildTimeline(keepProgress: true);
+        }
     }
 
     private void OnEngineStatusChanged(EngineStatus status)
@@ -994,7 +1404,7 @@ public partial class MainWindow : Window
         if (status.UsingFallback && status.Reason is { } reason && reason != _lastFallbackReason)
         {
             _lastFallbackReason = reason;
-            ShowStatus($"Azure no disponible ({reason}). Sigo con Piper.");
+            ShowStatus($"No disponible: {reason}. Sigo con {Provider(status.ActiveEngine)}.");
         }
         else if (!status.UsingFallback)
         {
@@ -1009,6 +1419,11 @@ public partial class MainWindow : Window
         if (_view is not null)
         {
             _ = _view.HighlightAsync(null);
+        }
+
+        if (_timeline is not null)
+        {
+            Player.SetProgress(_timeline.Total, _timeline.Chapters.Count - 1);
         }
 
         ShowStatus("Fin del documento.");
@@ -1033,50 +1448,68 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ presentación
 
-    private void ShowStatus(string text) => StatusText.Text = text;
+    private void ShowStatus(string text)
+    {
+        Player.ShowNotice(text);
+        _mini?.ShowNotice(text);
+    }
 
-    private void ShowEngine(string name, bool fallback, string? reason)
+    /// <param name="source">De dónde salió el último audio ("Desde caché · sin gastar cuota", …).</param>
+    private void ShowEngine(string name, bool fallback, string? reason, string? source = null)
     {
         bool none = _services is null || !_services.Engine.IsConfigured;
-        EngineText.Text = none ? "Sin motor de voz" : fallback ? $"{name} (respaldo)" : name;
-        EngineText.ToolTip = reason is null ? null : $"Motivo: {reason}";
-        EngineDot.Fill = none ? StatusBrushes.Error : fallback ? StatusBrushes.Fallback : StatusBrushes.Ok;
+        string detail = none ? "Configúralo en ⚙"
+            : fallback ? $"Respaldo: {reason}"
+            : source ?? (name.StartsWith("Piper", StringComparison.Ordinal) ? "Voz local, sin conexión" : "Lista para leer");
+        Player.SetEngine(none ? "Sin motor de voz" : FriendlyEngineName(name), detail,
+            none ? StatusBrushes.Error : fallback ? StatusBrushes.Fallback : StatusBrushes.Ok,
+            reason);
+    }
+
+    /// <summary>"Google · es-US-Neural2-A" → "Google".</summary>
+    private static string Provider(string engineName) => engineName.Split(" · ", 2)[0];
+
+    /// <summary>"Azure · es-MX-DaliaNeural" → "Dalia · Azure"; "Piper · es_MX-claude-high" → "Claude · Piper".</summary>
+    private static string FriendlyEngineName(string name)
+    {
+        string[] parts = name.Split(" · ", 2);
+        if (parts.Length != 2)
+        {
+            return name;
+        }
+
+        string voice = Regex.Replace(parts[1], @"^[a-z]{2}[-_][A-Z]{2}[-_]", "");
+        voice = Regex.Replace(voice, @"(Neural|-(x_)?(low|medium|high))$", "");
+        return voice.Length == 0 ? name : $"{char.ToUpperInvariant(voice[0])}{voice[1..]} · {parts[0]}";
     }
 
     private void UpdateUsage()
     {
+        if (_services is not null && _settings.HasGoogle)
+        {
+            int used = _services.GoogleUsage.Used;
+            int limit = Math.Max(1, _services.GoogleUsage.Limit);
+            Player.SetGoogleUsage($"Google: {used.ToString("N0", Mexico)} de {limit.ToString("N0", Mexico)} caracteres " +
+                                  $"({((double)used / limit * 100).ToString("0.#", Mexico)} %)");
+        }
+        else
+        {
+            Player.SetGoogleUsage(null);
+        }
+
         if (_services is null || !_settings.HasAzure || _settings.OfflineOnly)
         {
-            UsagePanel.Visibility = Visibility.Collapsed;
+            Player.SetUsage(false, 0, 1, DateTime.UtcNow, null);
             return;
         }
 
-        UsagePanel.Visibility = Visibility.Visible;
-        int used = _services.Usage.Used;
-        int limit = Math.Max(1, _services.Usage.Limit);
-        UsageText.Text = $"Azure: {used.ToString("N0", Mexico)} / {limit.ToString("N0", Mexico)} caracteres este mes";
-        UsageBar.Value = Math.Min(1.0, (double)used / limit);
-
-        string tooltip = "Caracteres enviados a Azure este mes (estimación local). Lo ya escuchado se reproduce desde la caché sin gastar cuota.";
-        if (_azureReport is { } report)
-        {
-            tooltip += $"\nÚltima consulta a Azure ({report.At.ToString("t", Mexico)}): {report.Characters.ToString("N0", Mexico)} caracteres.";
-        }
-
-        UsageText.ToolTip = tooltip;
-        UsageBar.ToolTip = tooltip;
+        string? report = _azureReport is { } r
+            ? $"Azure Monitor: {r.Characters.ToString("N0", Mexico)} a las {r.At.ToString("HH:mm", Mexico)}"
+            : null;
+        Player.SetUsage(true, _services.Usage.Used, Math.Max(1, _services.Usage.Limit), _services.Usage.ResetsOn, report);
     }
 
-    private void UpdateSpeedLabel() => SpeedLabel.Text = SpeedSlider.Value.ToString("0.00", CultureInfo.InvariantCulture) + "×";
-
-    private void UpdateButtons()
-    {
-        bool hasDocument = _player.HasDocument;
-        PlayButton.IsEnabled = true;
-        StopButton.IsEnabled = _player.State != PlaybackState.Stopped;
-        NextButton.IsEnabled = hasDocument;
-        PreviousButton.IsEnabled = hasDocument;
-    }
+    private void UpdateButtons() => Player.SetState(_player.State, _player.HasDocument);
 }
 
 internal static class StatusBrushes

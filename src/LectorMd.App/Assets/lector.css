@@ -1,14 +1,15 @@
+/* Colores de la propuesta D (los mismos de la ventana: ThemeService). */
 :root {
   color-scheme: light dark;
   --bg: #ffffff;
-  --fg: #1f2328;
-  --muted: #59636e;
-  --border: #d1d9e0;
-  --soft: #f6f8fa;
-  --accent: #0969da;
+  --fg: #1b1b1b;
+  --muted: #5d5d5d;
+  --border: #e5e5e5;
+  --soft: #f3f3f3;
+  --accent: #005fb8;
   --accent-fg: #ffffff;
-  --reading: #fff3bf;
-  --reading-edge: #d4a72c;
+  --reading: #eaf2fb;
+  --reading-edge: #005fb8;
   --note: #0969da;
   --tip: #1a7f37;
   --important: #8250df;
@@ -18,15 +19,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117;
-    --fg: #e6edf3;
-    --muted: #9198a1;
-    --border: #3d444d;
-    --soft: #151b23;
-    --accent: #4493f8;
-    --accent-fg: #0d1117;
-    --reading: #3a3114;
-    --reading-edge: #d29922;
+    --bg: #2b2b2b;
+    --fg: #f3f3f3;
+    --muted: #c8c8c8;
+    --border: #3d3d3d;
+    --soft: #333333;
+    --accent: #60cdff;
+    --accent-fg: #00344d;
+    --reading: #1e3a4c;
+    --reading-edge: #60cdff;
     --note: #4493f8;
     --tip: #3fb950;
     --important: #ab7df8;

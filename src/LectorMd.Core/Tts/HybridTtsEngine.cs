@@ -4,13 +4,17 @@ using LectorMd.Core.Usage;
 namespace LectorMd.Core.Tts;
 
 /// <param name="ActiveEngine">Nombre del motor que produjo el último audio.</param>
-/// <param name="UsingFallback">True si Azure está configurado pero se tuvo que usar Piper.</param>
+/// <param name="UsingFallback">True si un motor de más prioridad está configurado pero no se pudo usar.</param>
 /// <param name="Reason">Por qué se usa el respaldo (o null).</param>
 public sealed record EngineStatus(string ActiveEngine, bool UsingFallback, string? Reason);
 
+/// <summary>Un motor en la nube de la cadena, con su contador de cuota y el nombre corto para los mensajes.</summary>
+public sealed record CloudEngine(ITtsEngine Engine, UsageTracker Usage, string Label);
+
 /// <summary>
-/// Azure como motor principal y Piper como respaldo: si Azure no está configurado, se agotó la cuota,
-/// no hay conexión o rechaza la petición, el bloque se sintetiza con Piper y la lectura sigue.
+/// Cadena de motores: los de la nube en orden (Azure, luego Google) y Piper al final. Si un motor no está
+/// configurado, se quedó sin cuota, no hay conexión o rechaza la petición, el bloque pasa al siguiente y la
+/// lectura sigue. Cada motor en la nube tiene su propia pausa antes de volver a intentarlo.
 /// </summary>
 public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 {
@@ -18,23 +22,16 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
     private static readonly TimeSpan RateLimitCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan ErrorCooldown = TimeSpan.FromSeconds(30);
 
-    private readonly AzureTtsEngine? _azure;
-    private readonly PiperTtsEngine? _piper;
-    private readonly UsageTracker _usage;
+    private readonly List<Slot> _clouds;
+    private readonly ITtsEngine? _local;
     private readonly bool _offlineOnly;
     private readonly Func<DateTime> _utcNow;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    private string? _azureDisabledReason;
-    private DateTime _azureRetryAfterUtc = DateTime.MinValue;
-    private string? _cooldownReason;
-
-    public HybridTtsEngine(AzureTtsEngine? azure, PiperTtsEngine? piper, UsageTracker usage, bool offlineOnly,
-        Func<DateTime>? utcNow = null)
+    public HybridTtsEngine(IReadOnlyList<CloudEngine> clouds, ITtsEngine? local, bool offlineOnly, Func<DateTime>? utcNow = null)
     {
-        _azure = azure;
-        _piper = piper;
-        _usage = usage;
+        _clouds = clouds.Select(c => new Slot(c)).ToList();
+        _local = local;
         _offlineOnly = offlineOnly;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         Status = InitialStatus();
@@ -46,32 +43,32 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 
     public string Name => Status.ActiveEngine;
 
-    private bool AzureConfigured => !_offlineOnly && _azure is { IsConfigured: true };
+    private IEnumerable<Slot> ConfiguredClouds => _offlineOnly ? [] : _clouds.Where(s => s.Engine.IsConfigured);
 
-    private bool PiperConfigured => _piper is { IsConfigured: true };
+    private bool LocalConfigured => _local is { IsConfigured: true };
 
-    public bool IsConfigured => AzureConfigured || PiperConfigured;
+    public bool IsConfigured => ConfiguredClouds.Any() || LocalConfigured;
 
     /// <summary>
-    /// Audio de Azure en caché si existe. El de Piper solo se reutiliza mientras Azure no esté disponible,
-    /// para no quedarse con la voz de respaldo cuando Azure vuelve.
+    /// Audio ya generado, sin gastar cuota. El de un motor de respaldo solo se reutiliza mientras los de más
+    /// prioridad no estén disponibles, para no quedarse con la voz de respaldo cuando el principal vuelve.
     /// </summary>
     public AudioChunk? TryGetCached(SpeechChunk chunk)
     {
-        if (AzureConfigured)
+        foreach (Slot slot in ConfiguredClouds)
         {
-            if (_azure!.TryGetCached(chunk) is { } azure)
+            if (slot.Engine.TryGetCached(chunk) is { } cached)
             {
-                return azure;
+                return cached;
             }
 
-            if (AzureUnavailableReason() is null)
+            if (UnavailableReason(slot) is null)
             {
                 return null;
             }
         }
 
-        return PiperConfigured ? _piper!.TryGetCached(chunk) : null;
+        return LocalConfigured ? _local!.TryGetCached(chunk) : null;
     }
 
     public async Task<AudioChunk> SynthesizeAsync(SpeechChunk chunk, CancellationToken cancellationToken)
@@ -89,26 +86,27 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 
     private async Task<AudioChunk> SynthesizeCoreAsync(SpeechChunk chunk, CancellationToken cancellationToken)
     {
+        // El motor principal que no se pudo usar: su motivo es el que ve el usuario.
         string? fallbackReason = null;
 
-        if (AzureConfigured)
+        foreach (Slot slot in ConfiguredClouds)
         {
             // El audio ya pagado se reutiliza aunque hoy no haya cuota o conexión.
-            if (_azure!.TryGetCached(chunk) is { } cached)
+            if (slot.Engine.TryGetCached(chunk) is { } cached)
             {
-                SetStatus(new EngineStatus(_azure.Name, false, null));
+                SetStatus(new EngineStatus(slot.Engine.Name, fallbackReason is not null, fallbackReason));
                 return cached;
             }
 
-            fallbackReason = AzureUnavailableReason();
-            if (fallbackReason is null)
+            string? reason = UnavailableReason(slot);
+            if (reason is null)
             {
                 for (int attempt = 0; ; attempt++)
                 {
                     try
                     {
-                        AudioChunk audio = await _azure.SynthesizeAsync(chunk, cancellationToken).ConfigureAwait(false);
-                        SetStatus(new EngineStatus(_azure.Name, false, null));
+                        AudioChunk audio = await slot.Engine.SynthesizeAsync(chunk, cancellationToken).ConfigureAwait(false);
+                        SetStatus(new EngineStatus(slot.Engine.Name, fallbackReason is not null, fallbackReason));
                         return audio;
                     }
                     catch (TtsException ex) when (ex.Kind == TtsFailureKind.RateLimited && attempt < 2)
@@ -117,99 +115,111 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
                     }
                     catch (TtsException ex)
                     {
-                        fallbackReason = RegisterAzureFailure(ex);
+                        reason = RegisterFailure(slot, ex);
                         break;
                     }
                 }
             }
+
+            // Se juntan los motivos de todos los motores que no se pudieron usar (no solo el del primero).
+            fallbackReason = fallbackReason is null ? reason : $"{fallbackReason}; {slot.Label}: {reason}";
         }
 
-        if (PiperConfigured)
+        if (LocalConfigured)
         {
-            AudioChunk audio = await _piper!.SynthesizeAsync(chunk, cancellationToken).ConfigureAwait(false);
-            string? reason = AzureConfigured ? fallbackReason : _offlineOnly ? "modo sin conexión" : null;
-            SetStatus(new EngineStatus(_piper.Name, AzureConfigured, reason));
+            AudioChunk audio = await _local!.SynthesizeAsync(chunk, cancellationToken).ConfigureAwait(false);
+            bool anyCloud = ConfiguredClouds.Any();
+            string? reason = anyCloud ? fallbackReason : _offlineOnly ? "modo sin conexión" : null;
+            SetStatus(new EngineStatus(_local.Name, anyCloud, reason));
             return audio;
         }
 
         string message = fallbackReason is null
-            ? "No hay ningún motor de voz configurado. Abre Configuración y agrega tu clave de Azure o Piper."
-            : $"Azure no está disponible ({fallbackReason}) y Piper no está configurado como respaldo.";
-        throw new TtsException(TtsFailureKind.NotConfigured, message);
+            ? "No hay ningún motor de voz configurado. Abre Configuración y agrega tu clave de Azure o de Google, o Piper."
+            : _local is null
+                ? $"No hay motor disponible ({fallbackReason}). Con el motor elegido no hay respaldo: prueba con Automático."
+                : $"No hay motor disponible ({fallbackReason}) y Piper no está configurado como respaldo.";
+        // Con un motor elegido a mano que falló no hay nada que configurar: no se ofrece abrir Configuración.
+        TtsFailureKind kind = _local is null && fallbackReason is not null ? TtsFailureKind.Other : TtsFailureKind.NotConfigured;
+        throw new TtsException(kind, message);
     }
 
-    private string? AzureUnavailableReason()
+    private string? UnavailableReason(Slot slot)
     {
-        if (_azureDisabledReason is not null)
+        if (slot.DisabledReason is not null)
         {
-            return _azureDisabledReason;
+            return slot.DisabledReason;
         }
 
-        if (_usage.ServiceReportedExhausted)
+        if (slot.Usage.ServiceReportedExhausted)
         {
-            return "Azure indicó que la cuota del mes se agotó";
+            return $"{slot.Label} indicó que la cuota del mes se agotó";
         }
 
-        if (_usage.IsExhausted)
+        if (slot.Usage.IsExhausted)
         {
-            return $"se alcanzó el límite mensual de {_usage.Limit:N0} caracteres";
+            return $"se alcanzó el límite mensual de {slot.Usage.Limit:N0} caracteres de {slot.Label}";
         }
 
-        return _utcNow() < _azureRetryAfterUtc ? _cooldownReason : null;
+        return _utcNow() < slot.RetryAfterUtc ? slot.CooldownReason : null;
     }
 
-    private string RegisterAzureFailure(TtsException ex)
+    private string RegisterFailure(Slot slot, TtsException ex)
     {
         switch (ex.Kind)
         {
             case TtsFailureKind.Authentication:
             case TtsFailureKind.NotConfigured:
-                _azureDisabledReason = ex.Message;
+                slot.DisabledReason = ex.Message;
                 break;
             case TtsFailureKind.QuotaExceeded:
-                _usage.MarkServiceExhausted();
+                slot.Usage.MarkServiceExhausted();
                 break;
             case TtsFailureKind.LocalLimitReached:
                 break;
             case TtsFailureKind.RateLimited:
-                Cooldown(RateLimitCooldown, ex.Message);
+                Cooldown(slot, RateLimitCooldown, ex.Message);
                 break;
             case TtsFailureKind.Network:
-                Cooldown(NetworkCooldown, ex.Message);
+                Cooldown(slot, NetworkCooldown, ex.Message);
                 break;
             default:
-                Cooldown(ErrorCooldown, ex.Message);
+                Cooldown(slot, ErrorCooldown, ex.Message);
                 break;
         }
 
         return ex.Message;
     }
 
-    private void Cooldown(TimeSpan duration, string reason)
+    private void Cooldown(Slot slot, TimeSpan duration, string reason)
     {
-        _azureRetryAfterUtc = _utcNow() + duration;
-        _cooldownReason = reason;
+        slot.RetryAfterUtc = _utcNow() + duration;
+        slot.CooldownReason = reason;
     }
 
     private EngineStatus InitialStatus()
     {
-        if (AzureConfigured)
+        string? firstReason = null;
+        foreach (Slot slot in ConfiguredClouds)
         {
-            string? reason = AzureUnavailableReason();
-            if (reason is not null && PiperConfigured)
+            string? reason = UnavailableReason(slot);
+            if (reason is null)
             {
-                return new EngineStatus(_piper!.Name, true, reason);
+                return new EngineStatus(slot.Engine.Name, firstReason is not null, firstReason);
             }
 
-            return new EngineStatus(_azure!.Name, false, reason);
+            firstReason ??= reason;
         }
 
-        if (PiperConfigured)
+        if (LocalConfigured)
         {
-            return new EngineStatus(_piper!.Name, false, _offlineOnly ? "modo sin conexión" : null);
+            bool anyCloud = ConfiguredClouds.Any();
+            return new EngineStatus(_local!.Name, anyCloud, anyCloud ? firstReason : _offlineOnly ? "modo sin conexión" : null);
         }
 
-        return new EngineStatus("Sin motor de voz", false, "configura Azure o Piper");
+        return ConfiguredClouds.FirstOrDefault() is { } first
+            ? new EngineStatus(first.Engine.Name, false, firstReason)
+            : new EngineStatus("Sin motor de voz", false, "configura Azure, Google o Piper");
     }
 
     private void SetStatus(EngineStatus status)
@@ -225,8 +235,23 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 
     public void Dispose()
     {
-        _azure?.Dispose();
-        _piper?.Dispose();
+        foreach (Slot slot in _clouds)
+        {
+            (slot.Engine as IDisposable)?.Dispose();
+        }
+
+        (_local as IDisposable)?.Dispose();
         _gate.Dispose();
+    }
+
+    /// <summary>Estado de un motor en la nube: deshabilitado (clave inválida) o en pausa tras una falla.</summary>
+    private sealed class Slot(CloudEngine cloud)
+    {
+        public ITtsEngine Engine { get; } = cloud.Engine;
+        public UsageTracker Usage { get; } = cloud.Usage;
+        public string Label { get; } = cloud.Label;
+        public string? DisabledReason { get; set; }
+        public DateTime RetryAfterUtc { get; set; } = DateTime.MinValue;
+        public string? CooldownReason { get; set; }
     }
 }

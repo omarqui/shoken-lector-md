@@ -69,6 +69,44 @@
 
                 <Separator Margin="0,22" />
 
+                <!-- Google -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Google Cloud · respaldo de Azure" />
+                <TextBlock Style="{StaticResource Hint}">
+                    Entra cuando Azure no está disponible (sin cuota, sin conexión o con error), antes de Piper. El plan
+                    gratuito de las voces Neural2 incluye 1 000 000 de caracteres al mes; al pasarlo Google cobra, por eso
+                    la app lleva la cuenta y no lo usa más allá del límite.
+                </TextBlock>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Clave de API" VerticalAlignment="Center" />
+                    <PasswordBox x:Name="GoogleKeyBox" Grid.Row="0" Grid.Column="1" Margin="0,4"
+                                 ToolTip="Clave de API de Google Cloud restringida a Cloud Text-to-Speech API" />
+
+                    <TextBlock Grid.Row="1" Text="Voz" VerticalAlignment="Center" />
+                    <ComboBox x:Name="GoogleVoiceBox" Grid.Row="1" Grid.Column="1" Margin="0,4" IsEditable="True" />
+
+                    <TextBlock Grid.Row="2" Text="Límite mensual" VerticalAlignment="Center" />
+                    <TextBox x:Name="GoogleLimitBox" Grid.Row="2" Grid.Column="1" Margin="0,4"
+                             ToolTip="Caracteres por mes. Se cuenta el SSML completo (estimación conservadora)." />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Margin="150,8,0,0">
+                    <Button x:Name="TestGoogleButton" Content="Probar Google" Padding="12,6" Click="OnTestGoogleClick" />
+                    <TextBlock x:Name="GoogleTestResult" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="320" />
+                </StackPanel>
+
+                <Separator Margin="0,22" />
+
                 <!-- Piper -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Piper · respaldo sin conexión" />
                 <TextBlock Style="{StaticResource Hint}">

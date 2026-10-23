@@ -1,0 +1,195 @@
+<UserControl x:Class="LectorMd.App.Controls.PlayerBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <FontFamily x:Key="Mono">Cascadia Code, Consolas</FontFamily>
+
+        <!-- Botón redondo del transporte; el diámetro sale de Width/Height. -->
+        <Style x:Key="RoundButton" TargetType="Button">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Background" Value="{DynamicResource LectorSurface2Brush}" />
+            <Setter Property="Foreground" Value="{DynamicResource LectorTextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="26">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Back" Property="Opacity" Value="0.85" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Back" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botón sin aspecto propio: un tramo de la línea de tiempo o una velocidad. -->
+        <Style x:Key="BareButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource LectorText2Brush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}"
+            BorderThickness="0,1,0,0" Padding="20,12,20,14">
+        <StackPanel>
+            <!-- Línea de tiempo por capítulos -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="ElapsedText" Text="--:--" FontFamily="{StaticResource Mono}" FontSize="12" Margin="0,-2,12,0"
+                           Foreground="{DynamicResource LectorTextBrush}" />
+                <Grid x:Name="TimelineGrid" Grid.Column="1" />
+                <TextBlock x:Name="RemainingText" Grid.Column="2" Text="--:--" FontFamily="{StaticResource Mono}" FontSize="12"
+                           Margin="12,-2,0,0" Foreground="{DynamicResource LectorText2Brush}" />
+            </Grid>
+
+            <!-- Como Spotify: lo que suena a la izquierda, el transporte al centro, velocidad y estado a la derecha. -->
+            <Grid x:Name="ControlsGrid" SizeChanged="OnControlsSizeChanged">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="120" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition x:Name="RightColumn" Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Sección y párrafo (o el último aviso) -->
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock x:Name="SectionText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource LectorTextBrush}" />
+                    <TextBlock x:Name="DetailText" FontSize="12" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource LectorText2Brush}" />
+                </StackPanel>
+
+                <!-- Simétrico alrededor del play (sin Detener: Esc sigue deteniendo), así queda justo al centro. -->
+                <StackPanel x:Name="TransportPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="PreviousButton" Style="{StaticResource RoundButton}" Click="OnPreviousClick"
+                            ToolTip="Sección anterior (Ctrl+←)" AutomationProperties.Name="Sección anterior">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE892;" />
+                    </Button>
+                    <Button x:Name="BackButton" Style="{StaticResource RoundButton}" Click="OnBack10Click" Margin="6,0,0,0"
+                            Background="Transparent" ToolTip="Retroceder 10 segundos (←)" AutomationProperties.Name="Retroceder 10 segundos">
+                        <TextBlock Text="−10" FontSize="13" FontWeight="SemiBold" />
+                    </Button>
+                    <Button x:Name="PlayButton" Style="{StaticResource RoundButton}" Click="OnPlayClick" Width="52" Height="52"
+                            Margin="8,0" Background="{DynamicResource LectorAccentBrush}" Foreground="{DynamicResource LectorOnAccentBrush}"
+                            ToolTip="Leer o pausar (Espacio)" AutomationProperties.Name="Leer">
+                        <TextBlock x:Name="PlayIcon" Style="{StaticResource IconText}" FontSize="18" Text="&#xE768;" />
+                    </Button>
+                    <Button x:Name="ForwardButton" Style="{StaticResource RoundButton}" Click="OnForward10Click" Margin="0,0,6,0"
+                            Background="Transparent" ToolTip="Adelantar 10 segundos (→)" AutomationProperties.Name="Adelantar 10 segundos">
+                        <TextBlock Text="+10" FontSize="13" FontWeight="SemiBold" />
+                    </Button>
+                    <Button x:Name="NextButton" Style="{StaticResource RoundButton}" Click="OnNextClick"
+                            ToolTip="Sección siguiente (Ctrl+→)" AutomationProperties.Name="Sección siguiente">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE893;" />
+                    </Button>
+                </StackPanel>
+
+                <StackPanel x:Name="RightPanel" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            SizeChanged="OnRightPanelSizeChanged">
+                    <!-- Velocidad -->
+                    <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="16,0,10,0"
+                            AutomationProperties.Name="Velocidad">
+                        <StackPanel x:Name="SpeedPanel" Orientation="Horizontal" />
+                    </Border>
+
+                    <!-- Estado de Azure, compacto: el detalle sale en un panel al pasar el mouse. -->
+                    <Button x:Name="StatusButton" Style="{StaticResource BareButton}" Height="38" Padding="12,0"
+                            Background="{DynamicResource LectorSurface2Brush}" Click="OnStatusClick"
+                            MouseEnter="OnStatusMouseEnter" MouseLeave="OnStatusMouseLeave" AutomationProperties.Name="Estado de Azure">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="EngineDot" Width="9" Height="9" Fill="Gray" VerticalAlignment="Center" />
+                            <Grid x:Name="UsageMini" Width="48" Height="4" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <Border Background="{DynamicResource LectorTrackBrush}" CornerRadius="2" />
+                                <Border x:Name="UsageFill" Background="{DynamicResource LectorAccentBrush}" CornerRadius="2"
+                                        HorizontalAlignment="Left" Width="0" />
+                            </Grid>
+                            <TextBlock x:Name="UsagePercent" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource LectorTextBrush}" />
+                            <TextBlock x:Name="StatusLabel" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource LectorTextBrush}" Visibility="Collapsed" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Popup x:Name="StatusPopup" PlacementTarget="{Binding ElementName=StatusButton}" Placement="Custom"
+                   StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+                <Border x:Name="StatusPanel" Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}"
+                        BorderThickness="1" CornerRadius="10" Padding="16,14" Width="310" Margin="10"
+                        MouseEnter="OnStatusMouseEnter" MouseLeave="OnStatusMouseLeave">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.25" />
+                    </Border.Effect>
+                    <StackPanel>
+                        <TextBlock Text="MOTOR DE VOZ" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource LectorText2Brush}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Ellipse x:Name="PopupDot" Width="9" Height="9" Fill="Gray" VerticalAlignment="Center" />
+                            <TextBlock x:Name="PopupEngine" FontWeight="SemiBold" Margin="8,0,0,0" Foreground="{DynamicResource LectorTextBrush}" />
+                        </StackPanel>
+                        <TextBlock x:Name="PopupEngineDetail" FontSize="12" Margin="17,2,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource LectorText2Brush}" />
+
+                        <!-- Para probar voces: Automático usa la cadena con respaldos; los demás, solo ese motor. -->
+                        <TextBlock Text="USAR" FontSize="11" FontWeight="SemiBold" Margin="0,12,0,0"
+                                   Foreground="{DynamicResource LectorText2Brush}" />
+                        <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="0,6,0,0"
+                                HorizontalAlignment="Left" AutomationProperties.Name="Motor de voz">
+                            <StackPanel x:Name="EngineChoicePanel" Orientation="Horizontal" />
+                        </Border>
+                        <!-- Fuera de la sección de Azure: con Google como único motor también se ve lo gastado. -->
+                        <TextBlock x:Name="PopupGoogleUsage" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"
+                                   Foreground="{DynamicResource LectorText2Brush}" />
+
+                        <StackPanel x:Name="PopupUsageSection">
+                            <Border Height="1" Background="{DynamicResource LectorBorderBrush}" Margin="0,12" />
+                            <TextBlock Text="CONSUMO DE AZURE ESTE MES" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBlock x:Name="PopupUsage" Margin="0,6,0,0" Foreground="{DynamicResource LectorTextBrush}" />
+                            <Grid Height="6" Margin="0,8,0,0">
+                                <Border Background="{DynamicResource LectorTrackBrush}" CornerRadius="3" />
+                                <Border x:Name="PopupUsageFill" Background="{DynamicResource LectorAccentBrush}" CornerRadius="3"
+                                        HorizontalAlignment="Left" Width="0" />
+                            </Grid>
+                            <TextBlock x:Name="PopupReset" FontSize="12" Margin="0,8,0,0" Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBlock x:Name="PopupAzure" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBlock Text="Lo ya escuchado se reproduce desde la caché sin gastar cuota." FontSize="12" Margin="0,2,0,0"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource LectorText2Brush}" />
+                            <Button x:Name="RefreshButton" Style="{StaticResource BareButton}" Click="OnRefreshClick" Height="34"
+                                    Margin="0,12,0,0" Padding="12,0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource LectorSurface2Brush}" Foreground="{DynamicResource LectorTextBrush}"
+                                    AutomationProperties.Name="Consultar consumo real en Azure">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE72C;" />
+                                    <TextBlock x:Name="RefreshLabel" Text="Consultar consumo real en Azure" FontSize="12" Margin="8,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
+        </StackPanel>
+    </Border>
+</UserControl>

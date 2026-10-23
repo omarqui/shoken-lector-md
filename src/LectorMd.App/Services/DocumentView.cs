@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -46,6 +47,12 @@ internal sealed class DocumentView
     /// <summary>El usuario desplazó el documento: nueva posición vertical en píxeles.</summary>
     public event Action<double>? ScrollChanged;
 
+    /// <summary>Se seleccionaron 1 a 3 palabras: texto, posición bajo la selección (px del visor) y ancla del párrafo.</summary>
+    public event Action<string, Point, string?>? SelectionMade;
+
+    /// <summary>La selección se quitó o el documento se desplazó.</summary>
+    public event Action? SelectionCleared;
+
     public static bool IsOpenableFile(string path) =>
         OpenableExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
@@ -75,6 +82,20 @@ internal sealed class DocumentView
         _core.NavigationStarting += OnNavigationStarting;
         _core.NavigationCompleted += OnNavigationCompleted;
         _core.NewWindowRequested += OnNewWindowRequested;
+    }
+
+    /// <summary>Colores del documento: lector.css responde a prefers-color-scheme sin recargar la página.</summary>
+    public void SetColorScheme(AppTheme theme)
+    {
+        if (_core is not null)
+        {
+            _core.Profile.PreferredColorScheme = theme switch
+            {
+                AppTheme.Light => CoreWebView2PreferredColorScheme.Light,
+                AppTheme.Dark => CoreWebView2PreferredColorScheme.Dark,
+                _ => CoreWebView2PreferredColorScheme.Auto,
+            };
+        }
     }
 
     public Task ShowWelcomeAsync() => NavigateAsync($"bienvenida-{_instance}.html", HtmlPages.Welcome());
@@ -237,6 +258,16 @@ internal sealed class DocumentView
                     LinkActivated?.Invoke(uri);
                     break;
                 // Solo de la página actual: la anterior puede mandar su último desplazamiento ya cambiada la pestaña.
+                case "selection" when root.TryGetProperty("text", out JsonElement text) && text.GetString() is { Length: > 0 } selected:
+                    var point = new Point(
+                        root.TryGetProperty("x", out JsonElement x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : 0,
+                        root.TryGetProperty("y", out JsonElement y2) && y2.ValueKind == JsonValueKind.Number ? y2.GetDouble() : 0);
+                    string? block = root.TryGetProperty("anchor", out JsonElement a) && a.ValueKind == JsonValueKind.String ? a.GetString() : null;
+                    SelectionMade?.Invoke(selected, point, block);
+                    break;
+                case "selectionCleared":
+                    SelectionCleared?.Invoke();
+                    break;
                 case "scroll" when IsCurrentPage(e.Source)
                                    && root.TryGetProperty("y", out JsonElement y) && y.ValueKind == JsonValueKind.Number:
                     ScrollChanged?.Invoke(y.GetDouble());

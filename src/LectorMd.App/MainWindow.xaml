@@ -2,76 +2,54 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:controls="clr-namespace:LectorMd.App.Controls"
         Title="Lector MD"
-        Width="1120" Height="800" MinWidth="760" MinHeight="480"
+        Icon="Assets/app.ico"
+        Width="1120" Height="800" MinWidth="920" MinHeight="480"
         WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource LectorBackgroundBrush}"
         AllowDrop="True"
         Loaded="OnLoaded"
         Closing="OnClosing"
+        StateChanged="OnWindowStateChanged"
         DragOver="OnDragOver"
         Drop="OnDrop"
         PreviewKeyDown="OnPreviewKeyDown">
-    <DockPanel>
-        <!-- Barra superior -->
-        <Border DockPanel.Dock="Top" Padding="12,10" BorderThickness="0,0,0,1"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-            <DockPanel LastChildFill="True">
-                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                    <ToggleButton x:Name="OutlineToggle" Click="OnOutlineToggleClick" ToolTip="Mostrar u ocultar el índice (Ctrl+B)"
-                                  Padding="10,6" Margin="0,0,8,0">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE8FD;" />
-                    </ToggleButton>
-                    <Button Click="OnOpenClick" ToolTip="Abrir un archivo Markdown (Ctrl+O)" Padding="12,6" Margin="0,0,14,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource IconText}" Text="&#xE8E5;" Margin="0,0,8,0" />
-                            <TextBlock Text="Abrir" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+    <!-- Barra de título propia: las pestañas viven en ella. Lo que no es clicable se arrastra y doble clic maximiza. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
 
-                    <Button x:Name="PreviousButton" Click="OnPreviousClick" ToolTip="Sección anterior (Ctrl+←)" Padding="10,6" Margin="0,0,4,0">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE892;" />
-                    </Button>
-                    <Button x:Name="PlayButton" Click="OnPlayClick" ToolTip="Leer o pausar (Espacio)" Padding="14,6" Margin="0,0,4,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="PlayIcon" Style="{StaticResource IconText}" Text="&#xE768;" Margin="0,0,8,0" />
-                            <TextBlock x:Name="PlayLabel" Text="Leer" VerticalAlignment="Center" MinWidth="58" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="StopButton" Click="OnStopClick" ToolTip="Detener (Esc)" Padding="10,6" Margin="0,0,4,0">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE71A;" />
-                    </Button>
-                    <Button x:Name="NextButton" Click="OnNextClick" ToolTip="Sección siguiente (Ctrl+→)" Padding="10,6">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE893;" />
-                    </Button>
-                </StackPanel>
+    <DockPanel x:Name="RootPanel">
+        <!-- Barra de título con pestañas -->
+        <Grid DockPanel.Dock="Top" Height="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Velocidad" VerticalAlignment="Center" Margin="0,0,10,0" Opacity="0.72" />
-                    <Slider x:Name="SpeedSlider" Width="130" VerticalAlignment="Center"
-                            Minimum="0.75" Maximum="1.75" TickFrequency="0.05" IsSnapToTickEnabled="True"
-                            SmallChange="0.05" LargeChange="0.25" Value="1"
-                            ValueChanged="OnSpeedChanged" />
-                    <TextBlock x:Name="SpeedLabel" Text="1.00×" Width="46" VerticalAlignment="Center" Margin="8,0,12,0" />
-                    <Button Click="OnSettingsClick" ToolTip="Configuración (Ctrl+,)" Padding="10,6">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE713;" />
-                    </Button>
-                </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,12,0">
+                <Border Width="18" Height="18" CornerRadius="4" Background="{DynamicResource LectorAccentBrush}">
+                    <TextBlock Style="{StaticResource IconText}" FontSize="11" Text="&#xE767;" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource LectorOnAccentBrush}" />
+                </Border>
+                <TextBlock Text="Lector MD" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource LectorText2Brush}" />
+            </StackPanel>
 
-                <TextBlock x:Name="DocumentTitle" VerticalAlignment="Center" Margin="16,0" FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis" />
-            </DockPanel>
-        </Border>
-
-        <!-- Pestañas -->
-        <Border DockPanel.Dock="Top" Padding="8,4" BorderThickness="0,0,0,1"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-            <DockPanel>
+            <!-- Alineado a la izquierda: el resto de la columna queda libre para arrastrar la ventana. -->
+            <DockPanel Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Bottom">
                 <Button DockPanel.Dock="Right" Click="OnNewTabClick" ToolTip="Pestaña nueva (Ctrl+T): pega un texto Markdown o una ruta"
-                        Padding="8,4" Margin="6,0,0,0" VerticalAlignment="Center">
+                        AutomationProperties.Name="Pestaña nueva" WindowChrome.IsHitTestVisibleInChrome="True"
+                        Style="{StaticResource FlatIconButton}" Width="36" Height="32" Margin="2,0,0,2" VerticalAlignment="Bottom">
                     <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE710;" />
                 </Button>
-                <ListBox x:Name="TabList" SelectionChanged="OnTabSelectionChanged" BorderThickness="0" Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                <ListBox x:Name="TabList" SelectionChanged="OnTabSelectionChanged" PreviewMouseWheel="OnTabListMouseWheel"
+                         BorderThickness="0" Background="Transparent"
+                         Padding="0" WindowChrome.IsHitTestVisibleInChrome="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                          KeyboardNavigation.TabNavigation="Once">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -79,95 +57,213 @@
                         </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
                     <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                            <Setter Property="Padding" Value="10,3,3,3" />
-                            <Setter Property="Margin" Value="0,0,4,0" />
+                        <!-- Solapa como en un navegador: la activa toma el color de la barra de comandos y se une a ella. -->
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="ToolTip" Value="{Binding ToolTip}" />
+                            <Setter Property="AutomationProperties.HelpText" Value="{Binding ToolTip}" />
+                            <Setter Property="Foreground" Value="{DynamicResource LectorText2Brush}" />
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Tab" Height="36" Margin="0,4,2,0" Padding="14,0,4,0" CornerRadius="8,8,0,0"
+                                                Background="Transparent">
+                                            <ContentPresenter VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Tab" Property="Background" Value="{DynamicResource LectorSurface2Brush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Tab" Property="Background" Value="{DynamicResource LectorSurfaceBrush}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource LectorTextBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                             <EventSetter Event="PreviewMouseUp" Handler="OnTabMouseUp" />
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal" ToolTip="{Binding ToolTip}">
-                                <TextBlock Text="{Binding Name}" MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                <Button Click="OnCloseTabClick" ToolTip="Cerrar (Ctrl+W)" Padding="5,3" Margin="8,0,0,0"
-                                        Background="Transparent" BorderThickness="0" VerticalAlignment="Center" Focusable="False">
-                                    <TextBlock Style="{StaticResource IconText}" FontSize="9" Text="&#xE711;" />
+                            <StackPanel Orientation="Horizontal">
+                                <!-- Archivo .md, texto pegado (en memoria) o pestaña vacía. -->
+                                <TextBlock FontSize="13" Text="{Binding Icon}" Margin="0,0,9,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource IconText}">
+                                            <Setter Property="Foreground" Value="{DynamicResource LectorAccentBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsPasted}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource LectorPastedBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Name}" MaxWidth="200" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                                <Button Click="OnCloseTabClick" ToolTip="Cerrar (Ctrl+W)" AutomationProperties.Name="Cerrar pestaña"
+                                        Style="{StaticResource FlatIconButton}" Width="24" Height="24" Margin="10,0,0,0" Focusable="False">
+                                    <TextBlock Style="{StaticResource IconText}" FontSize="9" Text="&#xE711;"
+                                               Foreground="{DynamicResource LectorText2Brush}" />
                                 </Button>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
             </DockPanel>
-        </Border>
 
-        <!-- Barra de estado -->
-        <Border DockPanel.Dock="Bottom" Padding="12,7" BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <controls:CaptionButtons Grid.Column="2" />
+        </Grid>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse x:Name="EngineDot" Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center" Fill="Gray" />
-                    <TextBlock x:Name="EngineText" Text="Sin motor de voz" VerticalAlignment="Center" />
-                </StackPanel>
-
-                <TextBlock x:Name="StatusText" Grid.Column="1" Margin="18,0" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" Opacity="0.72" />
-
-                <StackPanel x:Name="UsagePanel" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="UsageText" VerticalAlignment="Center" Opacity="0.72" />
-                    <ProgressBar x:Name="UsageBar" Width="90" Height="4" Margin="10,0,0,0" Minimum="0" Maximum="1"
-                                 VerticalAlignment="Center" />
-                    <Button x:Name="UsageRefreshButton" Click="OnUsageRefreshClick" Padding="6,2" Margin="8,0,0,0"
-                            Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
-                            ToolTip="Consultar en Azure el consumo real de este mes">
-                        <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE72C;" />
+        <!-- Barra de comandos (la reproducción vive abajo) -->
+        <Border DockPanel.Dock="Top" Padding="12,8" BorderThickness="0,0,0,1"
+                Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Button x:Name="OutlineToggle" Style="{StaticResource FlatIconButton}" Click="OnOutlineToggleClick"
+                            ToolTip="Mostrar u ocultar el índice (Ctrl+B)" AutomationProperties.Name="Índice" Width="40" Height="36" Margin="0,0,4,0">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE8FD;" />
+                    </Button>
+                    <Button Style="{StaticResource FlatIconButton}" Click="OnOpenClick" ToolTip="Abrir un archivo Markdown (Ctrl+O)"
+                            AutomationProperties.Name="Abrir" Height="36" Padding="12,0" Margin="0,0,2,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE8E5;" Margin="0,0,8,0" />
+                            <TextBlock Text="Abrir" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource FlatIconButton}" Click="OnPasteClick" ToolTip="Pegar una ruta o un texto Markdown (Ctrl+V)"
+                            AutomationProperties.Name="Pegar" Height="36" Padding="12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE77F;" Margin="0,0,8,0" />
+                            <TextBlock Text="Pegar" VerticalAlignment="Center" />
+                        </StackPanel>
                     </Button>
                 </StackPanel>
-            </Grid>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ThemeButton" Style="{StaticResource FlatIconButton}" Click="OnThemeClick" Width="36" Height="36" Margin="0,0,2,0">
+                        <TextBlock x:Name="ThemeIcon" Style="{StaticResource IconText}" FontSize="15" />
+                    </Button>
+                    <Button Style="{StaticResource FlatIconButton}" Click="OnSettingsClick" ToolTip="Configuración (Ctrl+,)"
+                            AutomationProperties.Name="Configuración" Width="36" Height="36">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE713;" />
+                    </Button>
+                </StackPanel>
+
+                <TextBlock x:Name="DocumentTitle" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16,0"
+                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource LectorTextBrush}" />
+            </DockPanel>
         </Border>
 
+        <!-- Reproductor abajo -->
+        <controls:PlayerBar x:Name="Player" DockPanel.Dock="Bottom" />
+
         <!-- Índice y documento -->
-        <Grid>
+        <Grid Margin="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border x:Name="OutlinePanel" Width="260" BorderThickness="0,0,1,0"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <Border x:Name="OutlinePanel" Width="250" Margin="0,0,12,0">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Índice" FontWeight="SemiBold" Margin="14,12,14,6" />
+                    <TextBlock DockPanel.Dock="Top" Text="ÍNDICE" FontSize="12" FontWeight="SemiBold" Margin="12,10,12,8"
+                               Foreground="{DynamicResource LectorText2Brush}" />
                     <TextBlock x:Name="OutlineEmpty" DockPanel.Dock="Top" Visibility="Collapsed" TextWrapping="Wrap"
-                               Margin="14,4" Opacity="0.72" />
-                    <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent" Margin="4,0,4,8"
+                               Margin="12,4" Foreground="{DynamicResource LectorText2Brush}" />
+                    <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent" Padding="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyDown="OnOutlineKeyDown">
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                                <Setter Property="Padding" Value="10,4" />
+                            <!-- La sección que se está leyendo se marca con el fondo de "actual" del diseño. -->
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Foreground" Value="{DynamicResource LectorTextBrush}" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="12,8" Margin="0,1">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource LectorSurface2Brush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource LectorCurrentBrush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource LectorCurrentTextBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                                 <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnOutlineItemClick" />
                                 <EventSetter Event="MouseDoubleClick" Handler="OnOutlineItemDoubleClick" />
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Text}" Margin="{Binding Margin}" FontWeight="{Binding Weight}"
-                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Text}" />
+                                <DockPanel Margin="{Binding Margin}" ToolTip="{Binding Text}">
+                                    <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
+                                    <TextBlock Text="{Binding Text}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                                </DockPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </DockPanel>
             </Border>
 
-            <Grid Grid.Column="1">
-                <wv2:WebView2 x:Name="Browser" />
-                <TextBlock x:Name="BrowserError" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480" />
-            </Grid>
+            <!-- Pronunciación de lo seleccionado: primero un botón junto a la selección; al pulsarlo, el editor. -->
+            <Popup x:Name="PronouncePopup" Grid.Column="1" PlacementTarget="{Binding ElementName=Browser}" Placement="Relative"
+                   StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Closed="OnPronouncePopupClosed">
+                <Border Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}"
+                        BorderThickness="1" CornerRadius="8" Margin="8" Padding="6">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.25" />
+                    </Border.Effect>
+                    <Grid>
+                        <Button x:Name="PronounceChip" Style="{StaticResource FlatIconButton}" Padding="8,4" Click="OnPronounceChipClick">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE767;" Margin="0,0,6,0"
+                                           Foreground="{DynamicResource LectorAccentBrush}" />
+                                <TextBlock x:Name="PronounceChipText" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource LectorTextBrush}" />
+                            </StackPanel>
+                        </Button>
+
+                        <StackPanel x:Name="PronounceEditor" Visibility="Collapsed" Width="320" Margin="8,6,8,8">
+                            <TextBlock x:Name="PronounceTitle" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource LectorTextBrush}" />
+                            <TextBlock Text="Se lee como" FontSize="12" Margin="0,10,0,4" Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBox x:Name="PronounceBox" KeyDown="OnPronounceBoxKeyDown"
+                                     ToolTip="Escríbelo como se pronuncia en español: 'yéison', 'guit jab', 'áchur'" />
+                            <TextBlock x:Name="PronounceHint" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource LectorText2Brush}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button x:Name="PronounceListen" Content="Escuchar" Padding="12,5" Click="OnPronounceListenClick" />
+                                <Button Content="Guardar" Padding="12,5" Margin="6,0,0,0" Click="OnPronounceSaveClick" IsDefault="True" />
+                                <Button x:Name="PronounceRemove" Content="Quitar" Padding="12,5" Margin="6,0,0,0" Click="OnPronounceRemoveClick" />
+                                <Button Content="Cancelar" Padding="12,5" Margin="6,0,0,0" Click="OnPronounceCancelClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Popup>
+
+            <!-- El documento, en una tarjeta. -->
+            <Border Grid.Column="1" Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="1">
+                <Grid>
+                    <wv2:WebView2 x:Name="Browser" />
+                    <TextBlock x:Name="BrowserError" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480" />
+                </Grid>
+            </Border>
         </Grid>
     </DockPanel>
 </Window>

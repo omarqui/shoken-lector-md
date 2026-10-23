@@ -26,6 +26,9 @@ public partial class SettingsWindow : Window
         "es-MX-PelayoNeural", "es-MX-RenataNeural", "es-MX-YagoNeural",
     ];
 
+    // Neural2 en español latino: soportan SSML y marcas de tiempo (el resaltado funciona igual que con Azure).
+    private static readonly string[] GoogleVoices = ["es-US-Neural2-A", "es-US-Neural2-B", "es-US-Neural2-C"];
+
     private readonly AppSettings _original;
     private readonly AppPaths _paths;
     private readonly MediaPlayer _testPlayer = new();
@@ -47,6 +50,14 @@ public partial class SettingsWindow : Window
         AzureVoiceBox.Text = settings.AzureVoice;
         LimitBox.Text = settings.MonthlyCharacterLimit.ToString(CultureInfo.InvariantCulture);
         AzureTenantBox.Text = settings.AzureTenantId ?? "";
+        GoogleKeyBox.Password = settings.GoogleApiKey;
+        foreach (string voice in GoogleVoices)
+        {
+            GoogleVoiceBox.Items.Add(voice);
+        }
+
+        GoogleVoiceBox.Text = settings.GoogleVoice;
+        GoogleLimitBox.Text = settings.GoogleMonthlyCharacterLimit.ToString(CultureInfo.InvariantCulture);
         PiperExeBox.Text = settings.PiperExePath;
         PiperModelBox.Text = settings.PiperModelPath;
         OfflineOnlyBox.IsChecked = settings.OfflineOnly;
@@ -75,6 +86,13 @@ public partial class SettingsWindow : Window
         settings.Tables = (TableMode)Math.Max(0, TableModeBox.SelectedIndex);
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
         settings.AzureTenantId = string.IsNullOrWhiteSpace(AzureTenantBox.Text) ? null : AzureTenantBox.Text.Trim();
+        settings.GoogleApiKey = GoogleKeyBox.Password.Trim();
+        settings.GoogleVoice = string.IsNullOrWhiteSpace(GoogleVoiceBox.Text) ? "es-US-Neural2-A" : GoogleVoiceBox.Text.Trim();
+        if (int.TryParse(GoogleLimitBox.Text.Replace(",", "").Replace(".", "").Replace(" ", ""), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out int googleLimit))
+        {
+            settings.GoogleMonthlyCharacterLimit = Math.Max(0, googleLimit);
+        }
 
         // Otra clave, región o directorio puede ser otro recurso: se vuelve a buscar en la próxima consulta.
         if (settings.AzureKey != _original.AzureKey || settings.AzureRegion != _original.AzureRegion
@@ -147,6 +165,27 @@ public partial class SettingsWindow : Window
             new UsageTracker(_paths.UsageFile, settings.MonthlyCharacterLimit));
         await RunTestAsync(TestAzureButton, AzureTestResult, engine,
             "Hola. Así suena **Azure** leyendo tus documentos en español de México.");
+    }
+
+    private async void OnTestGoogleClick(object sender, RoutedEventArgs e)
+    {
+        AppSettings settings = ReadForm();
+        if (!settings.HasGoogle)
+        {
+            ShowResult(GoogleTestResult, "Escribe la clave de API.", ok: false);
+            return;
+        }
+
+        var normalizer = new SpeechTextNormalizer(PronunciationDictionary.LoadOrCreate(_paths.PronunciationFile));
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var engine = new GoogleTtsEngine(
+            new GoogleTtsOptions { ApiKey = settings.GoogleApiKey, Voice = settings.GoogleVoice, RatePercent = settings.RatePercent },
+            new SsmlBuilder(normalizer),
+            new AudioCache(_paths.CacheDirectory),
+            new UsageTracker(_paths.GoogleUsageFile, settings.GoogleMonthlyCharacterLimit),
+            http);
+        await RunTestAsync(TestGoogleButton, GoogleTestResult, engine,
+            "Hola. Así suena **Google** leyendo tus documentos cuando Azure no está disponible.");
     }
 
     private async void OnTestPiperClick(object sender, RoutedEventArgs e)

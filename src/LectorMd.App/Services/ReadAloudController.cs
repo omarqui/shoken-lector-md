@@ -24,6 +24,7 @@ public enum PlaybackState
 internal sealed class ReadAloudController : IDisposable
 {
     private const int PrefetchAhead = 2;
+    private const int ProgressIntervalMs = 250;
     private static readonly TimeSpan HighlightLead = TimeSpan.FromMilliseconds(60);
 
     private readonly MediaPlayer _player = new();
@@ -41,6 +42,12 @@ internal sealed class ReadAloudController : IDisposable
     private double _speed = 1.0;
     private bool _mediaReady;    // hay un bloque abierto y posicionado
     private bool _pausePending;  // se pidió pausa mientras se preparaba el audio
+    private long _lastProgressTicks;
+    private int _diagnosticSamples; // muestras de posición que faltan registrar (solo con LECTORMD_DIAGNOSTICO=1)
+    private TimeSpan _positionFloor; // antes de esta posición del bloque se muestra el párrafo pedido (pre-arranque)
+
+    /// <summary>Cuánto antes del párrafo pedido arrancar (solo en Escritorio remoto; 0 en el equipo local).</summary>
+    public TimeSpan PreRoll { get; set; }
 
     public ReadAloudController()
     {
@@ -63,6 +70,9 @@ internal sealed class ReadAloudController : IDisposable
 
     /// <summary>La salida de audio desapareció; la lectura quedó en pausa en el párrafo actual.</summary>
     public event Action? AudioDeviceLost;
+
+    /// <summary>Avance dentro del segmento que suena (segmento, tiempo desde que empezó), unas 4 veces por segundo.</summary>
+    public event Action<int, TimeSpan>? ProgressChanged;
 
     public PlaybackState State { get; private set; }
 
@@ -195,14 +205,40 @@ internal sealed class ReadAloudController : IDisposable
         SetState(PlaybackState.Stopped);
     }
 
-    public void PlayFrom(int segmentId)
+    /// <summary>
+    /// Mueve la posición dentro del bloque que ya está abierto, sin volver a abrirlo (y sin cortar si está en
+    /// pausa). False si el destino cae fuera del bloque: entonces hay que usar <see cref="PlayFrom"/>.
+    /// </summary>
+    public bool TrySeekWithinCurrent(TimeSpan delta)
+    {
+        if (_current is null || !_mediaReady || !_player.NaturalDuration.HasTimeSpan)
+        {
+            return false;
+        }
+
+        TimeSpan target = _player.Position + delta;
+        if (target < TimeSpan.Zero || target >= _player.NaturalDuration.TimeSpan)
+        {
+            return false;
+        }
+
+        _player.Position = target;
+        _positionFloor = TimeSpan.Zero; // el usuario se movió: ya no hay pre-arranque que ocultar
+        _lastProgressTicks = 0; // que la línea de tiempo se actualice ya, aunque esté en pausa
+        UpdateCurrentSegment(target);
+        return true;
+    }
+
+    /// <param name="intoSegment">Cuánto saltar dentro del párrafo (para retroceder o adelantar 10 s).</param>
+    public void PlayFrom(int segmentId, TimeSpan intoSegment = default)
     {
         if (_document is null || _engine is null || _chunks.Count == 0)
         {
             return;
         }
 
-        _ = RunAsync(_engine, Math.Clamp(segmentId, 0, _document.Segments.Count - 1));
+        PlaybackDiagnostics.Restart($"leer desde el segmento {segmentId} (+{intoSegment.TotalSeconds:0.00} s)");
+        _ = RunAsync(_engine, Math.Clamp(segmentId, 0, _document.Segments.Count - 1), intoSegment);
     }
 
     public void NextSection()
@@ -247,9 +283,10 @@ internal sealed class ReadAloudController : IDisposable
         PlayFrom(target);
     }
 
-    private async Task RunAsync(ITtsEngine engine, int startSegmentId)
+    private async Task RunAsync(ITtsEngine engine, int startSegmentId, TimeSpan intoSegment = default)
     {
         Stop();
+        _resumeSegmentId = startSegmentId; // mientras carga, CurrentSegmentId es el párrafo pedido
         var session = new CancellationTokenSource();
         _session = session;
         CancellationToken token = session.Token;
@@ -268,6 +305,7 @@ internal sealed class ReadAloudController : IDisposable
                 }
 
                 AudioChunk audio = await next.WaitAsync(token);
+                PlaybackDiagnostics.Log($"bloque {index} listo ({(audio.FromCache ? "de la caché" : "recién generado")}, {audio.EngineName})");
                 token.ThrowIfCancellationRequested();
 
                 for (int ahead = 1; ahead <= PrefetchAhead && index + ahead < _chunks.Count; ahead++)
@@ -275,7 +313,15 @@ internal sealed class ReadAloudController : IDisposable
                     GetOrStart(engine, pending, index + ahead, token);
                 }
 
-                TimeSpan startAt = first ? audio.OffsetOf(startSegmentId) : TimeSpan.Zero;
+                TimeSpan startAt = first ? audio.OffsetOf(startSegmentId) + intoSegment : TimeSpan.Zero;
+                // En Escritorio remoto, RDP descarta el primer tramo de audio después de un silencio: se arranca un
+                // poco antes (normalmente dentro de la pausa previa al párrafo) y lo descartado es silencio.
+                _positionFloor = startAt;
+                if (first && PreRoll > TimeSpan.Zero && startAt > TimeSpan.Zero)
+                {
+                    startAt = startAt > PreRoll ? startAt - PreRoll : TimeSpan.Zero;
+                }
+
                 first = false;
                 await PlayChunkAsync(audio, startAt, token);
                 pending.Remove(index);
@@ -363,10 +409,14 @@ internal sealed class ReadAloudController : IDisposable
 
         var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _ended = ended;
+        PlaybackDiagnostics.Log($"archivo abierto: dura {(_player.NaturalDuration.HasTimeSpan ? _player.NaturalDuration.TimeSpan.TotalSeconds : -1):0.00} s, " +
+                                $"se pide empezar en {startAt.TotalSeconds:0.000} s");
         if (startAt > TimeSpan.Zero)
         {
             _player.Position = startAt;
         }
+
+        _diagnosticSamples = PlaybackDiagnostics.Enabled ? 15 : 0;
 
         _mediaReady = true;
         UpdateCurrentSegment(startAt);
@@ -405,11 +455,31 @@ internal sealed class ReadAloudController : IDisposable
             return;
         }
 
+        // Durante el pre-arranque la posición cae en el párrafo anterior: el resaltado se queda en el pedido.
+        if (position < _positionFloor)
+        {
+            position = _positionFloor;
+        }
+
+        if (_diagnosticSamples > 0)
+        {
+            _diagnosticSamples--;
+            PlaybackDiagnostics.Log($"reproduciendo: posición real {_player.Position.TotalSeconds:0.000} s ({State})");
+        }
+
         int id = _current.SegmentAt(position + HighlightLead);
         if (id >= 0 && id < _document.Segments.Count && id != _currentSegmentId)
         {
             _currentSegmentId = id;
             SegmentChanged?.Invoke(_document.Segments[id]);
+        }
+
+        // La línea de tiempo no necesita 60 actualizaciones por segundo.
+        long now = Environment.TickCount64;
+        if (_currentSegmentId >= 0 && now - _lastProgressTicks >= ProgressIntervalMs)
+        {
+            _lastProgressTicks = now;
+            ProgressChanged?.Invoke(_currentSegmentId, position - _current.OffsetOf(_currentSegmentId));
         }
     }
 
