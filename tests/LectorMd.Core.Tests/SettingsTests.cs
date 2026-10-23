@@ -24,6 +24,28 @@ public class SettingsTests
     }
 
     [Fact]
+    public void TextSize_DefaultsToLarge_WhenMissingFromSavedSettings()
+    {
+        var options = new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } };
+
+        AppSettings settings = JsonSerializer.Deserialize<AppSettings>("""{"AzureRegion":"eastus"}""", options)!;
+
+        Assert.Equal(TextSize.Large, settings.TextSize);
+        Assert.Contains("\"TextSize\":\"ExtraLarge\"", JsonSerializer.Serialize(new AppSettings { TextSize = TextSize.ExtraLarge }, options));
+    }
+
+    [Theory]
+    [InlineData(TextSize.Normal, 12, 12)]
+    [InlineData(TextSize.Large, 12, 14)]     // +15 %: 13.8, redondeado a medio punto
+    [InlineData(TextSize.Large, 14, 16)]     // 16.1
+    [InlineData(TextSize.ExtraLarge, 11, 14.5)] // +30 %: 14.3
+    [InlineData(TextSize.ExtraLarge, 14, 18)]   // 18.2
+    public void TextSizes_GrowFifteenPercentPerStep_RoundedToHalfAPoint(TextSize size, double baseSize, double expected)
+    {
+        Assert.Equal(expected, TextSizes.FontSize(size, baseSize));
+    }
+
+    [Fact]
     public void Theme_DefaultsToSystem_WhenMissingFromSavedSettings()
     {
         var options = new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } };

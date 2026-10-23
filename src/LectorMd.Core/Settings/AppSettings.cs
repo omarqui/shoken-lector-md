@@ -69,6 +69,9 @@ public sealed class AppSettings
 
     public AppTheme Theme { get; set; } = AppTheme.System;
 
+    /// <summary>Tamaño de los textos de la interfaz (no del documento, que se agranda con Ctrl+rueda).</summary>
+    public TextSize TextSize { get; set; } = TextSize.Large;
+
     /// <summary>Id de ARM del recurso de Speech, para consultar su consumo real en Azure Monitor.</summary>
     public string? AzureResourceId { get; set; }
 

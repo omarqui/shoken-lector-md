@@ -66,6 +66,7 @@ public partial class SettingsWindow : Window
         CodeModeBox.SelectedIndex = (int)settings.CodeBlocks;
         TableModeBox.SelectedIndex = (int)settings.Tables;
         ImageAltBox.IsChecked = settings.ReadImageAltText;
+        TextSizeBox.SelectedIndex = (int)settings.TextSize;
         UpdateCacheInfo();
     }
 
@@ -85,6 +86,7 @@ public partial class SettingsWindow : Window
         settings.CodeBlocks = (CodeBlockMode)Math.Max(0, CodeModeBox.SelectedIndex);
         settings.Tables = (TableMode)Math.Max(0, TableModeBox.SelectedIndex);
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
+        settings.TextSize = (TextSize)Math.Max(0, TextSizeBox.SelectedIndex);
         settings.AzureTenantId = string.IsNullOrWhiteSpace(AzureTenantBox.Text) ? null : AzureTenantBox.Text.Trim();
         settings.GoogleApiKey = GoogleKeyBox.Password.Trim();
         settings.GoogleVoice = string.IsNullOrWhiteSpace(GoogleVoiceBox.Text) ? "es-US-Neural2-A" : GoogleVoiceBox.Text.Trim();
@@ -144,6 +146,15 @@ public partial class SettingsWindow : Window
 
         Result = settings;
         DialogResult = true;
+    }
+
+    /// <summary>Vista previa: el tamaño se aplica al instante; quien abrió la ventana lo restaura si se cancela.</summary>
+    private void OnTextSizeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && TextSizeBox.SelectedIndex >= 0)
+        {
+            TextScale.Apply((TextSize)TextSizeBox.SelectedIndex);
+        }
     }
 
     // ------------------------------------------------------------------ pruebas de voz

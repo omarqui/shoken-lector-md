@@ -62,8 +62,8 @@ public partial class PlayerBar : UserControl
                 Content = speed.ToString("0.##", CultureInfo.InvariantCulture) + "×",
                 Height = 32,
                 Padding = new Thickness(10, 0, 10, 0),
-                FontSize = 13,
             };
+            button.SetResourceReference(FontSizeProperty, "LectorFontSize13"); // sigue el tamaño del texto (Configuración)
             AutomationProperties.SetName(button, "Velocidad " + button.Content);
             button.Click += (_, _) => SpeedChanged?.Invoke(speed);
             SpeedPanel.Children.Add(button);
@@ -131,8 +131,9 @@ public partial class PlayerBar : UserControl
             track.Children.Add(trackBack);
             track.Children.Add(fill);
 
-            var label = new TextBlock { Text = chapter.Title, FontSize = 11, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            var label = new TextBlock { Text = chapter.Title, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             label.SetResourceReference(TextBlock.ForegroundProperty, "LectorText2Brush");
+            label.SetResourceReference(TextBlock.FontSizeProperty, "LectorFontSize11");
 
             var content = new StackPanel();
             content.Children.Add(track);
@@ -289,9 +290,9 @@ public partial class PlayerBar : UserControl
                     Content = label,
                     Height = 30,
                     Padding = new Thickness(10, 0, 10, 0),
-                    FontSize = 12,
                     Tag = choice,
                 };
+                button.SetResourceReference(FontSizeProperty, "LectorFontSize12");
                 AutomationProperties.SetName(button, "Usar " + label);
                 button.Click += (_, _) => EngineChoiceRequested?.Invoke(choice);
                 EngineChoicePanel.Children.Add(button);

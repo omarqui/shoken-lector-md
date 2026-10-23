@@ -69,6 +69,7 @@ public partial class MainWindow : Window
         _settingsStore = new SettingsStore(_paths);
         _settings = _settingsStore.Load();
         ThemeService.Apply(_settings.Theme); // antes de crear los controles, para que no parpadeen
+        TextScale.Apply(_settings.TextSize);
         ThemeService.WatchSystemTheme();
         ThemeService.Changed += UpdateThemeButton;
         Activated += (_, _) => _mini?.Close(); // la ventana a la vista: el mini reproductor sobra
@@ -1334,6 +1335,7 @@ public partial class MainWindow : Window
         var window = new SettingsWindow(_settings.Clone(), _paths) { Owner = this };
         if (window.ShowDialog() != true || window.Result is null)
         {
+            TextScale.Apply(_settings.TextSize); // se canceló la vista previa del tamaño del texto
             return;
         }
 
@@ -1341,6 +1343,7 @@ public partial class MainWindow : Window
         double speed = _settings.PlaybackSpeed; // la velocidad no se edita en Configuración
         _settings = window.Result;
         _settings.PlaybackSpeed = speed;
+        TextScale.Apply(_settings.TextSize);
         _settingsStore.Save(_settings);
         RebuildServices();
 

@@ -8,6 +8,7 @@
         Width="1120" Height="800" MinWidth="920" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource LectorBackgroundBrush}"
+        FontSize="{DynamicResource LectorFontSize14}"
         AllowDrop="True"
         Loaded="OnLoaded"
         Closing="OnClosing"
@@ -35,7 +36,7 @@
                     <TextBlock Style="{StaticResource IconText}" FontSize="11" Text="&#xE767;" HorizontalAlignment="Center"
                                Foreground="{DynamicResource LectorOnAccentBrush}" />
                 </Border>
-                <TextBlock Text="Lector MD" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                <TextBlock Text="Lector MD" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0" VerticalAlignment="Center"
                            Foreground="{DynamicResource LectorText2Brush}" />
             </StackPanel>
 
@@ -179,7 +180,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border x:Name="OutlinePanel" Width="250" Margin="0,0,12,0">
+            <Border x:Name="OutlinePanel" Width="{DynamicResource LectorOutlineWidth}" Margin="0,0,12,0">
                 <DockPanel>
                     <DockPanel.Resources>
                         <!-- Botones dentro de una fila: el fondo al pasar el mouse contrasta con el de la fila. -->
@@ -209,7 +210,7 @@
                                 Click="OnOutlineCollapseAllClick" Visibility="Collapsed">
                             <TextBlock x:Name="OutlineCollapseAllIcon" Style="{StaticResource IconText}" FontSize="12" />
                         </Button>
-                        <TextBlock Text="ÍNDICE" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                        <TextBlock Text="ÍNDICE" FontSize="{DynamicResource LectorFontSize12}" FontWeight="SemiBold" VerticalAlignment="Center"
                                    Foreground="{DynamicResource LectorText2Brush}" />
                     </DockPanel>
                     <TextBlock x:Name="OutlineEmpty" DockPanel.Dock="Top" Visibility="Collapsed" TextWrapping="Wrap"
@@ -255,12 +256,12 @@
                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
                                     </Button>
                                     <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0" VerticalAlignment="Center"
                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
                                     <!-- Resultados de la búsqueda (Ctrl+F) en esta sección. -->
                                     <Border DockPanel.Dock="Right" Visibility="{Binding MatchesVisibility}" Background="{DynamicResource LectorAccentBrush}"
                                             CornerRadius="8" MinWidth="18" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Matches}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                        <TextBlock Text="{Binding Matches}" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold" HorizontalAlignment="Center"
                                                    Foreground="{DynamicResource LectorOnAccentBrush}" />
                                     </Border>
                                     <!-- Leer desde aquí: aparece al pasar el mouse y en la sección actual. -->
@@ -300,7 +301,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE767;" Margin="0,0,6,0"
                                            Foreground="{DynamicResource LectorAccentBrush}" />
-                                <TextBlock x:Name="PronounceChipText" FontSize="12" VerticalAlignment="Center"
+                                <TextBlock x:Name="PronounceChipText" FontSize="{DynamicResource LectorFontSize12}" VerticalAlignment="Center"
                                            Foreground="{DynamicResource LectorTextBrush}" />
                             </StackPanel>
                         </Button>
@@ -308,10 +309,10 @@
                         <StackPanel x:Name="PronounceEditor" Visibility="Collapsed" Width="320" Margin="8,6,8,8">
                             <TextBlock x:Name="PronounceTitle" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource LectorTextBrush}" />
-                            <TextBlock Text="Se lee como" FontSize="12" Margin="0,10,0,4" Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBlock Text="Se lee como" FontSize="{DynamicResource LectorFontSize12}" Margin="0,10,0,4" Foreground="{DynamicResource LectorText2Brush}" />
                             <TextBox x:Name="PronounceBox" KeyDown="OnPronounceBoxKeyDown"
                                      ToolTip="Escríbelo como se pronuncia en español: 'yéison', 'guit jab', 'áchur'" />
-                            <TextBlock x:Name="PronounceHint" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                            <TextBlock x:Name="PronounceHint" FontSize="{DynamicResource LectorFontSize11}" Margin="0,6,0,0" TextWrapping="Wrap"
                                        Foreground="{DynamicResource LectorText2Brush}" />
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button x:Name="PronounceListen" Content="Escuchar" Padding="12,5" Click="OnPronounceListenClick" />

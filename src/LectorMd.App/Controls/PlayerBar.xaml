@@ -57,10 +57,10 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="ElapsedText" Text="--:--" FontFamily="{StaticResource Mono}" FontSize="12" Margin="0,-2,12,0"
+                <TextBlock x:Name="ElapsedText" Text="--:--" FontFamily="{StaticResource Mono}" FontSize="{DynamicResource LectorFontSize12}" Margin="0,-2,12,0"
                            Foreground="{DynamicResource LectorTextBrush}" />
                 <Grid x:Name="TimelineGrid" Grid.Column="1" />
-                <TextBlock x:Name="RemainingText" Grid.Column="2" Text="--:--" FontFamily="{StaticResource Mono}" FontSize="12"
+                <TextBlock x:Name="RemainingText" Grid.Column="2" Text="--:--" FontFamily="{StaticResource Mono}" FontSize="{DynamicResource LectorFontSize12}"
                            Margin="12,-2,0,0" Foreground="{DynamicResource LectorText2Brush}" />
             </Grid>
 
@@ -76,7 +76,7 @@
                 <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                     <TextBlock x:Name="SectionText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                Foreground="{DynamicResource LectorTextBrush}" />
-                    <TextBlock x:Name="DetailText" FontSize="12" TextTrimming="CharacterEllipsis"
+                    <TextBlock x:Name="DetailText" FontSize="{DynamicResource LectorFontSize12}" TextTrimming="CharacterEllipsis"
                                Foreground="{DynamicResource LectorText2Brush}" />
                 </StackPanel>
 
@@ -88,7 +88,7 @@
                     </Button>
                     <Button x:Name="BackButton" Style="{StaticResource RoundButton}" Click="OnBack10Click" Margin="6,0,0,0"
                             Background="Transparent" ToolTip="Retroceder 10 segundos (←)" AutomationProperties.Name="Retroceder 10 segundos">
-                        <TextBlock Text="−10" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="−10" FontSize="{DynamicResource LectorFontSize13}" FontWeight="SemiBold" />
                     </Button>
                     <Button x:Name="PlayButton" Style="{StaticResource RoundButton}" Click="OnPlayClick" Width="52" Height="52"
                             Margin="8,0" Background="{DynamicResource LectorAccentBrush}" Foreground="{DynamicResource LectorOnAccentBrush}"
@@ -97,7 +97,7 @@
                     </Button>
                     <Button x:Name="ForwardButton" Style="{StaticResource RoundButton}" Click="OnForward10Click" Margin="0,0,6,0"
                             Background="Transparent" ToolTip="Adelantar 10 segundos (→)" AutomationProperties.Name="Adelantar 10 segundos">
-                        <TextBlock Text="+10" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="+10" FontSize="{DynamicResource LectorFontSize13}" FontWeight="SemiBold" />
                     </Button>
                     <Button x:Name="NextButton" Style="{StaticResource RoundButton}" Click="OnNextClick"
                             ToolTip="Sección siguiente (Ctrl+→)" AutomationProperties.Name="Sección siguiente">
@@ -124,9 +124,9 @@
                                 <Border x:Name="UsageFill" Background="{DynamicResource LectorAccentBrush}" CornerRadius="2"
                                         HorizontalAlignment="Left" Width="0" />
                             </Grid>
-                            <TextBlock x:Name="UsagePercent" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                            <TextBlock x:Name="UsagePercent" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0" VerticalAlignment="Center"
                                        Foreground="{DynamicResource LectorTextBrush}" />
-                            <TextBlock x:Name="StatusLabel" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                            <TextBlock x:Name="StatusLabel" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0" VerticalAlignment="Center"
                                        Foreground="{DynamicResource LectorTextBrush}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>
@@ -142,28 +142,28 @@
                         <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.25" />
                     </Border.Effect>
                     <StackPanel>
-                        <TextBlock Text="MOTOR DE VOZ" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource LectorText2Brush}" />
+                        <TextBlock Text="MOTOR DE VOZ" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold" Foreground="{DynamicResource LectorText2Brush}" />
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Ellipse x:Name="PopupDot" Width="9" Height="9" Fill="Gray" VerticalAlignment="Center" />
                             <TextBlock x:Name="PopupEngine" FontWeight="SemiBold" Margin="8,0,0,0" Foreground="{DynamicResource LectorTextBrush}" />
                         </StackPanel>
-                        <TextBlock x:Name="PopupEngineDetail" FontSize="12" Margin="17,2,0,0" TextWrapping="Wrap"
+                        <TextBlock x:Name="PopupEngineDetail" FontSize="{DynamicResource LectorFontSize12}" Margin="17,2,0,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource LectorText2Brush}" />
 
                         <!-- Para probar voces: Automático usa la cadena con respaldos; los demás, solo ese motor. -->
-                        <TextBlock Text="USAR" FontSize="11" FontWeight="SemiBold" Margin="0,12,0,0"
+                        <TextBlock Text="USAR" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold" Margin="0,12,0,0"
                                    Foreground="{DynamicResource LectorText2Brush}" />
                         <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="0,6,0,0"
                                 HorizontalAlignment="Left" AutomationProperties.Name="Motor de voz">
                             <StackPanel x:Name="EngineChoicePanel" Orientation="Horizontal" />
                         </Border>
                         <!-- Fuera de la sección de Azure: con Google como único motor también se ve lo gastado. -->
-                        <TextBlock x:Name="PopupGoogleUsage" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"
+                        <TextBlock x:Name="PopupGoogleUsage" FontSize="{DynamicResource LectorFontSize12}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"
                                    Foreground="{DynamicResource LectorText2Brush}" />
 
                         <StackPanel x:Name="PopupUsageSection">
                             <Border Height="1" Background="{DynamicResource LectorBorderBrush}" Margin="0,12" />
-                            <TextBlock Text="CONSUMO DE AZURE ESTE MES" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="CONSUMO DE AZURE ESTE MES" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold"
                                        Foreground="{DynamicResource LectorText2Brush}" />
                             <TextBlock x:Name="PopupUsage" Margin="0,6,0,0" Foreground="{DynamicResource LectorTextBrush}" />
                             <Grid Height="6" Margin="0,8,0,0">
@@ -171,10 +171,10 @@
                                 <Border x:Name="PopupUsageFill" Background="{DynamicResource LectorAccentBrush}" CornerRadius="3"
                                         HorizontalAlignment="Left" Width="0" />
                             </Grid>
-                            <TextBlock x:Name="PopupReset" FontSize="12" Margin="0,8,0,0" Foreground="{DynamicResource LectorText2Brush}" />
-                            <TextBlock x:Name="PopupAzure" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                            <TextBlock x:Name="PopupReset" FontSize="{DynamicResource LectorFontSize12}" Margin="0,8,0,0" Foreground="{DynamicResource LectorText2Brush}" />
+                            <TextBlock x:Name="PopupAzure" FontSize="{DynamicResource LectorFontSize12}" Margin="0,2,0,0" TextWrapping="Wrap"
                                        Foreground="{DynamicResource LectorText2Brush}" />
-                            <TextBlock Text="Lo ya escuchado se reproduce desde la caché sin gastar cuota." FontSize="12" Margin="0,2,0,0"
+                            <TextBlock Text="Lo ya escuchado se reproduce desde la caché sin gastar cuota." FontSize="{DynamicResource LectorFontSize12}" Margin="0,2,0,0"
                                        TextWrapping="Wrap" Foreground="{DynamicResource LectorText2Brush}" />
                             <Button x:Name="RefreshButton" Style="{StaticResource BareButton}" Click="OnRefreshClick" Height="34"
                                     Margin="0,12,0,0" Padding="12,0" HorizontalAlignment="Left"
@@ -182,7 +182,7 @@
                                     AutomationProperties.Name="Consultar consumo real en Azure">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE72C;" />
-                                    <TextBlock x:Name="RefreshLabel" Text="Consultar consumo real en Azure" FontSize="12" Margin="8,0,0,0"
+                                    <TextBlock x:Name="RefreshLabel" Text="Consultar consumo real en Azure" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>

@@ -5,6 +5,7 @@
         Width="404" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        FontSize="{DynamicResource LectorFontSize14}"
         MouseEnter="OnMouseEnter" MouseLeave="OnMouseLeave">
     <!-- Tarjeta flotante abajo a la derecha. El margen deja lugar a la sombra. -->
     <Border Margin="12" CornerRadius="10" Padding="14,10,8,12" BorderThickness="1"
@@ -31,7 +32,7 @@
                 <TextBlock x:Name="SectionText" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource LectorTextBrush}" />
             </DockPanel>
-            <TextBlock x:Name="DetailText" FontSize="12" Margin="28,0,8,0" TextTrimming="CharacterEllipsis"
+            <TextBlock x:Name="DetailText" FontSize="{DynamicResource LectorFontSize12}" Margin="28,0,8,0" TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource LectorText2Brush}" />
 
             <Grid Margin="0,8,6,0">
@@ -40,7 +41,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="ElapsedText" Text="--:--" FontFamily="Cascadia Code, Consolas" FontSize="11"
+                <TextBlock x:Name="ElapsedText" Text="--:--" FontFamily="Cascadia Code, Consolas" FontSize="{DynamicResource LectorFontSize11}"
                            Foreground="{DynamicResource LectorText2Brush}" />
                 <Grid Grid.Column="1" Height="4" Margin="10,0" VerticalAlignment="Center">
                     <Border Background="{DynamicResource LectorTrackBrush}" CornerRadius="2" />
@@ -51,7 +52,7 @@
                         </Border.RenderTransform>
                     </Border>
                 </Grid>
-                <TextBlock x:Name="RemainingText" Grid.Column="2" Text="--:--" FontFamily="Cascadia Code, Consolas" FontSize="11"
+                <TextBlock x:Name="RemainingText" Grid.Column="2" Text="--:--" FontFamily="Cascadia Code, Consolas" FontSize="{DynamicResource LectorFontSize11}"
                            Foreground="{DynamicResource LectorText2Brush}" />
             </Grid>
 
@@ -62,7 +63,7 @@
                 </Button>
                 <Button Style="{StaticResource FlatIconButton}" Width="38" Height="34" Margin="2,0,0,0" Click="OnBack10Click"
                         ToolTip="Retroceder 10 segundos" AutomationProperties.Name="Retroceder 10 segundos">
-                    <TextBlock Text="−10" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
+                    <TextBlock Text="−10" FontSize="{DynamicResource LectorFontSize12}" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
                 </Button>
                 <Button x:Name="PlayButton" Width="40" Height="40" Margin="6,0" Click="OnPlayClick" Cursor="Hand"
                         ToolTip="Leer o pausar" AutomationProperties.Name="Pausar">
@@ -83,7 +84,7 @@
                 </Button>
                 <Button Style="{StaticResource FlatIconButton}" Width="38" Height="34" Margin="0,0,2,0" Click="OnForward10Click"
                         ToolTip="Adelantar 10 segundos" AutomationProperties.Name="Adelantar 10 segundos">
-                    <TextBlock Text="+10" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
+                    <TextBlock Text="+10" FontSize="{DynamicResource LectorFontSize12}" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
                 </Button>
                 <Button Style="{StaticResource FlatIconButton}" Width="34" Height="34" Margin="0,0,4,0" Click="OnNextClick"
                         ToolTip="Sección siguiente" AutomationProperties.Name="Sección siguiente">
@@ -91,7 +92,7 @@
                 </Button>
                 <Button x:Name="SpeedButton" Style="{StaticResource FlatIconButton}" Height="34" Padding="8,0" Click="OnSpeedClick"
                         ToolTip="Cambiar la velocidad">
-                    <TextBlock x:Name="SpeedText" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
+                    <TextBlock x:Name="SpeedText" FontSize="{DynamicResource LectorFontSize12}" FontWeight="SemiBold" Foreground="{DynamicResource LectorTextBrush}" />
                 </Button>
             </StackPanel>
         </StackPanel>
