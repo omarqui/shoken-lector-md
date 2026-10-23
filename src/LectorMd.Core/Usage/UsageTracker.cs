@@ -87,6 +87,34 @@ public sealed class UsageTracker
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Ajusta el contador con la cifra que reporta Azure Monitor. Solo sube: si Azure cuenta menos que la
+    /// estimación local, se conserva la local para no pasarse de la cuota. Devuelve true si cambió.
+    /// </summary>
+    public bool SyncFromService(long serviceCharacters)
+    {
+        bool changed;
+        lock (_lock)
+        {
+            _state = Load();
+            RollOver();
+            int reported = (int)Math.Clamp(serviceCharacters, 0, int.MaxValue);
+            changed = reported > _state.AzureCharacters;
+            if (changed)
+            {
+                _state = _state with { AzureCharacters = reported };
+                Save();
+            }
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        return changed;
+    }
+
     public void MarkServiceExhausted()
     {
         lock (_lock)

@@ -97,6 +97,16 @@ internal sealed class ReadAloudController : IDisposable
         _resumeSegmentId = resumeSegmentId is { } id && id >= 0 && id < document.Segments.Count ? id : null;
     }
 
+    /// <summary>Detiene y olvida el documento (al cerrar su pestaña o pasar a una vacía).</summary>
+    public void Unload()
+    {
+        Stop();
+        _document = null;
+        _chunks = [];
+        _chunkOfSegment = [];
+        _resumeSegmentId = null;
+    }
+
     public void TogglePlayPause()
     {
         switch (State)

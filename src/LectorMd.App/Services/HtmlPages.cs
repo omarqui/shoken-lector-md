@@ -27,6 +27,8 @@ internal static class HtmlPages
 
     public static string Welcome() => Page("Lector MD", WelcomeBody, hasDocumentFolder: false);
 
+    public static string EmptyTab() => Page("Nueva pestaña", EmptyTabBody, hasDocumentFolder: false);
+
     private static string Page(string title, string body, bool hasDocumentFolder)
     {
         var html = new StringBuilder(body.Length + 1024);
@@ -54,14 +56,26 @@ internal static class HtmlPages
           <h1>Lector MD</h1>
           <p class="lead">Abre un archivo Markdown y lo leo en voz alta en español de México, con pausas y entonación según su formato.</p>
           <button type="button" data-command="open">Abrir archivo…</button>
-          <p class="hint">También puedes arrastrarlo a esta ventana.</p>
+          <p class="hint">También puedes arrastrarlo a esta ventana, o pegar (<kbd>Ctrl</kbd> + <kbd>V</kbd>) su ruta o un texto Markdown.</p>
           <dl class="keys">
             <dt><kbd>Espacio</kbd></dt><dd>Leer o pausar</dd>
             <dt>Doble clic</dt><dd>Leer desde ese párrafo</dd>
             <dt><kbd>Ctrl</kbd> + <kbd>→</kbd> / <kbd>←</kbd></dt><dd>Sección siguiente o anterior</dd>
             <dt><kbd>Esc</kbd></dt><dd>Detener</dd>
+            <dt><kbd>Ctrl</kbd> + <kbd>T</kbd> / <kbd>W</kbd></dt><dd>Pestaña nueva o cerrar pestaña</dd>
+            <dt><kbd>Ctrl</kbd> + <kbd>Tab</kbd></dt><dd>Pestaña siguiente</dd>
+            <dt><kbd>Ctrl</kbd> + <kbd>B</kbd></dt><dd>Mostrar u ocultar el índice</dd>
             <dt><kbd>F5</kbd></dt><dd>Recargar el documento</dd>
           </dl>
+        </section>
+        """;
+
+    private const string EmptyTabBody = """
+        <section class="welcome">
+          <h1>Nueva pestaña</h1>
+          <p class="lead">Pega aquí (<kbd>Ctrl</kbd> + <kbd>V</kbd>) un texto Markdown para escucharlo, o la ruta de un archivo .md para abrirlo.</p>
+          <button type="button" data-command="paste">Pegar del portapapeles</button>
+          <p class="hint">También puedes abrir un archivo (<kbd>Ctrl</kbd> + <kbd>O</kbd>) o arrastrarlo a la ventana.</p>
         </section>
         """;
 }

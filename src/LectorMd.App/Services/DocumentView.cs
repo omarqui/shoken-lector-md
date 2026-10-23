@@ -43,6 +43,9 @@ internal sealed class DocumentView
     /// <summary>Se soltó un archivo Markdown sobre el documento.</summary>
     public event Action<string>? FileDropped;
 
+    /// <summary>El usuario desplazó el documento: nueva posición vertical en píxeles.</summary>
+    public event Action<double>? ScrollChanged;
+
     public static bool IsOpenableFile(string path) =>
         OpenableExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
@@ -76,6 +79,8 @@ internal sealed class DocumentView
 
     public Task ShowWelcomeAsync() => NavigateAsync($"bienvenida-{_instance}.html", HtmlPages.Welcome());
 
+    public Task ShowEmptyTabAsync() => NavigateAsync($"vacia-{_instance}.html", HtmlPages.EmptyTab());
+
     public Task ShowDocumentAsync(SpeechDocument document)
     {
         if (_core is null)
@@ -102,11 +107,19 @@ internal sealed class DocumentView
         return NavigateAsync($"documento-{_instance}.html", HtmlPages.Document(document, folder is not null));
     }
 
-    public Task HighlightAsync(string? anchor) =>
-        RunScriptAsync($"window.lector && window.lector.highlight({JsonSerializer.Serialize(anchor)})");
+    /// <param name="follow">Si es false solo marca el segmento, sin desplazar la vista hasta él.</param>
+    public Task HighlightAsync(string? anchor, bool follow = true) =>
+        RunScriptAsync($"window.lector && window.lector.highlight({JsonSerializer.Serialize(anchor)}, {(follow ? "true" : "false")})");
 
     public Task ScrollToAsync(string anchor) =>
         RunScriptAsync($"window.lector && window.lector.scrollToAnchor({JsonSerializer.Serialize(anchor)})");
+
+    /// <summary>Lleva un título al borde superior (desde el índice).</summary>
+    public Task ScrollToHeadingAsync(string anchor) =>
+        RunScriptAsync($"window.lector && window.lector.scrollToHeading({JsonSerializer.Serialize(anchor)})");
+
+    public Task ScrollToYAsync(double y) =>
+        RunScriptAsync($"window.lector && window.lector.scrollToY({Math.Max(0, Math.Round(y)).ToString(System.Globalization.CultureInfo.InvariantCulture)})");
 
     /// <summary>Traduce un enlace https://doc.lector/... a la ruta local dentro de la carpeta del documento.</summary>
     public string? ResolveDocumentLink(Uri uri)
@@ -223,6 +236,11 @@ internal sealed class DocumentView
                                  && Uri.TryCreate(href.GetString(), UriKind.Absolute, out Uri? uri):
                     LinkActivated?.Invoke(uri);
                     break;
+                // Solo de la página actual: la anterior puede mandar su último desplazamiento ya cambiada la pestaña.
+                case "scroll" when IsCurrentPage(e.Source)
+                                   && root.TryGetProperty("y", out JsonElement y) && y.ValueKind == JsonValueKind.Number:
+                    ScrollChanged?.Invoke(y.GetDouble());
+                    break;
             }
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
@@ -230,6 +248,11 @@ internal sealed class DocumentView
             // Mensaje malformado: se ignora.
         }
     }
+
+    private bool IsCurrentPage(string? source) =>
+        _expectedUrl is not null
+        && Uri.TryCreate(source, UriKind.Absolute, out Uri? uri)
+        && uri.AbsoluteUri == new Uri(_expectedUrl).AbsoluteUri;
 
     private void WriteAssets()
     {

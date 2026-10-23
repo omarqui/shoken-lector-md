@@ -37,7 +37,22 @@ public sealed class AppSettings
 
     public bool ReadImageAltText { get; set; }
 
+    /// <summary>Último archivo de la versión sin pestañas. Solo se lee para migrar a <see cref="OpenTabs"/>.</summary>
     public string? LastFile { get; set; }
+
+    public List<OpenTab> OpenTabs { get; set; } = [];
+
+    /// <summary>Índice en <see cref="OpenTabs"/> de la pestaña activa.</summary>
+    public int ActiveTab { get; set; }
+
+    /// <summary>Panel del índice de títulos visible.</summary>
+    public bool ShowOutline { get; set; } = true;
+
+    /// <summary>Id de ARM del recurso de Speech, para consultar su consumo real en Azure Monitor.</summary>
+    public string? AzureResourceId { get; set; }
+
+    /// <summary>Directorio (tenant) de Entra ID al que pertenece <see cref="AzureResourceId"/>.</summary>
+    public string? AzureTenantId { get; set; }
 
     [JsonIgnore]
     public bool HasAzure => !string.IsNullOrWhiteSpace(AzureKey) && !string.IsNullOrWhiteSpace(AzureRegion);
@@ -45,7 +60,12 @@ public sealed class AppSettings
     [JsonIgnore]
     public bool HasPiper => File.Exists(PiperExePath) && File.Exists(PiperModelPath);
 
-    public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    public AppSettings Clone()
+    {
+        var clone = (AppSettings)MemberwiseClone();
+        clone.OpenTabs = OpenTabs.Select(t => t.Clone()).ToList();
+        return clone;
+    }
 }
 
 /// <summary>Rutas de datos de la app (por defecto en %LOCALAPPDATA%\LectorMd).</summary>
@@ -64,9 +84,15 @@ public sealed class AppPaths(string root)
     public string TempDirectory => Path.Combine(Root, "temp");
     public string ErrorLogFile => Path.Combine(Root, "errores.log");
 
+    /// <summary>Texto Markdown pegado en pestañas; cada archivo se borra al cerrar su pestaña.</summary>
+    public string PastedDirectory => Path.Combine(Root, "pegados");
+
+    /// <summary>Cuenta de Azure con la que se consulta el consumo (sin secretos: el token va en la caché cifrada).</summary>
+    public string AzureAccountFile => Path.Combine(Root, "cuenta-azure.json");
+
     public void EnsureCreated()
     {
-        foreach (string dir in new[] { Root, CacheDirectory, ViewDirectory, WebViewDataDirectory, TempDirectory })
+        foreach (string dir in new[] { Root, CacheDirectory, ViewDirectory, WebViewDataDirectory, TempDirectory, PastedDirectory })
         {
             Directory.CreateDirectory(dir);
         }

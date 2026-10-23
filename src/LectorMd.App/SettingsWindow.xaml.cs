@@ -46,6 +46,7 @@ public partial class SettingsWindow : Window
 
         AzureVoiceBox.Text = settings.AzureVoice;
         LimitBox.Text = settings.MonthlyCharacterLimit.ToString(CultureInfo.InvariantCulture);
+        AzureTenantBox.Text = settings.AzureTenantId ?? "";
         PiperExeBox.Text = settings.PiperExePath;
         PiperModelBox.Text = settings.PiperModelPath;
         OfflineOnlyBox.IsChecked = settings.OfflineOnly;
@@ -73,6 +74,15 @@ public partial class SettingsWindow : Window
         settings.CodeBlocks = (CodeBlockMode)Math.Max(0, CodeModeBox.SelectedIndex);
         settings.Tables = (TableMode)Math.Max(0, TableModeBox.SelectedIndex);
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
+        settings.AzureTenantId = string.IsNullOrWhiteSpace(AzureTenantBox.Text) ? null : AzureTenantBox.Text.Trim();
+
+        // Otra clave, región o directorio puede ser otro recurso: se vuelve a buscar en la próxima consulta.
+        if (settings.AzureKey != _original.AzureKey || settings.AzureRegion != _original.AzureRegion
+            || settings.AzureTenantId != _original.AzureTenantId)
+        {
+            settings.AzureResourceId = null;
+        }
+
         if (int.TryParse(LimitBox.Text.Replace(",", "").Replace(".", "").Replace(" ", ""), NumberStyles.Integer,
                 CultureInfo.InvariantCulture, out int limit))
         {

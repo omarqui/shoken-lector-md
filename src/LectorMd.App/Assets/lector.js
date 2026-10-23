@@ -19,7 +19,7 @@
   const elementsFor = (anchor) =>
     Array.from(document.querySelectorAll('[data-seg="' + CSS.escape(anchor) + '"]')).map(visualTarget);
 
-  function highlight(anchor) {
+  function highlight(anchor, scroll = true) {
     for (const el of highlighted) {
       el.classList.remove('lector-reading');
     }
@@ -29,7 +29,7 @@
     }
 
     const first = highlighted[0];
-    if (first && follow) {
+    if (first && follow && scroll) {
       const rect = first.getBoundingClientRect();
       const height = window.innerHeight || document.documentElement.clientHeight;
       if (rect.top < height * 0.15 || rect.bottom > height * 0.8) {
@@ -44,6 +44,24 @@
       first.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }
+
+  function scrollToHeading(anchor) {
+    const first = elementsFor(anchor)[0];
+    if (first) {
+      first.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }
+
+  function scrollToY(y) {
+    window.scrollTo(0, y);
+  }
+
+  // La app guarda la posición de cada pestaña para restaurarla al volver o al reabrir.
+  let scrollTimer = 0;
+  window.addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => post({ type: 'scroll', y: Math.round(window.scrollY) }), 250);
+  }, { passive: true });
 
   // Si el usuario se desplaza a mano, se deja de seguir la lectura unos segundos.
   const pauseFollow = () => {
@@ -111,6 +129,11 @@
     else if (e.ctrlKey && (e.key === 'o' || e.key === 'O')) command = 'open';
     else if (e.ctrlKey && e.key === ',') command = 'settings';
     else if (e.key === 'F5') command = 'reload';
+    else if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) command = 'paste';
+    else if (e.ctrlKey && (e.key === 't' || e.key === 'T')) command = 'newTab';
+    else if (e.ctrlKey && (e.key === 'w' || e.key === 'W' || e.key === 'F4')) command = 'closeTab';
+    else if (e.ctrlKey && e.key === 'Tab') command = e.shiftKey ? 'previousTab' : 'nextTab';
+    else if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) command = 'outline';
 
     if (command) {
       e.preventDefault();
@@ -118,5 +141,5 @@
     }
   });
 
-  window.lector = { highlight, scrollToAnchor };
+  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY };
 })();
