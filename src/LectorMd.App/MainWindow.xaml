@@ -105,127 +105,116 @@
             <controls:CaptionButtons Grid.Column="2" />
         </Grid>
 
-        <!-- Barra de comandos -->
+        <!-- Barra de comandos (la reproducción vive abajo) -->
         <Border DockPanel.Dock="Top" Padding="12,8" BorderThickness="0,0,0,1"
                 Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                    <ToggleButton x:Name="OutlineToggle" Click="OnOutlineToggleClick" ToolTip="Mostrar u ocultar el índice (Ctrl+B)"
-                                  Padding="10,6" Margin="0,0,8,0">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE8FD;" />
-                    </ToggleButton>
-                    <Button Click="OnOpenClick" ToolTip="Abrir un archivo Markdown (Ctrl+O)" Padding="12,6" Margin="0,0,14,0">
+                    <Button x:Name="OutlineToggle" Style="{StaticResource FlatIconButton}" Click="OnOutlineToggleClick"
+                            ToolTip="Mostrar u ocultar el índice (Ctrl+B)" AutomationProperties.Name="Índice" Width="40" Height="36" Margin="0,0,4,0">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE8FD;" />
+                    </Button>
+                    <Button Style="{StaticResource FlatIconButton}" Click="OnOpenClick" ToolTip="Abrir un archivo Markdown (Ctrl+O)"
+                            AutomationProperties.Name="Abrir" Height="36" Padding="12,0" Margin="0,0,2,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource IconText}" Text="&#xE8E5;" Margin="0,0,8,0" />
+                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE8E5;" Margin="0,0,8,0" />
                             <TextBlock Text="Abrir" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-
-                    <Button x:Name="PreviousButton" Click="OnPreviousClick" ToolTip="Sección anterior (Ctrl+←)" Padding="10,6" Margin="0,0,4,0">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE892;" />
-                    </Button>
-                    <Button x:Name="PlayButton" Click="OnPlayClick" ToolTip="Leer o pausar (Espacio)" Padding="14,6" Margin="0,0,4,0">
+                    <Button Style="{StaticResource FlatIconButton}" Click="OnPasteClick" ToolTip="Pegar una ruta o un texto Markdown (Ctrl+V)"
+                            AutomationProperties.Name="Pegar" Height="36" Padding="12,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="PlayIcon" Style="{StaticResource IconText}" Text="&#xE768;" Margin="0,0,8,0" />
-                            <TextBlock x:Name="PlayLabel" Text="Leer" VerticalAlignment="Center" MinWidth="58" />
+                            <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE77F;" Margin="0,0,8,0" />
+                            <TextBlock Text="Pegar" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Button>
-                    <Button x:Name="StopButton" Click="OnStopClick" ToolTip="Detener (Esc)" Padding="10,6" Margin="0,0,4,0">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE71A;" />
-                    </Button>
-                    <Button x:Name="NextButton" Click="OnNextClick" ToolTip="Sección siguiente (Ctrl+→)" Padding="10,6">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE893;" />
                     </Button>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Velocidad" VerticalAlignment="Center" Margin="0,0,10,0" Opacity="0.72" />
-                    <Slider x:Name="SpeedSlider" Width="130" VerticalAlignment="Center"
-                            Minimum="0.75" Maximum="1.75" TickFrequency="0.05" IsSnapToTickEnabled="True"
-                            SmallChange="0.05" LargeChange="0.25" Value="1"
-                            ValueChanged="OnSpeedChanged" />
-                    <TextBlock x:Name="SpeedLabel" Text="1.00×" Width="46" VerticalAlignment="Center" Margin="8,0,12,0" />
-                    <Button x:Name="ThemeButton" Click="OnThemeClick" Padding="10,6" Margin="0,0,6,0">
-                        <TextBlock x:Name="ThemeIcon" Style="{StaticResource IconText}" />
+                    <Button x:Name="ThemeButton" Style="{StaticResource FlatIconButton}" Click="OnThemeClick" Width="36" Height="36" Margin="0,0,2,0">
+                        <TextBlock x:Name="ThemeIcon" Style="{StaticResource IconText}" FontSize="15" />
                     </Button>
-                    <Button Click="OnSettingsClick" ToolTip="Configuración (Ctrl+,)" Padding="10,6">
-                        <TextBlock Style="{StaticResource IconText}" Text="&#xE713;" />
+                    <Button Style="{StaticResource FlatIconButton}" Click="OnSettingsClick" ToolTip="Configuración (Ctrl+,)"
+                            AutomationProperties.Name="Configuración" Width="36" Height="36">
+                        <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE713;" />
                     </Button>
                 </StackPanel>
 
-                <TextBlock x:Name="DocumentTitle" VerticalAlignment="Center" Margin="16,0" FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="DocumentTitle" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16,0"
+                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource LectorTextBrush}" />
             </DockPanel>
         </Border>
 
-        <!-- Barra de estado -->
-        <Border DockPanel.Dock="Bottom" Padding="12,7" BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse x:Name="EngineDot" Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center" Fill="Gray" />
-                    <TextBlock x:Name="EngineText" Text="Sin motor de voz" VerticalAlignment="Center" />
-                </StackPanel>
-
-                <TextBlock x:Name="StatusText" Grid.Column="1" Margin="18,0" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" Opacity="0.72" />
-
-                <StackPanel x:Name="UsagePanel" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="UsageText" VerticalAlignment="Center" Opacity="0.72" />
-                    <ProgressBar x:Name="UsageBar" Width="90" Height="4" Margin="10,0,0,0" Minimum="0" Maximum="1"
-                                 VerticalAlignment="Center" />
-                    <Button x:Name="UsageRefreshButton" Click="OnUsageRefreshClick" Padding="6,2" Margin="8,0,0,0"
-                            Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
-                            ToolTip="Consultar en Azure el consumo real de este mes">
-                        <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE72C;" />
-                    </Button>
-                </StackPanel>
-            </Grid>
-        </Border>
+        <!-- Reproductor abajo -->
+        <controls:PlayerBar x:Name="Player" DockPanel.Dock="Bottom" />
 
         <!-- Índice y documento -->
-        <Grid>
+        <Grid Margin="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border x:Name="OutlinePanel" Width="260" BorderThickness="0,0,1,0"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <Border x:Name="OutlinePanel" Width="250" Margin="0,0,12,0">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Índice" FontWeight="SemiBold" Margin="14,12,14,6" />
+                    <TextBlock DockPanel.Dock="Top" Text="ÍNDICE" FontSize="12" FontWeight="SemiBold" Margin="12,10,12,8"
+                               Foreground="{DynamicResource LectorText2Brush}" />
                     <TextBlock x:Name="OutlineEmpty" DockPanel.Dock="Top" Visibility="Collapsed" TextWrapping="Wrap"
-                               Margin="14,4" Opacity="0.72" />
-                    <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent" Margin="4,0,4,8"
+                               Margin="12,4" Foreground="{DynamicResource LectorText2Brush}" />
+                    <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent" Padding="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyDown="OnOutlineKeyDown">
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                                <Setter Property="Padding" Value="10,4" />
+                            <!-- La sección que se está leyendo se marca con el fondo de "actual" del diseño. -->
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Foreground" Value="{DynamicResource LectorTextBrush}" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="12,8" Margin="0,1">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource LectorSurface2Brush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource LectorCurrentBrush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource LectorCurrentTextBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                                 <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnOutlineItemClick" />
                                 <EventSetter Event="MouseDoubleClick" Handler="OnOutlineItemDoubleClick" />
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Text}" Margin="{Binding Margin}" FontWeight="{Binding Weight}"
-                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Text}" />
+                                <DockPanel Margin="{Binding Margin}" ToolTip="{Binding Text}">
+                                    <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
+                                    <TextBlock Text="{Binding Text}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                                </DockPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </DockPanel>
             </Border>
 
-            <Grid Grid.Column="1">
-                <wv2:WebView2 x:Name="Browser" />
-                <TextBlock x:Name="BrowserError" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480" />
-            </Grid>
+            <!-- El documento, en una tarjeta. -->
+            <Border Grid.Column="1" Background="{DynamicResource LectorSurfaceBrush}" BorderBrush="{DynamicResource LectorBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="1">
+                <Grid>
+                    <wv2:WebView2 x:Name="Browser" />
+                    <TextBlock x:Name="BrowserError" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480" />
+                </Grid>
+            </Border>
         </Grid>
     </DockPanel>
 </Window>

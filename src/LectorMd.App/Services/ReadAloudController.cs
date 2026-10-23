@@ -24,6 +24,7 @@ public enum PlaybackState
 internal sealed class ReadAloudController : IDisposable
 {
     private const int PrefetchAhead = 2;
+    private const int ProgressIntervalMs = 250;
     private static readonly TimeSpan HighlightLead = TimeSpan.FromMilliseconds(60);
 
     private readonly MediaPlayer _player = new();
@@ -41,6 +42,7 @@ internal sealed class ReadAloudController : IDisposable
     private double _speed = 1.0;
     private bool _mediaReady;    // hay un bloque abierto y posicionado
     private bool _pausePending;  // se pidió pausa mientras se preparaba el audio
+    private long _lastProgressTicks;
 
     public ReadAloudController()
     {
@@ -63,6 +65,9 @@ internal sealed class ReadAloudController : IDisposable
 
     /// <summary>La salida de audio desapareció; la lectura quedó en pausa en el párrafo actual.</summary>
     public event Action? AudioDeviceLost;
+
+    /// <summary>Avance dentro del segmento que suena (segmento, tiempo desde que empezó), unas 4 veces por segundo.</summary>
+    public event Action<int, TimeSpan>? ProgressChanged;
 
     public PlaybackState State { get; private set; }
 
@@ -410,6 +415,14 @@ internal sealed class ReadAloudController : IDisposable
         {
             _currentSegmentId = id;
             SegmentChanged?.Invoke(_document.Segments[id]);
+        }
+
+        // La línea de tiempo no necesita 60 actualizaciones por segundo.
+        long now = Environment.TickCount64;
+        if (_currentSegmentId >= 0 && now - _lastProgressTicks >= ProgressIntervalMs)
+        {
+            _lastProgressTicks = now;
+            ProgressChanged?.Invoke(_currentSegmentId, position - _current.OffsetOf(_currentSegmentId));
         }
     }
 

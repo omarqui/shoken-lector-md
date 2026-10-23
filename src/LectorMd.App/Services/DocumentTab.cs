@@ -36,11 +36,14 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 }
 
 /// <summary>Un título en el panel del índice.</summary>
-internal sealed class OutlineItem(OutlineEntry entry)
+internal sealed class OutlineItem(OutlineEntry entry, string time)
 {
     public OutlineEntry Entry { get; } = entry;
 
     public string Text => Entry.Text;
+
+    /// <summary>Duración de la sección ("01:12", "≈00:58"), o vacío si no se sabe.</summary>
+    public string Time { get; } = time;
 
     public Thickness Margin => new(Entry.Indent * 14, 0, 0, 0);
 

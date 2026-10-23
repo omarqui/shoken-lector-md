@@ -16,11 +16,13 @@
         <!-- Botón de ícono plano (pestañas, barra de título, reproductor): fondo solo al pasar el mouse. -->
         <Style x:Key="FlatIconButton" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource LectorTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Back" Background="Transparent" CornerRadius="6">
+                        <Border x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
