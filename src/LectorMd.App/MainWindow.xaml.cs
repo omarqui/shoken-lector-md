@@ -402,7 +402,7 @@ public partial class MainWindow : Window
             _chunks = [];
             RebuildTimeline();
             ShowOutline(null);
-            DocumentTitle.Text = "";
+            SetDocumentHeader("", null);
             Title = "Nueva pestaña — Lector MD";
             await _view.ShowEmptyTabAsync();
             ShowStatus("Pega (Ctrl+V) un texto Markdown o la ruta de un archivo.");
@@ -487,7 +487,7 @@ public partial class MainWindow : Window
                 : $"{(timeline.Chapters.Any(c => c.IsEstimated) ? "≈ " : "")}{PlayerBar.Format(timeline.Total)} de lectura · doble clic en un párrafo para empezar ahí");
         }
 
-        DocumentTitle.Text = document.Title;
+        SetDocumentHeader(document.Title, tab.State.IsPasted ? "Texto pegado (en memoria)" : tab.State.Path);
         Title = $"{document.Title} — Lector MD";
         UpdateButtons();
         SaveSession();
@@ -541,7 +541,7 @@ public partial class MainWindow : Window
         _chunks = [];
         RebuildTimeline();
         ShowOutline(null);
-        DocumentTitle.Text = "";
+        SetDocumentHeader("", null);
         Title = "Lector MD";
         if (_view is not null)
         {
@@ -1672,6 +1672,15 @@ public partial class MainWindow : Window
             ? $"Azure Monitor: {r.Characters.ToString("N0", Mexico)} a las {r.At.ToString("HH:mm", Mexico)}"
             : null;
         Player.SetUsage(true, _services.Usage.Used, Math.Max(1, _services.Usage.Limit), _services.Usage.ResetsOn, report);
+    }
+
+    /// <summary>Título en la barra de comandos y, debajo, de dónde viene (toda la ruta en el tooltip si no cabe).</summary>
+    private void SetDocumentHeader(string title, string? source)
+    {
+        DocumentTitle.Text = title;
+        DocumentPath.Text = source ?? "";
+        DocumentPath.ToolTip = source;
+        DocumentPath.Visibility = string.IsNullOrEmpty(source) ? Visibility.Hidden : Visibility.Visible;
     }
 
     private void UpdateButtons()

@@ -165,8 +165,15 @@
                     </Button>
                 </StackPanel>
 
-                <TextBlock x:Name="DocumentTitle" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16,0"
-                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource LectorTextBrush}" />
+                <!-- Título del documento y, debajo y más tenue, de dónde viene (la ruta del archivo o "texto pegado").
+                     Sin documento la segunda línea queda oculta pero ocupa su lugar: la barra no cambia de alto. -->
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16,0">
+                    <TextBlock x:Name="DocumentTitle" HorizontalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource LectorTextBrush}" />
+                    <TextBlock x:Name="DocumentPath" HorizontalAlignment="Center" Margin="0,-1,0,0" Visibility="Hidden"
+                               FontSize="{DynamicResource LectorFontSize12}" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource LectorText2Brush}" />
+                </StackPanel>
             </DockPanel>
         </Border>
 
