@@ -84,24 +84,27 @@
                 <StackPanel x:Name="TransportPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="PreviousButton" Style="{StaticResource RoundButton}" Click="OnPreviousClick"
                             ToolTip="Sección anterior (Ctrl+←)" AutomationProperties.Name="Sección anterior">
-                        <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE892;" />
+                        <Path Data="{StaticResource PreviousGlyph}" Width="16" Height="16" Stretch="Uniform"
+                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button x:Name="BackButton" Style="{StaticResource RoundButton}" Click="OnBack10Click" Margin="6,0,0,0"
                             Background="Transparent" ToolTip="Retroceder 10 segundos (←)" AutomationProperties.Name="Retroceder 10 segundos">
-                        <TextBlock Text="−10" FontSize="{DynamicResource LectorFontSize13}" FontWeight="SemiBold" />
+                        <TextBlock Text="−10" FontSize="{DynamicResource LectorFontSize15}" FontWeight="Bold" />
                     </Button>
                     <Button x:Name="PlayButton" Style="{StaticResource RoundButton}" Click="OnPlayClick" Width="52" Height="52"
                             Margin="8,0" Background="{DynamicResource LectorAccentBrush}" Foreground="{DynamicResource LectorOnAccentBrush}"
                             ToolTip="Leer o pausar (Espacio)" AutomationProperties.Name="Leer">
-                        <TextBlock x:Name="PlayIcon" Style="{StaticResource IconText}" FontSize="18" Text="&#xE768;" />
+                        <Path x:Name="PlayIcon" Data="{StaticResource PlayGlyph}" Width="20" Height="20" Stretch="Uniform"
+                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button x:Name="ForwardButton" Style="{StaticResource RoundButton}" Click="OnForward10Click" Margin="0,0,6,0"
                             Background="Transparent" ToolTip="Adelantar 10 segundos (→)" AutomationProperties.Name="Adelantar 10 segundos">
-                        <TextBlock Text="+10" FontSize="{DynamicResource LectorFontSize13}" FontWeight="SemiBold" />
+                        <TextBlock Text="+10" FontSize="{DynamicResource LectorFontSize15}" FontWeight="Bold" />
                     </Button>
                     <Button x:Name="NextButton" Style="{StaticResource RoundButton}" Click="OnNextClick"
                             ToolTip="Sección siguiente (Ctrl+→)" AutomationProperties.Name="Sección siguiente">
-                        <TextBlock Style="{StaticResource IconText}" FontSize="14" Text="&#xE893;" />
+                        <Path Data="{StaticResource NextGlyph}" Width="16" Height="16" Stretch="Uniform"
+                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                 </StackPanel>
 

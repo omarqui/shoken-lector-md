@@ -83,7 +83,7 @@ public sealed partial class MiniPlayerWindow : Window
     {
         _state = state;
         bool playing = state is PlaybackState.Playing or PlaybackState.Loading;
-        PlayIcon.Text = playing ? "" : "";
+        PlayIcon.Data = (System.Windows.Media.Geometry)FindResource(playing ? "PauseGlyph" : "PlayGlyph");
         AutomationProperties.SetName(PlayButton, playing ? "Pausar" : state == PlaybackState.Paused ? "Seguir" : "Leer");
         UpdateAutoClose();
     }

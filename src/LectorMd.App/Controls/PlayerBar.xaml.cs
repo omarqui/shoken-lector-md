@@ -401,12 +401,13 @@ public partial class PlayerBar : UserControl
 
     public void SetState(PlaybackState state, bool hasDocument)
     {
-        (PlayIcon.Text, string label) = state switch
+        (string glyph, string label) = state switch
         {
-            PlaybackState.Playing or PlaybackState.Loading => ("", "Pausar"),
-            PlaybackState.Paused => ("", "Seguir"),
-            _ => ("", "Leer"),
+            PlaybackState.Playing or PlaybackState.Loading => ("PauseGlyph", "Pausar"),
+            PlaybackState.Paused => ("PlayGlyph", "Seguir"),
+            _ => ("PlayGlyph", "Leer"),
         };
+        PlayIcon.Data = (Geometry)FindResource(glyph);
         AutomationProperties.SetName(PlayButton, label);
         PlayButton.IsEnabled = hasDocument;
         PreviousButton.IsEnabled = hasDocument;
