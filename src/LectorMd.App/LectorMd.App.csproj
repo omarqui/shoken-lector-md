@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>LectorMd.App</RootNamespace>
+    <AssemblyName>LectorMd</AssemblyName>
+    <!-- ThemeMode (tema Fluent de WPF) todavía está marcado como experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LectorMd.Core\LectorMd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- El SDK de WPF quita System.IO de los using implícitos (choca con System.Windows.Shapes.Path). -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\lector.css" LogicalName="lector.css" />
+    <EmbeddedResource Include="Assets\lector.js" LogicalName="lector.js" />
+  </ItemGroup>
+
+</Project>

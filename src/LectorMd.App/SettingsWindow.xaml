@@ -1,0 +1,165 @@
+<Window x:Class="LectorMd.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Configuración — Lector MD"
+        Width="660" Height="780" MinWidth="560" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Padding="20,12" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancelar" IsCancel="True" MinWidth="100" Padding="12,6" Margin="0,0,8,0" />
+                <Button Content="Guardar" IsDefault="True" MinWidth="100" Padding="12,6" Click="OnSaveClick" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,20,24,24">
+
+                <!-- Azure -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Azure Speech · motor principal" />
+                <TextBlock Style="{StaticResource Hint}">
+                    Voces neuronales en español de México. Un recurso de Speech en la capa gratuita (F0) incluye
+                    500 000 caracteres al mes; la app lleva la cuenta y cambia a Piper antes de pasarse.
+                </TextBlock>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Clave" VerticalAlignment="Center" />
+                    <PasswordBox x:Name="AzureKeyBox" Grid.Row="0" Grid.Column="1" Margin="0,4" />
+
+                    <TextBlock Grid.Row="1" Text="Región" VerticalAlignment="Center" />
+                    <TextBox x:Name="AzureRegionBox" Grid.Row="1" Grid.Column="1" Margin="0,4"
+                             ToolTip="La región del recurso, p. ej. eastus, southcentralus, westus2" />
+
+                    <TextBlock Grid.Row="2" Text="Voz" VerticalAlignment="Center" />
+                    <ComboBox x:Name="AzureVoiceBox" Grid.Row="2" Grid.Column="1" Margin="0,4" IsEditable="True" />
+
+                    <TextBlock Grid.Row="3" Text="Límite mensual" VerticalAlignment="Center" />
+                    <TextBox x:Name="LimitBox" Grid.Row="3" Grid.Column="1" Margin="0,4"
+                             ToolTip="Caracteres por mes. Las etiquetas SSML (pausas, marcas) también cuentan." />
+                </Grid>
+
+                <TextBlock Style="{StaticResource Hint}" Margin="150,4,0,8">
+                    Dalia (mujer) y Jorge (hombre) son las más naturales. Para que el respaldo no cambie de género,
+                    combina Dalia con es_MX-claude y Jorge con es_MX-ald.
+                </TextBlock>
+
+                <StackPanel Orientation="Horizontal" Margin="150,0,0,0">
+                    <Button x:Name="TestAzureButton" Content="Probar Azure" Padding="12,6" Click="OnTestAzureClick" />
+                    <TextBlock x:Name="AzureTestResult" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="320" />
+                </StackPanel>
+
+                <Separator Margin="0,22" />
+
+                <!-- Piper -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Piper · respaldo sin conexión" />
+                <TextBlock Style="{StaticResource Hint}">
+                    Se usa cuando se acaba la cuota, no hay internet o Azure falla. Necesitas piper.exe (con su carpeta
+                    espeak-ng-data) y un modelo de voz es_MX: el archivo .onnx y su .onnx.json en la misma carpeta.
+                </TextBlock>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="piper.exe" VerticalAlignment="Center" />
+                    <TextBox x:Name="PiperExeBox" Grid.Row="0" Grid.Column="1" Margin="0,4" />
+                    <Button Grid.Row="0" Grid.Column="2" Content="Examinar…" Padding="10,5" Margin="8,4,0,4" Click="OnBrowsePiperClick" />
+
+                    <TextBlock Grid.Row="1" Text="Modelo (.onnx)" VerticalAlignment="Center" />
+                    <TextBox x:Name="PiperModelBox" Grid.Row="1" Grid.Column="1" Margin="0,4" />
+                    <Button Grid.Row="1" Grid.Column="2" Content="Examinar…" Padding="10,5" Margin="8,4,0,4" Click="OnBrowseModelClick" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Margin="150,8,0,0">
+                    <Button x:Name="TestPiperButton" Content="Probar Piper" Padding="12,6" Click="OnTestPiperClick" />
+                    <TextBlock x:Name="PiperTestResult" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="320" />
+                </StackPanel>
+
+                <CheckBox x:Name="OfflineOnlyBox" Margin="150,14,0,0"
+                          Content="Usar solo Piper (no conectarse a Azure)" />
+
+                <Separator Margin="0,22" />
+
+                <!-- Lectura -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Lectura" />
+
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Velocidad de la voz" VerticalAlignment="Center" />
+                    <Slider x:Name="RateSlider" Grid.Row="0" Grid.Column="1" Margin="0,6" VerticalAlignment="Center"
+                            Minimum="-30" Maximum="30" TickFrequency="5" IsSnapToTickEnabled="True"
+                            ValueChanged="OnRateChanged" />
+                    <TextBlock x:Name="RateLabel" Grid.Row="0" Grid.Column="2" Width="52" Margin="10,0,0,0" VerticalAlignment="Center" />
+
+                    <TextBlock Grid.Row="1" Text="Bloques de código" VerticalAlignment="Center" />
+                    <ComboBox x:Name="CodeModeBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4">
+                        <ComboBoxItem Content="Anunciar el lenguaje (&quot;Bloque de código en C#&quot;)" />
+                        <ComboBoxItem Content="Omitirlos" />
+                        <ComboBoxItem Content="Leer el código línea por línea" />
+                    </ComboBox>
+
+                    <TextBlock Grid.Row="2" Text="Tablas" VerticalAlignment="Center" />
+                    <ComboBox x:Name="TableModeBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4">
+                        <ComboBoxItem Content="Leer fila por fila (&quot;Columna: valor&quot;)" />
+                        <ComboBoxItem Content="Solo anunciar cuántas filas y columnas tiene" />
+                        <ComboBoxItem Content="Omitirlas" />
+                    </ComboBox>
+                </Grid>
+
+                <TextBlock Style="{StaticResource Hint}" Margin="150,4,0,6">
+                    La velocidad de la voz se aplica al generar el audio (cambiarla vuelve a sintetizar y gasta cuota).
+                    Para ir más rápido sin gastar, usa el control «Velocidad» de la ventana principal.
+                </TextBlock>
+
+                <CheckBox x:Name="ImageAltBox" Margin="150,4,0,0" Content="Leer el texto alternativo de las imágenes" />
+
+                <Separator Margin="0,22" />
+
+                <!-- Pronunciación y caché -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Pronunciación y caché" />
+                <TextBlock Style="{StaticResource Hint}">
+                    El diccionario reemplaza palabras completas antes de leer (p. ej. "JSON" → "yéison"). Los cambios
+                    se aplican al recargar el documento (F5). La caché guarda el audio ya generado para no pagarlo dos veces.
+                </TextBlock>
+
+                <WrapPanel>
+                    <Button Content="Editar diccionario de pronunciación" Padding="12,6" Margin="0,0,8,8" Click="OnEditDictionaryClick" />
+                    <Button Content="Vaciar caché de audio" Padding="12,6" Margin="0,0,8,8" Click="OnClearCacheClick" />
+                    <Button Content="Abrir carpeta de datos" Padding="12,6" Margin="0,0,8,8" Click="OnOpenDataFolderClick" />
+                </WrapPanel>
+                <TextBlock x:Name="CacheInfo" Opacity="0.72" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
