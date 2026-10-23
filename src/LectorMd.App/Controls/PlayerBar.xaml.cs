@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using LectorMd.App.Services;
 using LectorMd.Core.Model;
 using LectorMd.Core.Settings;
+using LectorMd.Core.Usage;
 
 namespace LectorMd.App.Controls;
 
@@ -214,7 +215,7 @@ public partial class PlayerBar : UserControl
         StatusLabel.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
         PopupUsageSection.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
-        UsageFill.Width = UsageMini.Width * fraction;
+        UsageFill.Width = UsageMini.Width * UsageGauge.FillFraction(fraction); // realza lo bajo; el % es exacto
         UsagePercent.Text = percent;
         PopupUsage.Text = $"{used.ToString("N0", Mexico)} de {limit.ToString("N0", Mexico)} caracteres ({percent})";
         PopupUsageFill.Width = (StatusPanel.Width - StatusPanel.Padding.Left - StatusPanel.Padding.Right - 2) * fraction;
