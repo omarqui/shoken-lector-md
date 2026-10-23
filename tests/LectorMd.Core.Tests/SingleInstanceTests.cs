@@ -28,7 +28,7 @@ public class SingleInstanceTests
         string name = UniqueName();
         using SingleInstanceChannel channel = SingleInstanceChannel.TryClaim(name)!;
         var received = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        channel.MessageReceived += message => received.TrySetResult(message);
+        channel.AttachHandler(message => received.TrySetResult(message));
 
         Assert.True(await SingleInstanceChannel.SendAsync(name, @"C:\Mis docs\guía.md", Timeout));
         Assert.Equal(@"C:\Mis docs\guía.md", await received.Task.WaitAsync(Timeout));
@@ -40,7 +40,7 @@ public class SingleInstanceTests
         string name = UniqueName();
         using SingleInstanceChannel channel = SingleInstanceChannel.TryClaim(name)!;
         var received = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        channel.MessageReceived += message => received.TrySetResult(message);
+        channel.AttachHandler(message => received.TrySetResult(message));
 
         Assert.True(await SingleInstanceChannel.SendAsync(name, null, Timeout));
         Assert.Null(await received.Task.WaitAsync(Timeout));
@@ -53,7 +53,7 @@ public class SingleInstanceTests
         using SingleInstanceChannel channel = SingleInstanceChannel.TryClaim(name)!;
         var messages = new List<string?>();
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        channel.MessageReceived += message =>
+        channel.AttachHandler(message =>
         {
             lock (messages)
             {
@@ -63,7 +63,7 @@ public class SingleInstanceTests
                     done.TrySetResult();
                 }
             }
-        };
+        });
 
         foreach (string path in new[] { "a.md", "b.md", "c.md" })
         {
@@ -72,6 +72,37 @@ public class SingleInstanceTests
 
         await done.Task.WaitAsync(Timeout);
         Assert.Equal(["a.md", "b.md", "c.md"], messages);
+    }
+
+    [Fact]
+    public async Task MessagesThatArriveBeforeTheWindowIsReady_AreKeptAndDeliveredInOrder()
+    {
+        // Abrir 3 .md juntos desde el Explorador: las otras instancias escriben mientras la primera arranca.
+        string name = UniqueName();
+        using SingleInstanceChannel channel = SingleInstanceChannel.TryClaim(name)!;
+        Assert.True(await SingleInstanceChannel.SendAsync(name, "a.md", Timeout));
+        Assert.True(await SingleInstanceChannel.SendAsync(name, "b.md", Timeout));
+        await Task.Delay(200);
+
+        var messages = new List<string?>();
+        channel.AttachHandler(message =>
+        {
+            lock (messages)
+            {
+                messages.Add(message);
+            }
+        });
+
+        Assert.Equal(["a.md", "b.md"], messages);
+    }
+
+    [Fact]
+    public void Dispose_CanBeCalledTwice()
+    {
+        SingleInstanceChannel channel = SingleInstanceChannel.TryClaim(UniqueName())!;
+
+        channel.Dispose();
+        channel.Dispose();
     }
 
     [Fact]

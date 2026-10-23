@@ -196,20 +196,33 @@ public partial class PlayerBar : UserControl
         }
     }
 
-    /// <summary>Un aviso (antes iba en la barra de estado): se queda 8 s sobre el detalle de la posición.</summary>
     /// <summary>Lo que muestra ahora (para pasarlo al mini reproductor).</summary>
     public string CurrentSection => SectionText.Text;
 
     public string CurrentDetail => DetailText.Text;
 
-    /// <summary>Quita el aviso y vuelve al detalle de la posición (p. ej. "Preparando el audio…" cuando ya suena).</summary>
-    public void ClearNotice()
+    /// <summary>
+    /// Quita el aviso y vuelve al detalle de la posición. Con <paramref name="onlyIf"/>, solo si el aviso es ese
+    /// (así "Preparando el audio…" se va al sonar, pero "Sigo con Piper" se queda sus 8 segundos).
+    /// </summary>
+    public void ClearNotice(string? onlyIf = null)
     {
+        if (onlyIf is not null && DetailText.Text != onlyIf)
+        {
+            return;
+        }
+
         _noticeTimer.Stop();
         _noticeShowing = false;
         ShowDetail(_detail);
     }
 
+    /// <summary>Cierra el panel del estado (al cambiar de app u ocultar la ventana: es "siempre visible").</summary>
+    public void ClosePopup() => StatusPopup.IsOpen = false;
+
+    public bool IsPopupOpen => StatusPopup.IsOpen;
+
+    /// <summary>Un aviso (antes iba en la barra de estado): se queda 8 s sobre el detalle de la posición.</summary>
     public void ShowNotice(string text)
     {
         _noticeShowing = true;
@@ -338,7 +351,24 @@ public partial class PlayerBar : UserControl
         _statusCloseTimer.Start();
     }
 
-    private void OnStatusClick(object sender, RoutedEventArgs e) => StatusPopup.IsOpen = !StatusPopup.IsOpen;
+    /// <summary>
+    /// Como Spotify, el transporte va centrado en la ventana (las dos columnas laterales iguales). Si no alcanza el
+    /// ancho, la columna derecha toma solo lo que necesita: el transporte se corre un poco, pero nada se corta.
+    /// </summary>
+    private void OnControlsSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        RightPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        TransportPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double centered = TransportPanel.DesiredSize.Width + 2 * RightPanel.DesiredSize.Width;
+        GridUnitType wanted = ControlsGrid.ActualWidth >= centered ? GridUnitType.Star : GridUnitType.Auto;
+        if (RightColumn.Width.GridUnitType != wanted)
+        {
+            RightColumn.Width = new GridLength(1, wanted);
+        }
+    }
+
+    // Abre (no alterna): después de que el mouse lo abrió, un clic no debe cerrarlo. Se cierra con Esc o al salir.
+    private void OnStatusClick(object sender, RoutedEventArgs e) => StatusPopup.IsOpen = true;
 
     // Alineado a la derecha del componente y por encima de él (el componente está en el borde derecho).
     private static CustomPopupPlacement[] PlaceStatusPanel(Size popupSize, Size targetSize, Point offset) =>

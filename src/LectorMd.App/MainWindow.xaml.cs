@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private TrayIcon? _tray;
     private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
     private MiniPlayerWindow? _mini; // solo existe mientras la ventana está oculta o minimizada
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>Sonando o preparando el audio (no en pausa ni detenido).</summary>
     private bool IsReading => _player.State is PlaybackState.Playing or PlaybackState.Loading;
@@ -66,6 +67,7 @@ public partial class MainWindow : Window
         ThemeService.WatchSystemTheme();
         ThemeService.Changed += UpdateThemeButton;
         Activated += (_, _) => _mini?.Close(); // la ventana a la vista: el mini reproductor sobra
+        Deactivated += (_, _) => Player.ClosePopup(); // el panel del estado no debe flotar sobre otra app
         InitializeComponent();
         _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
@@ -108,8 +110,12 @@ public partial class MainWindow : Window
             open: () => _ = BringToFrontAsync(null),
             readClipboard: () => _ = ReadClipboardAloudAsync(),
             exit: ExitApp);
-        // Al cerrar sesión o apagar, Windows cierra la ventana: no hay que esconderla en la bandeja.
-        Application.Current.SessionEnding += (_, _) => _exiting = true;
+        // Al cerrar sesión o apagar, WPF no siempre pasa por Closing: la sesión se guarda aquí mismo.
+        Application.Current.SessionEnding += (_, _) =>
+        {
+            _exiting = true;
+            SaveSession();
+        };
         _hotkey = GlobalHotkey.TryRegister(this, ModifierKeys.Control | ModifierKeys.Alt, Key.L, () => _ = ReadClipboardAloudAsync());
 
         try
@@ -139,10 +145,12 @@ public partial class MainWindow : Window
             BrowserError.Visibility = Visibility.Visible;
             BrowserError.Text = "No se pudo iniciar el visor (WebView2). Instala o repara \"Microsoft Edge WebView2 Runtime\" " +
                                 $"y vuelve a abrir la app.\n\n{ex.Message}";
+            _ready.TrySetResult();
             return;
         }
 
         await RestoreTabsAsync();
+        _ready.TrySetResult();
 
         if (_services is { Engine.IsConfigured: false })
         {
@@ -162,6 +170,7 @@ public partial class MainWindow : Window
             // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
             e.Cancel = true;
             Hide();
+            Player.ClosePopup(); // el panel del estado es "siempre visible": no debe quedar flotando sobre otras apps
             if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
             {
                 ShowMiniPlayer();
@@ -177,6 +186,9 @@ public partial class MainWindow : Window
             return;
         }
 
+        // El mini reproductor es otra ventana: si quedara abierta, la app no terminaría y la siguiente apertura
+        // le pasaría su archivo a esta ventana ya cerrada.
+        _mini?.Close();
         _hotkey?.Dispose();
         _tray?.Dispose();
         _player.Dispose();
@@ -187,8 +199,12 @@ public partial class MainWindow : Window
     private void ExitApp()
     {
         _exiting = true;
+        _mini?.Close();
         Close();
     }
+
+    /// <summary>Se completa cuando las pestañas guardadas ya se restauraron (o el visor no pudo iniciar).</summary>
+    public Task Ready => _ready.Task;
 
     private void RebuildServices()
     {
@@ -833,14 +849,27 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task ReadClipboardAloudAsync()
     {
+        // Con la ventana fuera de vista, un aviso en el reproductor no lo ve nadie: va como notificación.
+        bool inBackground = !IsVisible || WindowState == WindowState.Minimized || !IsActive;
+
         if (!await PasteAsync() || _document is null)
         {
+            if (inBackground && _mini is null)
+            {
+                _tray?.ShowHint(Player.CurrentDetail is { Length: > 0 } notice ? notice : "No hay nada que leer en el portapapeles.");
+            }
+
             return;
         }
 
         if (_services is { Engine.IsConfigured: false })
         {
             ShowStatus("Para leer, configura Azure o Piper en ⚙ Configuración.");
+            if (inBackground)
+            {
+                _tray?.ShowHint("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
+            }
+
             return;
         }
 
@@ -1004,6 +1033,13 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && Player.IsPopupOpen)
+        {
+            Player.ClosePopup();
+            e.Handled = true;
+            return;
+        }
+
         // Solo cuando el foco está en la barra. Dentro del documento los atajos llegan por JavaScript.
         if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase or Microsoft.Web.WebView2.Wpf.WebView2
             || Browser.IsKeyboardFocusWithin)
@@ -1320,7 +1356,7 @@ public partial class MainWindow : Window
     {
         if (state == PlaybackState.Playing)
         {
-            Player.ClearNotice(); // "Preparando el audio…" no debe quedarse mientras ya suena
+            Player.ClearNotice(onlyIf: "Preparando el audio…"); // no debe quedarse mientras ya suena
         }
 
         if (state == PlaybackState.Loading)

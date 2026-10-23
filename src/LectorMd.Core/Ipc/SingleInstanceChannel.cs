@@ -10,9 +10,15 @@ namespace LectorMd.Core.Ipc;
 /// </summary>
 public sealed class SingleInstanceChannel : IDisposable
 {
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
+
     private readonly Mutex _mutex;
     private readonly string _pipeName;
     private readonly CancellationTokenSource _stop = new();
+    private readonly object _lock = new();
+    private readonly Queue<string?> _pending = new();
+    private Action<string?>? _handler;
+    private bool _disposed;
 
     private SingleInstanceChannel(Mutex mutex, string pipeName)
     {
@@ -20,11 +26,7 @@ public sealed class SingleInstanceChannel : IDisposable
         _pipeName = pipeName;
     }
 
-    /// <summary>Un mensaje de otra instancia: la ruta de un archivo, o null para "muéstrate".</summary>
-    /// <remarks>Llega en un hilo del pool; quien lo atiende pasa al hilo de la interfaz.</remarks>
-    public event Action<string?>? MessageReceived;
-
-    /// <summary>Reclama el nombre; null si ya hay otra instancia de este usuario.</summary>
+    /// <summary>Reclama el nombre y empieza a escuchar; null si ya hay otra instancia de este usuario.</summary>
     public static SingleInstanceChannel? TryClaim(string name)
     {
         var mutex = new Mutex(initiallyOwned: true, $@"Local\{name}", out bool created);
@@ -37,6 +39,24 @@ public sealed class SingleInstanceChannel : IDisposable
         var channel = new SingleInstanceChannel(mutex, PipeName(name));
         _ = Task.Run(channel.ListenAsync);
         return channel;
+    }
+
+    /// <summary>
+    /// Quién atiende los mensajes (la ruta de un archivo, o null para "muéstrate"). Lo que llegó antes, mientras
+    /// la ventana arrancaba (por ejemplo, al abrir varios .md juntos), se entrega ahora y en orden.
+    /// </summary>
+    /// <remarks>Se llama en un hilo del pool; quien lo atiende pasa al hilo de la interfaz.</remarks>
+    public void AttachHandler(Action<string?> handler)
+    {
+        lock (_lock)
+        {
+            while (_pending.Count > 0)
+            {
+                handler(_pending.Dequeue());
+            }
+
+            _handler = handler;
+        }
     }
 
     /// <summary>Manda un mensaje a la instancia que ya corre. False si no hay ninguna escuchando.</summary>
@@ -53,7 +73,7 @@ public sealed class SingleInstanceChannel : IDisposable
             await writer.FlushAsync(cancel.Token);
             return true;
         }
-        catch (Exception ex) when (ex is OperationCanceledException or TimeoutException or IOException)
+        catch (Exception ex) when (ex is OperationCanceledException or TimeoutException or IOException or UnauthorizedAccessException)
         {
             return false;
         }
@@ -61,6 +81,12 @@ public sealed class SingleInstanceChannel : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _stop.Cancel();
         try
         {
@@ -77,6 +103,21 @@ public sealed class SingleInstanceChannel : IDisposable
     // Los pipes son globales a la máquina: el nombre de usuario evita mezclar sesiones de distintas personas.
     private static string PipeName(string name) => $"{name}.{Environment.UserName}";
 
+    private void Deliver(string? message)
+    {
+        lock (_lock)
+        {
+            if (_handler is null)
+            {
+                _pending.Enqueue(message);
+            }
+            else
+            {
+                _handler(message);
+            }
+        }
+    }
+
     private async Task ListenAsync()
     {
         while (!_stop.IsCancellationRequested)
@@ -88,15 +129,23 @@ public sealed class SingleInstanceChannel : IDisposable
                 await server.WaitForConnectionAsync(_stop.Token);
                 using var reader = new StreamReader(server, Encoding.UTF8);
                 string? line = await reader.ReadLineAsync(_stop.Token);
-                MessageReceived?.Invoke(string.IsNullOrWhiteSpace(line) ? null : line);
+                Deliver(string.IsNullOrWhiteSpace(line) ? null : line);
             }
             catch (OperationCanceledException)
             {
                 return;
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // La otra instancia se fue a medias: se espera la siguiente.
+                // La otra instancia se fue a medias, o el pipe está ocupado: se espera un poco y se sigue escuchando.
+                try
+                {
+                    await Task.Delay(RetryDelay, _stop.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }
     }

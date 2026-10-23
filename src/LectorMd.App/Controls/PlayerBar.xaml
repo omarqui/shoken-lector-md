@@ -65,11 +65,11 @@
             </Grid>
 
             <!-- Como Spotify: lo que suena a la izquierda, el transporte al centro, velocidad y estado a la derecha. -->
-            <Grid>
+            <Grid x:Name="ControlsGrid" SizeChanged="OnControlsSizeChanged">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MinWidth="160" />
+                    <ColumnDefinition Width="*" MinWidth="120" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" MinWidth="160" />
+                    <ColumnDefinition x:Name="RightColumn" Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Sección y párrafo (o el último aviso) -->
@@ -80,7 +80,7 @@
                                Foreground="{DynamicResource LectorText2Brush}" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel x:Name="TransportPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="StopButton" Style="{StaticResource RoundButton}" Click="OnStopClick" Margin="0,0,6,0"
                             Background="Transparent" Foreground="{DynamicResource LectorText2Brush}"
                             ToolTip="Detener (Esc)" AutomationProperties.Name="Detener">
@@ -111,7 +111,7 @@
                     <Border Width="46" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <StackPanel x:Name="RightPanel" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <!-- Velocidad -->
                     <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="16,0,10,0"
                             AutomationProperties.Name="Velocidad">

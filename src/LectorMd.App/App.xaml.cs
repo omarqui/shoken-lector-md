@@ -39,7 +39,20 @@ public partial class App : Application
 
         if (_instance is not null)
         {
-            _instance.MessageReceived += message => Dispatcher.InvokeAsync(() => window.BringToFrontAsync(message));
+            // Lo que otras instancias mandaron mientras arrancaba quedó guardado: se entrega cuando las pestañas
+            // ya se restauraron (si no, se abriría antes y se mezclaría con la pestaña activa guardada).
+            await window.Ready;
+            _instance.AttachHandler(message => Dispatcher.InvokeAsync(async () =>
+            {
+                try
+                {
+                    await window.BringToFrontAsync(message);
+                }
+                catch (Exception ex)
+                {
+                    ErrorLog.Write(ex);
+                }
+            }));
         }
     }
 

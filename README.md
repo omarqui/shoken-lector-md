@@ -133,7 +133,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 - **Tema:** el botón sol/luna alterna claro y oscuro (la primera vez sigue el tema de Windows). El documento cambia de colores sin recargarse.
 - **Bandeja del sistema:** cerrar la ventana no cierra la app: queda en la bandeja (doble clic la abre; clic derecho: *Abrir*, *Leer portapapeles*, *Salir*). Hay una sola instancia: abrir un `.md` desde el Explorador con la app abierta lo agrega como pestaña.
 - **Leer lo copiado (`Ctrl` + `Alt` + `L`):** desde cualquier app, lee lo que hay en el portapapeles (rutas a `.md` o texto Markdown). El texto queda como pestaña pegada, así puedes retomarlo y su audio queda en caché. Si otra app ya usa la combinación, se avisa al iniciar.
-- **Mini reproductor:** si la ventana está oculta o minimizada mientras lee, aparece abajo a la derecha con la sección, el avance, los controles y la velocidad. No roba el foco y se cierra solo tras 10 segundos en pausa o detenido (con el mouse encima espera).
+- **Mini reproductor:** si la ventana está oculta o minimizada mientras suena algo (o detrás de otra app cuando lees con `Ctrl` + `Alt` + `L`), aparece abajo a la derecha con la sección, el avance, los controles y la velocidad. No roba el foco y se cierra solo tras 10 segundos en pausa o detenido (con el mouse encima espera).
 - **Velocidad de la voz** (Configuración): cambia la síntesis misma. Como el texto enviado cambia, el audio se vuelve a generar.
 - Los enlaces a otros `.md` de la misma carpeta se abren en la app, en una pestaña nueva. Los enlaces web se abren en tu navegador.
 
