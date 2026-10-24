@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using LectorMd.Core.Parsing;
 
@@ -121,11 +122,45 @@ public enum AppTheme
     Dark,
 }
 
-/// <summary>Rutas de datos de la app (por defecto en %LOCALAPPDATA%\LectorMd).</summary>
+/// <summary>
+/// Rutas de datos de la app: %LOCALAPPDATA%\LectorMd o, si corre empaquetada (Store), el LocalState del paquete.
+/// </summary>
 public sealed class AppPaths(string root)
 {
-    public static AppPaths Default { get; } = new(Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LectorMd"));
+    public static AppPaths Default { get; } = new(DefaultRoot(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), CurrentPackageFamilyName()));
+
+    /// <summary>
+    /// Empaquetada, Windows redirige lo que la app escribe en %LOCALAPPDATA% a una copia privada que el Bloc de notas y
+    /// el Explorador no ven (no encontrarían pronunciacion.json). El LocalState del paquete es una carpeta real para todos.
+    /// </summary>
+    internal static string DefaultRoot(string localAppData, string? packageFamilyName) =>
+        packageFamilyName is null
+            ? Path.Combine(localAppData, "LectorMd")
+            : Path.Combine(localAppData, "Packages", packageFamilyName, "LocalState");
+
+    /// <summary>Familia del paquete MSIX de la app, o null si corre sin empaquetar (dotnet run, publicar\).</summary>
+    private static string? CurrentPackageFamilyName()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        uint length = 0;
+        if (GetCurrentPackageFamilyName(ref length, null) != ErrorInsufficientBuffer)
+        {
+            return null; // APPMODEL_ERROR_NO_PACKAGE: sin identidad de paquete
+        }
+
+        var name = new char[length];
+        return GetCurrentPackageFamilyName(ref length, name) == 0 ? new string(name, 0, (int)length - 1) : null;
+    }
+
+    private const int ErrorInsufficientBuffer = 122;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetCurrentPackageFamilyName(ref uint packageFamilyNameLength, [Out] char[]? packageFamilyName);
 
     public string Root { get; } = root;
     public string SettingsFile => Path.Combine(Root, "settings.json");

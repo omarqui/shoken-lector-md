@@ -52,6 +52,21 @@ dotnet publish src/LectorMd.App -c Release -r win-x64 --self-contained false -o 
 # publicar\LectorMd.exe  (acepta la ruta de un .md como argumento)
 ```
 
+### Paquete para la Microsoft Store (MSIX)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File empaquetado\empaquetar.ps1             # deja publicar-msix\LectorMd_<versión>_x64.msix
+powershell -ExecutionPolicy Bypass -File empaquetado\empaquetar.ps1 -Registrar  # además la instala aquí para probarla
+```
+
+El paquete trae el runtime de .NET (no hace falta instalarlo) y declara la asociación con `.md` y `.markdown` y el alias `lectormd` para la terminal. Sale sin firmar, porque la Store lo firma al publicarlo. `-Registrar` instala desde la carpeta del paquete y necesita el **modo de desarrollador** (Configuración › Sistema › Para programadores). La primera vez, el script descarga `makeappx` y `makepri` de NuGet (paquete `Microsoft.Windows.SDK.BuildTools`), así que no hace falta el Windows SDK.
+
+Antes del primer envío:
+
+- En [Partner Center](https://partner.microsoft.com/dashboard), reserva el nombre y copia los datos de *Identidad del producto* a `empaquetado\AppxManifest.xml` (`Identity Name`, `Publisher` y `PublisherDisplayName`). Los que tiene son de prueba.
+- La versión sale de `<Version>` en `Directory.Build.props` (tres números; el paquete le agrega un `.0` que la Store reserva). Súbela en cada envío.
+- Los logos se generan desde `src\LectorMd.App\Assets\app.ico` (su cuadro de 256 px). Para cambiarlos, cambia el ícono.
+
 ## 1. Configurar Azure (motor principal, gratis)
 
 1. Entra a [portal.azure.com](https://portal.azure.com), elige **Crear un recurso** y busca **Speech** (Azure AI Speech).
@@ -189,6 +204,12 @@ Todo vive en `%LOCALAPPDATA%\LectorMd\`:
 | `cache\` | Audio generado (MP3 de Azure y Google, WAV de Kokoro y Piper). Se recorta solo al pasar de 1 GB |
 | `kokoro\kokoro.onnx` | Modelo de Kokoro (310 MB), descargado desde Configuración. Borrarlo desactiva Kokoro |
 | `errores.log` | Detalle de errores inesperados |
+
+**Instalada desde la Store (MSIX)**, la carpeta es otra: `%LOCALAPPDATA%\Packages\<familia del paquete>\LocalState\`, con los mismos archivos. Windows la borra al desinstalar la app. Para llevar ahí los datos de una versión sin empaquetar (configuración, caché, apuntes), abre la app empaquetada una vez, ciérrala con *Salir* desde la bandeja y corre:
+
+```powershell
+Copy-Item "$env:LOCALAPPDATA\LectorMd\*" "$env:LOCALAPPDATA\Packages\$((Get-AppxPackage *LectorMd*).PackageFamilyName)\LocalState" -Recurse -Force
+```
 
 ## Estructura del código
 

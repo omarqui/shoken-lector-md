@@ -27,6 +27,25 @@ public class SettingsTests
         Assert.Equal(faster, PlaybackSpeeds.Faster(speed));
     }
 
+    [Theory]
+    [InlineData(null, @"C:\Users\ana\AppData\Local\LectorMd")]
+    [InlineData("LectorMd_8wekyb3d8bbwe", @"C:\Users\ana\AppData\Local\Packages\LectorMd_8wekyb3d8bbwe\LocalState")]
+    public void AppPaths_DefaultRoot_IsThePackageLocalStateOnlyWhenPackaged(string? packageFamilyName, string expected)
+    {
+        // Empaquetada (Store), lo escrito en %LOCALAPPDATA%\LectorMd se redirigiría a una carpeta que el Bloc de
+        // notas y el Explorador no ven; LocalState es real para todos.
+        Assert.Equal(expected, AppPaths.DefaultRoot(@"C:\Users\ana\AppData\Local", packageFamilyName));
+    }
+
+    [Fact]
+    public void AppPaths_Default_StaysInLocalAppData_WhenNotPackaged()
+    {
+        // Las pruebas corren sin identidad de paquete, como dotnet run.
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+        Assert.Equal(Path.Combine(localAppData, "LectorMd"), AppPaths.Default.Root);
+    }
+
     [Fact]
     public void PlaybackSpeeds_StopAtTheEnds()
     {

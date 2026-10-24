@@ -11,6 +11,7 @@ dotnet build -c Release
 dotnet test                                            # xUnit, solo LectorMd.Core
 dotnet run --project src/LectorMd.App -c Release
 dotnet publish src/LectorMd.App -c Release -r win-x64 --self-contained false -o publicar
+powershell -ExecutionPolicy Bypass -File empaquetado\empaquetar.ps1 [-Registrar]   # MSIX para la Store
 ```
 
 Requiere el SDK de .NET 10 y el runtime de WebView2. Corre `dotnet test` antes de dar un cambio por terminado.
@@ -23,6 +24,7 @@ Requiere el SDK de .NET 10 y el runtime de WebView2. Corre `dotnet test` antes d
 | `src/LectorMd.App` (`net10.0-windows`) | WPF: WebView2 muestra el documento y `MediaPlayer` reproduce el audio. `Controls/` tiene la barra de título y el reproductor (`PlayerBar`) |
 | `tests/LectorMd.Core.Tests` | Pruebas xUnit del núcleo (`InternalsVisibleTo` habilitado) |
 | `docs/ejemplo.md` | Documento con todos los elementos de Markdown: úsalo para probar a mano |
+| `empaquetado/` | Manifiesto MSIX (`AppxManifest.xml`) y `empaquetar.ps1`, que arma el paquete para la Microsoft Store |
 
 El flujo, de punta a punta:
 
@@ -53,6 +55,11 @@ El flujo, de punta a punta:
 - La clave de Azure se guarda cifrada con DPAPI (`SettingsStore`). Nunca la escribas en texto
   plano, en logs ni en pruebas.
 - Los datos del usuario viven en `%LOCALAPPDATA%\LectorMd\`. No se versionan.
+- **Empaquetada (MSIX, Store), la app guarda en el `LocalState` de su paquete** (`AppPaths.DefaultRoot`). Si guardara en
+  `%LOCALAPPDATA%\LectorMd`, Windows redirigiría la escritura a una copia privada que el Bloc de notas y el Explorador no
+  ven. Toma las rutas de datos de la app siempre de `AppPaths`, no de `Environment.GetFolderPath`. El paquete es *full trust*: el
+  hotkey, la bandeja, el pipe, DPAPI y lanzar procesos (Piper, VS Code) funcionan igual. La versión de
+  `Directory.Build.props` lleva tres números, porque la Store reserva el cuarto (el script agrega `.0`).
 - **Una sola instancia** (`Core/Ipc/SingleInstanceChannel`, mutex + named pipe): la segunda instancia le pasa su archivo a la primera y termina. Cerrar la ventana la oculta en la bandeja (`TrayIcon`); solo *Salir* o el cierre de sesión terminan la app. `Ctrl+Alt+L` es `GlobalHotkey` (RegisterHotKey) y el `MiniPlayerWindow` lo alimenta `MainWindow` con los mismos eventos que el `PlayerBar`.
 - **WinForms solo para `NotifyIcon`:** el proyecto quita los `using` implícitos de `System.Windows.Forms` y `System.Drawing`; úsalos con alias (`Forms.`, `Drawing.`) para no chocar con WPF.
 - **Popups y foco de teclado:** los `Popup` de WPF no se activan (`WS_EX_NOACTIVATE`); sus teclas les llegan por la ventana principal. Si el foco de Windows está en el WebView2 (el usuario acaba de hacer clic en el documento), `Focus()` sobre un control del popup no basta: las teclas siguen yendo a `lector.js`. Enfoca primero la ventana (`Focus()`) y luego el control, como `OnPronounceChipClick`.
