@@ -135,6 +135,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 | Pestaña siguiente / anterior | `Ctrl` + `Tab` / `Ctrl` + `Shift` + `Tab` |
 | Mostrar u ocultar el índice | `Ctrl` + `B` |
 | Buscar en el documento | `Ctrl` + `F`, o la lupa de la barra de comandos |
+| Agregar un apunte (a la selección o al párrafo que se lee) | `Ctrl` + `Alt` + `M`, el botón «Apunte» junto a la selección o clic derecho |
 | Recargar (y releer el diccionario) | `F5` |
 | Configuración | `Ctrl` + `,` |
 | Leer lo copiado, desde cualquier app | `Ctrl` + `Alt` + `L` |
@@ -146,6 +147,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 - **Índice:** el panel izquierdo muestra los títulos (h1 a h3) con la duración de cada sección (con ≈ mientras es estimada). Con un clic vas al título; para leer desde ahí usa su ▶ (aparece al pasar el mouse y en la sección actual) o `Enter`. Mientras lee se marca la sección actual.
 - **Contraer secciones:** la flecha de un título oculta sus subtítulos (o `←` / `→` con la fila elegida), Cada documento abre contraído al primer nivel (los títulos principales con sus secciones) y el botón del encabezado alterna entre expandir todo y volver a ese primer nivel. Una fila contraída muestra la duración y los resultados de búsqueda de toda su sección, y se marca si lo que se lee está adentro. Cada pestaña recuerda lo contraído mientras la app sigue abierta.
 - **Buscar (`Ctrl` + `F`):** abre una barra arriba a la derecha del documento. No distingue acentos ni mayúsculas (`configuracion` encuentra «Configuración»), resalta todos los resultados y empieza por el primero visible. `Enter` / `Shift` + `Enter` (o `F3` / `Shift` + `F3`) van al siguiente o al anterior, `Ctrl` + `Enter` (o ▶) lee desde el párrafo del resultado y `Esc` cierra la barra sin detener la lectura. Mientras buscas, el índice muestra cuántos resultados hay en cada sección. Al reabrirla vuelve la búsqueda anterior.
+- **Apuntes para una IA:** selecciona un texto y pulsa «Apunte» (el botón que aparece junto a la selección), usa el clic derecho o `Ctrl` + `Alt` + `M`. Sin selección, `Ctrl` + `Alt` + `M` toma el párrafo que se está leyendo. Cada apunte es como un comentario: subraya la cita y abre su tarjeta a la derecha del texto, a su altura. En la tarjeta eliges el tipo (*Aclarar*, *Mejorar* u *Otro*, siempre a la vista, cada uno con su color) y escribes la nota (`Ctrl` + `Enter` guarda y `Esc` cancela). Con ▶ se lee desde ahí; también puedes marcarlo como *Resuelto* o borrarlo, con un aviso para deshacer. «Copiar para la IA» copia los pendientes en Markdown para pegarlos en el chat de una IA: una instrucción (editable en Configuración › Apuntes para la IA), la ruta del documento y, por apunte, `archivo.md:línea`, la sección, la cita y tu nota. Los apuntes se guardan por documento y no se leen en voz alta. Si editas el Markdown, cada cita se vuelve a buscar al abrirlo; si ya no está, la tarjeta lo dice y la exportación lo pone al final. Con la ventana angosta, las tarjetas se vuelven marcas en el margen y la tarjeta se abre al tocar su marca. El botón de la barra (con el número de pendientes) muestra u oculta los apuntes.
 - **Reproductor (abajo):** la línea de tiempo está dividida por capítulos (los títulos del índice); un clic en un tramo lee desde ahí. Debajo, como en Spotify: la sección y el párrafo a la izquierda, los controles al centro, y la velocidad y el estado de Azure a la derecha. Las duraciones de lo que todavía no se generó son estimadas (≈) y se corrigen cuando se genera su audio.
 - **Velocidad** (en el reproductor): `−` y `+` bajan o suben un paso entre 0.75× y 1.75×, y un clic en el valor abre un menú con todas. Acelera o frena la reproducción al instante, sin volver a generar audio ni gastar cuota.
 - **Tema** (Configuración › Interfaz): Clásico, Papel (el predeterminado: cálido y con menos brillo), Grafito o Sepia y noche, cada uno con versión clara y oscura. El botón sol/luna alterna claro y oscuro (la primera vez sigue el tema de Windows). La ventana, el documento y los diagramas cambian al instante, sin recargarse.
@@ -181,6 +183,7 @@ Todo vive en `%LOCALAPPDATA%\LectorMd\`:
 | `settings.json` | Configuración y pestañas abiertas. La clave de Azure va cifrada |
 | `uso-azure.json` | Caracteres enviados a Azure este mes |
 | `pegados\` | Texto Markdown pegado en pestañas. Cada archivo se borra al cerrar su pestaña |
+| `apuntes\` | Los apuntes de cada documento, un archivo por documento. Los de un texto pegado se borran con su pestaña |
 | `cuenta-azure.json` | Qué cuenta de Azure se usa para consultar el consumo real (sin contraseñas ni tokens) |
 | `pronunciacion.json` | Diccionario de pronunciación |
 | `cache\` | Audio generado (MP3 de Azure y Google, WAV de Kokoro y Piper). Se recorta solo al pasar de 1 GB |
@@ -197,6 +200,7 @@ src/LectorMd.Core          Lógica sin dependencias de interfaz (net10.0)
   Planning/                Agrupa segmentos en bloques de audio deterministas (para la caché)
   Tts/                     Azure (Speech SDK), Google (REST), Kokoro (KokoroSharp, en el proceso), Piper (proceso persistente --json-input) e híbrido
   Caching/, Usage/         Caché de audio, contador mensual de cuota y consumo real (Azure Monitor)
+  Notes/                   Apuntes: guardado por documento, líneas y sección de cada cita, y exportación para una IA
 src/LectorMd.App           WPF: WebView2 para el documento, MediaPlayer para el audio
   Controls/                Barra de título (botones de ventana) y reproductor con línea de tiempo
 tests/LectorMd.Core.Tests  Pruebas unitarias xUnit del núcleo

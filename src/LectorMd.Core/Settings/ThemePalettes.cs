@@ -90,6 +90,13 @@ public static class ThemePalettes
             ["important"] = dark ? "#AB7DF8" : "#8250DF",
             ["warning"] = dark ? "#D29922" : "#9A6700",
             ["caution"] = dark ? "#F85149" : "#CF222E",
+            // Apuntes: el tono del subrayado y el color de la etiqueta de cada tipo (Aclarar, Mejorar, Otro).
+            ["annot-clarify"] = dark ? "#3A2C5A" : "#EADFFB",
+            ["annot-clarify-edge"] = dark ? "#C4A8FF" : "#6E3FC8",
+            ["annot-improve"] = dark ? "#1E3B2A" : "#D9F2E1",
+            ["annot-improve-edge"] = dark ? "#6DD58C" : "#176F30",
+            ["annot-other"] = dark ? "#33373D" : "#E8EAED",
+            ["annot-other-edge"] = dark ? "#B1BAC4" : "#57606A",
         };
 }
 

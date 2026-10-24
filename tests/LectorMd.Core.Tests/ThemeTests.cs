@@ -41,6 +41,22 @@ public class ThemeTests
         Assert.True(ColorContrast.Ratio(c.Accent, c.Surface) >= 3, "acento como ícono o borde");
     }
 
+    [Theory]
+    [MemberData(nameof(EveryPaletteAndMode))]
+    public void NoteKinds_HaveReadableChips_AndATintTheTextReadsOver(ThemePalette palette, bool dark)
+    {
+        PaletteColors c = ThemePalettes.Get(palette, dark);
+        IReadOnlyDictionary<string, string> css = ThemePalettes.DocumentVariables(c, dark);
+
+        foreach (string kind in new[] { "clarify", "improve", "other" })
+        {
+            Assert.True(ColorContrast.Ratio(css[$"annot-{kind}-edge"], css[$"annot-{kind}"]) >= 4.5, $"etiqueta {kind}");
+            Assert.True(ColorContrast.Ratio(c.DocumentText, css[$"annot-{kind}"]) >= 4.5, $"texto subrayado {kind}");
+        }
+
+        Assert.True(ColorContrast.Ratio(css["muted"], css["soft"]) >= 4.5, "tipos sin elegir de la tarjeta");
+    }
+
     [Fact]
     public void Palettes_ClassicIsTheOriginalDesign()
     {

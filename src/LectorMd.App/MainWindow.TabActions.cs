@@ -283,6 +283,7 @@ public partial class MainWindow
             return;
         }
 
+        MoveNotes(pastedCopy, dialog.FileName);
         tab.State.Path = dialog.FileName;
         tab.State.IsPasted = false;
         tab.State.Title = null;

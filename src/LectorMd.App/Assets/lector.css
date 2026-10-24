@@ -18,6 +18,9 @@
   --important: #8250df;
   --warning: #9a6700;
   --caution: #cf222e;
+  --annot-clarify: #eadffb; --annot-clarify-edge: #6e3fc8;
+  --annot-improve: #d9f2e1; --annot-improve-edge: #176f30;
+  --annot-other: #e8eaed; --annot-other-edge: #57606a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,6 +42,9 @@
     --important: #ab7df8;
     --warning: #d29922;
     --caution: #f85149;
+    --annot-clarify: #3a2c5a; --annot-clarify-edge: #c4a8ff;
+    --annot-improve: #1e3b2a; --annot-improve-edge: #6dd58c;
+    --annot-other: #33373d; --annot-other-edge: #b1bac4;
   }
 }
 
@@ -239,6 +245,222 @@ pre.lector-reading { box-shadow: -6px 0 0 0 var(--reading-edge); }
 .lector-find button:hover:not(:disabled) { background: var(--soft); }
 .lector-find button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
 .lector-find button[data-find="play"]:not(:disabled) { color: var(--accent); }
+
+/* ---- Apuntes: subrayado de las citas, columna de tarjetas, marcas en el margen ---- */
+::highlight(lector-note-clarify) { background-color: var(--annot-clarify); text-decoration: underline 2px var(--annot-clarify-edge); }
+::highlight(lector-note-improve) { background-color: var(--annot-improve); text-decoration: underline 2px var(--annot-improve-edge); }
+::highlight(lector-note-other) { background-color: var(--annot-other); text-decoration: underline 2px var(--annot-other-edge); }
+::highlight(lector-note-active) { background-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* La columna (280 px, que pisa 24 px del margen del texto) va a la derecha; el documento se corre para dejarle lugar. */
+body.has-notes:not(.notes-compact) main.doc {
+  max-width: min(860px, calc(100% - 272px));
+  margin-left: max(0px, calc((100% - 860px - 272px) / 2));
+  margin-right: 0;
+}
+
+.lector-note-ui { font-size: 14px; line-height: 1.4; }
+.lector-notes[hidden], .lector-note-markers[hidden], .lector-undo[hidden] { display: none; }
+.lector-notes { position: absolute; top: 0; width: 280px; }
+.notes-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 8px;
+  background: var(--bg);
+}
+.notes-title { flex-basis: 100%; font-size: 13px; color: var(--muted); font-weight: 600; }
+.notes-head button, .lector-undo button {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--fg);
+  cursor: pointer;
+}
+.notes-head button[data-act="export"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.notes-head button:hover:not(:disabled) { filter: brightness(1.06); }
+.notes-head button:disabled { opacity: 0.45; cursor: default; }
+
+.note-card {
+  padding: 8px 10px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--annot-clarify-edge);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.lector-notes .note-card { position: absolute; left: 0; right: 0; }
+.note-card.kind-improve { border-left-color: var(--annot-improve-edge); }
+.note-card.kind-other { border-left-color: var(--annot-other-edge); }
+.note-card.active { box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgb(0 0 0 / 0.16); }
+.note-card.flash { animation: lector-note-flash 0.9s ease-out; }
+@keyframes lector-note-flash { from { box-shadow: 0 0 0 4px var(--accent); } }
+.note-card.resolved { opacity: 0.6; }
+.note-card.orphan { border-left-style: dashed; }
+.note-card.orphan .note-where { color: var(--caution); }
+
+.note-top { display: flex; align-items: center; gap: 6px; }
+/* Los tres tipos, siempre a la vista: el elegido lleva el color de su subrayado. */
+.note-kinds { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--soft); }
+.note-kind {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.note-kind:hover { color: var(--fg); }
+.note-kind.kind-clarify[aria-checked="true"] { color: var(--annot-clarify-edge); background: var(--annot-clarify); }
+.note-kind.kind-improve[aria-checked="true"] { color: var(--annot-improve-edge); background: var(--annot-improve); }
+.note-kind.kind-other[aria-checked="true"] { color: var(--annot-other-edge); background: var(--annot-other); }
+.note-kind[aria-checked="true"] { box-shadow: 0 0 0 1px currentColor inset; }
+.note-actions { display: flex; align-items: center; gap: 4px; margin: 6px -4px -4px; }
+.note-actions .note-done { margin-right: auto; }
+.note-where {
+  margin-left: auto;
+  padding-left: 2px;
+  color: var(--muted);
+  font-family: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+.note-done { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.note-done input { margin: 0; }
+.note-icon {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 12px;
+  cursor: pointer;
+}
+.note-icon:hover:not(:disabled) { background: var(--soft); color: var(--fg); }
+.note-icon[data-act="play"]:not(:disabled) { color: var(--accent); }
+.note-icon:disabled { opacity: 0.4; cursor: default; }
+
+.note-quote {
+  margin: 6px 0;
+  padding: 0 0 0 8px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.note-text { padding: 2px 4px; margin: 0 -4px; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.note-text:hover { background: var(--soft); }
+.note-empty { color: var(--muted); font-style: italic; }
+.note-editor {
+  display: block;
+  width: 100%;
+  font: inherit;
+  color: var(--fg);
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 5px 7px;
+  resize: vertical;
+  outline: none;
+}
+.note-hint { margin-top: 3px; color: var(--muted); font-size: 11px; }
+
+/* Ventana angosta: marcas junto al texto y, al tocarlas, la tarjeta flotando debajo de la cita. */
+body.notes-compact .lector-notes {
+  position: fixed;
+  top: auto;
+  left: 12px;
+  bottom: 12px;
+  z-index: 9;
+  width: auto;
+  height: auto !important;
+}
+body.notes-compact .notes-head {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+}
+body.notes-compact .notes-title { flex-basis: auto; }
+body.notes-compact .notes-cards { display: none; }
+.lector-note-markers { position: absolute; top: 0; left: 0; }
+.note-marker {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--annot-clarify-edge);
+  border-radius: 50%;
+  color: var(--annot-clarify-edge);
+  background: var(--annot-clarify);
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 11px;
+  cursor: pointer;
+}
+.note-marker.kind-improve { border-color: var(--annot-improve-edge); color: var(--annot-improve-edge); background: var(--annot-improve); }
+.note-marker.kind-other { border-color: var(--annot-other-edge); color: var(--annot-other-edge); background: var(--annot-other); }
+.note-marker.resolved { opacity: 0.45; }
+.note-popover { position: absolute; z-index: 8; }
+.note-popover .note-card { box-shadow: 0 6px 22px rgb(0 0 0 / 0.25); }
+
+/* Menú del clic derecho y aviso de "Deshacer". */
+.lector-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgb(0 0 0 / 0.22);
+}
+.lector-menu button {
+  display: block;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.lector-menu button:hover, .lector-menu button:focus-visible { background: var(--soft); outline: none; }
+.lector-undo {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 20;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 8px 8px 14px;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgb(0 0 0 / 0.25);
+}
+.lector-undo button { background: transparent; color: var(--bg); border-color: currentColor; font-weight: 600; }
+body.notes-compact .lector-undo { bottom: 74px; }
 
 /* ---- Pantalla de bienvenida ---- */
 .welcome {

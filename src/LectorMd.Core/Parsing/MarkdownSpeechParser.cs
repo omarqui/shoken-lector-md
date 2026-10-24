@@ -45,7 +45,7 @@ public sealed class MarkdownSpeechParser
         ArgumentNullException.ThrowIfNull(markdown);
 
         MarkdownDocument document = Markdig.Markdown.Parse(markdown, _pipeline);
-        var state = new State(_options);
+        var state = new State(_options, markdown);
         VisitChildren(document, state, SegmentKind.Paragraph);
 
         string title = state.Segments.FirstOrDefault(s => s.IsHeading)?.PlainText is { Length: > 0 } heading
@@ -458,6 +458,7 @@ public sealed class MarkdownSpeechParser
                 PauseBeforeMs = i == 0 ? pauseBefore + state.TakePendingPause() : 0,
                 PauseAfterMs = i == parts.Count - 1 ? pauseAfter : 0,
                 Line = block.Line + 1,
+                EndLine = block.Span.End >= block.Span.Start && block.Span.Start >= 0 ? state.LineAt(block.Span.End) : block.Line + 1,
             });
         }
     }
@@ -607,11 +608,33 @@ public sealed class MarkdownSpeechParser
         _ => language,
     };
 
-    private sealed class State(MarkdownSpeechOptions options)
+    private sealed class State(MarkdownSpeechOptions options, string markdown)
     {
         private int _anchorCounter;
+        private readonly int[] _lineStarts = LineStarts(markdown);
 
         public MarkdownSpeechOptions Options { get; } = options;
+
+        /// <summary>Línea (1-based) del carácter en <paramref name="offset"/> del Markdown.</summary>
+        public int LineAt(int offset)
+        {
+            int index = Array.BinarySearch(_lineStarts, offset);
+            return (index >= 0 ? index : ~index - 1) + 1;
+        }
+
+        private static int[] LineStarts(string text)
+        {
+            var starts = new List<int> { 0 };
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == '\n')
+                {
+                    starts.Add(i + 1);
+                }
+            }
+
+            return starts.ToArray();
+        }
 
         public List<SpeechSegment> Segments { get; } = [];
 
@@ -629,6 +652,8 @@ public sealed class MarkdownSpeechParser
         {
             string id = "s" + (++_anchorCounter).ToString(CultureInfo.InvariantCulture);
             block.GetAttributes().AddProperty("data-seg", id);
+            // Para los apuntes: si una cita se repite, la página elige la aparición más cercana a su línea.
+            block.GetAttributes().AddProperty("data-line", (block.Line + 1).ToString(CultureInfo.InvariantCulture));
             return id;
         }
     }

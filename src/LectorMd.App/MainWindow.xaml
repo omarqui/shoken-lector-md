@@ -156,6 +156,18 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Apuntes: muestra u oculta su columna; el número son los pendientes. -->
+                    <Button x:Name="NotesToggle" Style="{StaticResource FlatIconButton}" Click="OnNotesToggleClick" Height="36" MinWidth="36"
+                            Padding="8,0" Margin="0,0,2,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="NotesIcon" Style="{StaticResource IconText}" FontSize="15" Text="&#xE70B;" VerticalAlignment="Center" />
+                            <Border x:Name="NotesCountBadge" Visibility="Collapsed" Background="{DynamicResource LectorAccentBrush}"
+                                    CornerRadius="8" MinWidth="18" Padding="5,0" Margin="6,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="NotesCount" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" Foreground="{DynamicResource LectorOnAccentBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="FindButton" Style="{StaticResource FlatIconButton}" Click="OnFindClick" ToolTip="Buscar en el documento (Ctrl+F)"
                             AutomationProperties.Name="Buscar" Width="36" Height="36" Margin="0,0,2,0">
                         <TextBlock Style="{StaticResource IconText}" FontSize="15" Text="&#xE721;" />
@@ -333,14 +345,27 @@
                         <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.25" />
                     </Border.Effect>
                     <Grid>
-                        <Button x:Name="PronounceChip" Style="{StaticResource FlatIconButton}" Padding="8,4" Click="OnPronounceChipClick">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE767;" Margin="0,0,6,0"
-                                           Foreground="{DynamicResource LectorAccentBrush}" />
-                                <TextBlock x:Name="PronounceChipText" FontSize="{DynamicResource LectorFontSize12}" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource LectorTextBrush}" />
-                            </StackPanel>
-                        </Button>
+                        <!-- Junto a la selección: agregar un apunte y, si son 1 a 3 palabras, editar su pronunciación. -->
+                        <StackPanel x:Name="SelectionChips" Orientation="Horizontal">
+                            <Button x:Name="NoteChip" Style="{StaticResource FlatIconButton}" Padding="8,4" Click="OnNoteChipClick"
+                                    ToolTip="Agregar un apunte sobre lo seleccionado, para pedirle a una IA que lo aclare o mejore (Ctrl+Alt+M)"
+                                    AutomationProperties.Name="Agregar apunte">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE70B;" Margin="0,0,6,0"
+                                               Foreground="{DynamicResource LectorAccentBrush}" />
+                                    <TextBlock Text="Apunte" FontSize="{DynamicResource LectorFontSize12}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource LectorTextBrush}" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PronounceChip" Style="{StaticResource FlatIconButton}" Padding="8,4" Margin="2,0,0,0" Click="OnPronounceChipClick">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource IconText}" FontSize="12" Text="&#xE767;" Margin="0,0,6,0"
+                                               Foreground="{DynamicResource LectorAccentBrush}" />
+                                    <TextBlock x:Name="PronounceChipText" FontSize="{DynamicResource LectorFontSize12}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource LectorTextBrush}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
 
                         <StackPanel x:Name="PronounceEditor" Visibility="Collapsed" Width="320" Margin="8,6,8,8">
                             <TextBlock x:Name="PronounceTitle" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"

@@ -12,8 +12,8 @@ using LectorMd.Core.Tts;
 namespace LectorMd.App;
 
 /// <summary>
-/// Editar la pronunciación de lo seleccionado en el documento: al seleccionar 1 a 3 palabras aparece un botón
-/// junto a la selección; al pulsarlo, un editor para agregarla al diccionario, cambiarla, quitarla o escucharla.
+/// Lo seleccionado en el documento: aparece junto a la selección un botón para agregar un apunte y, si son 1 a 3
+/// palabras, otro para editar su pronunciación (un editor para agregarla al diccionario, cambiarla, quitarla o escucharla).
 /// </summary>
 public partial class MainWindow
 {
@@ -21,7 +21,7 @@ public partial class MainWindow
     private string? _pronounceTerm;
     private string? _pronounceAnchor;
 
-    private void OnSelectionMade(string text, Point at, string? anchor)
+    private void OnSelectionMade(string text, Point at, string? anchor, bool isShort)
     {
         if (_services is null || PronounceEditor.Visibility == Visibility.Visible)
         {
@@ -34,7 +34,8 @@ public partial class MainWindow
         PronounceChipText.Text = current is null ? "Pronunciación" : $"«{current}» · editar";
         System.Windows.Automation.AutomationProperties.SetName(PronounceChip,
             current is null ? $"Agregar pronunciación de {text}" : $"Editar pronunciación de {text}");
-        PronounceChip.Visibility = Visibility.Visible;
+        PronounceChip.Visibility = isShort ? Visibility.Visible : Visibility.Collapsed; // una frase larga solo admite apunte
+        SelectionChips.Visibility = Visibility.Visible;
         PronounceEditor.Visibility = Visibility.Collapsed;
         PronouncePopup.HorizontalOffset = at.X;
         PronouncePopup.VerticalOffset = at.Y + 4;
@@ -66,7 +67,7 @@ public partial class MainWindow
             ? "No está en el diccionario: se agrega al guardar. Escríbelo como se dice en español."
             : "Está en el diccionario. Los cambios se aplican a todos los documentos.";
         PronounceRemove.IsEnabled = current is not null;
-        PronounceChip.Visibility = Visibility.Collapsed;
+        SelectionChips.Visibility = Visibility.Collapsed;
         PronounceEditor.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
         {
@@ -121,7 +122,7 @@ public partial class MainWindow
     private void OnPronouncePopupClosed(object? sender, EventArgs e)
     {
         PronounceEditor.Visibility = Visibility.Collapsed;
-        PronounceChip.Visibility = Visibility.Visible;
+        SelectionChips.Visibility = Visibility.Visible;
     }
 
     /// <summary>Guarda en el diccionario (o quita, con null) y recarga la pestaña en el mismo párrafo.</summary>

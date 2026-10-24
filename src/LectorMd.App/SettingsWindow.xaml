@@ -257,6 +257,20 @@
 
                 <Separator Margin="0,22" />
 
+                <!-- Apuntes -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Apuntes para la IA" />
+                <TextBlock Style="{StaticResource Hint}">
+                    «Copiar para la IA» (en la columna de apuntes) copia esta instrucción y, debajo, cada apunte pendiente
+                    con su línea del Markdown, su sección, el texto señalado y tu nota. Al copiar, {archivo} se cambia por
+                    la ruta del documento, {titulo} por su título y {cantidad} por cuántos apuntes van.
+                </TextBlock>
+                <TextBox x:Name="NotesInstructionBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="260"
+                         VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Instrucción para la IA" />
+                <Button Content="Restaurar la instrucción original" HorizontalAlignment="Left" Padding="12,6" Margin="0,8,0,0"
+                        Click="OnRestoreNotesInstructionClick" />
+
+                <Separator Margin="0,22" />
+
                 <!-- Pronunciación y caché -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Pronunciación y caché" />
                 <TextBlock Style="{StaticResource Hint}">

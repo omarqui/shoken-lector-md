@@ -7,6 +7,7 @@ using System.Windows.Media;
 using LectorMd.App.Services;
 using LectorMd.Core;
 using LectorMd.Core.Caching;
+using LectorMd.Core.Notes;
 using LectorMd.Core.Parsing;
 using LectorMd.Core.Planning;
 using LectorMd.Core.Settings;
@@ -70,6 +71,7 @@ public partial class SettingsWindow : Window
         ImageAltBox.IsChecked = settings.ReadImageAltText;
         TextSizeBox.SelectedIndex = (int)settings.TextSize;
         PaletteBox.SelectedIndex = (int)settings.Palette;
+        NotesInstructionBox.Text = settings.NotesInstruction ?? NoteExporter.DefaultInstruction;
         foreach ((string id, string name, string kind) in KokoroTtsEngine.Voices)
         {
             KokoroVoiceBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = $"{name} ({kind})", Tag = id });
@@ -102,6 +104,9 @@ public partial class SettingsWindow : Window
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
         settings.TextSize = (TextSize)Math.Max(0, TextSizeBox.SelectedIndex);
         settings.Palette = (ThemePalette)Math.Max(0, PaletteBox.SelectedIndex);
+        // La de la app se guarda como null: así se recibe cuando la app la mejore.
+        string instruction = NotesInstructionBox.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        settings.NotesInstruction = instruction.Length == 0 || instruction == NoteExporter.DefaultInstruction ? null : instruction;
         settings.KokoroVoice = (KokoroVoiceBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "ef_dora";
         settings.AzureTenantId = string.IsNullOrWhiteSpace(AzureTenantBox.Text) ? null : AzureTenantBox.Text.Trim();
         settings.GoogleApiKey = GoogleKeyBox.Password.Trim();
@@ -172,6 +177,9 @@ public partial class SettingsWindow : Window
             TextScale.Apply((TextSize)TextSizeBox.SelectedIndex);
         }
     }
+
+    private void OnRestoreNotesInstructionClick(object sender, RoutedEventArgs e) =>
+        NotesInstructionBox.Text = NoteExporter.DefaultInstruction;
 
     private void OnPaletteChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {

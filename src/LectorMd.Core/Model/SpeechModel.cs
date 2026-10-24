@@ -57,6 +57,9 @@ public sealed class SpeechSegment
     /// <summary>Línea (1-based) del Markdown de origen.</summary>
     public int Line { get; init; }
 
+    /// <summary>Última línea (1-based) del bloque en el Markdown: un párrafo puede ocupar varias.</summary>
+    public int EndLine { get; init; }
+
     public bool IsHeading => Kind == SegmentKind.Heading;
 
     public string PlainText => _plainText ??= string.Concat(Runs.Select(r => r.Text));

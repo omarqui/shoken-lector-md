@@ -158,8 +158,23 @@ public class MarkdownSpeechParserTests
 
         SpeechSegment diagram = Assert.Single(doc.Segments);
         Assert.Equal("Diagrama.", diagram.PlainText);
-        Assert.Contains($"<pre class=\"mermaid\" data-seg=\"{diagram.AnchorId}\">sequenceDiagram", doc.HtmlBody);
+        Assert.Contains($"<pre class=\"mermaid\" data-seg=\"{diagram.AnchorId}\" data-line=\"1\">sequenceDiagram", doc.HtmlBody);
         Assert.Contains("A->>B: Hola &lt;b>x&lt;/b>", doc.HtmlBody); // escapado: el código no se vuelve HTML
+    }
+
+    [Fact]
+    public void Segments_KnowWhereTheyStartAndEndInTheMarkdown_AndTheHtmlCarriesTheStartLine()
+    {
+        var doc = Parse("# Título\n\nPrimera línea\nsegunda línea\ntercera.\n\n- uno\n- dos");
+
+        SpeechSegment heading = doc.Segments[0];
+        SpeechSegment paragraph = doc.Segments.Single(s => s.PlainText.StartsWith("Primera", StringComparison.Ordinal));
+        SpeechSegment second = doc.Segments.Single(s => s.PlainText.Contains("dos", StringComparison.Ordinal));
+
+        Assert.Equal((1, 1), (heading.Line, heading.EndLine));
+        Assert.Equal((3, 5), (paragraph.Line, paragraph.EndLine));
+        Assert.Equal((8, 8), (second.Line, second.EndLine));
+        Assert.Contains($"data-seg=\"{paragraph.AnchorId}\" data-line=\"3\"", doc.HtmlBody);
     }
 
     [Fact]

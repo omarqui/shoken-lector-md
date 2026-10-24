@@ -75,6 +75,12 @@ public sealed class AppSettings
     /// <summary>Tema de color (cada uno con versión clara y oscura); <see cref="Theme"/> elige cuál se ve.</summary>
     public ThemePalette Palette { get; set; } = ThemePalette.Paper;
 
+    /// <summary>Columna de apuntes a la derecha del documento (cuando el documento tiene apuntes).</summary>
+    public bool ShowNotes { get; set; } = true;
+
+    /// <summary>Instrucción para la IA al copiar los apuntes; null = la que trae la app (NoteExporter.DefaultInstruction).</summary>
+    public string? NotesInstruction { get; set; }
+
     /// <summary>Tamaño de los textos de la interfaz (no del documento, que se agranda con Ctrl+rueda).</summary>
     public TextSize TextSize { get; set; } = TextSize.Large;
 
@@ -134,6 +140,9 @@ public sealed class AppPaths(string root)
 
     /// <summary>Texto Markdown pegado en pestañas; cada archivo se borra al cerrar su pestaña.</summary>
     public string PastedDirectory => Path.Combine(Root, "pegados");
+
+    /// <summary>Apuntes de cada documento (un archivo por documento).</summary>
+    public string NotesDirectory => Path.Combine(Root, "apuntes");
 
     /// <summary>Modelo de Kokoro (unos 310 MB), descargado desde Configuración.</summary>
     public string KokoroModelFile => Path.Combine(Root, "kokoro", "kokoro.onnx");

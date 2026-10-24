@@ -142,7 +142,8 @@ public partial class MainWindow : Window
             _view.CommandRequested += command => Dispatcher.InvokeAsync(() => ExecuteCommand(command));
             _view.LinkActivated += uri => Dispatcher.InvokeAsync(() => OnLinkActivated(uri));
             _view.FileDropped += path => Dispatcher.InvokeAsync(() => _ = OpenFilesAsync([path]));
-            _view.SelectionMade += (text, at, anchor) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor));
+            _view.SelectionMade += (text, at, anchor, isShort) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor, isShort));
+            _view.NoteRequested += request => Dispatcher.InvokeAsync(() => OnNoteRequested(request));
             _view.SelectionCleared += () => Dispatcher.InvokeAsync(OnSelectionCleared);
             _view.FindChanged += counts => Dispatcher.InvokeAsync(() => ShowFindCounts(counts));
             _view.ScrollChanged += y => Dispatcher.InvokeAsync(() =>
@@ -402,6 +403,7 @@ public partial class MainWindow : Window
         RememberPosition();
         _player.Unload(); // cambiar de pestaña pausa la lectura; cada una recuerda su párrafo
         _active = tab;
+        ClearNotes(); // los del documento nuevo llegan cuando se muestre
         SelectTab(tab);
         double scrollY = tab.State.ScrollY;
 
@@ -461,6 +463,11 @@ public partial class MainWindow : Window
         }
 
         _shownActivation = activation;
+        await ShowNotesAsync(tab, document); // antes de restaurar el desplazamiento: la columna corre el texto
+        if (activation != _activation)
+        {
+            return;
+        }
 
         string? resumeAnchor = resume is { } id && id < document.Segments.Count ? document.Segments[id].AnchorId : null;
         if (resumeAnchor is not null)
@@ -516,6 +523,7 @@ public partial class MainWindow : Window
             _player.Unload();
             _active = null;
             _document = null;
+            ClearNotes();
         }
 
         _syncingTabs = true;
@@ -525,6 +533,7 @@ public partial class MainWindow : Window
         if (tab.State.IsPasted)
         {
             TryDelete(tab.State.Path);
+            DeleteNotes(tab.State.Path);
         }
 
         if (!wasActive)
@@ -547,6 +556,7 @@ public partial class MainWindow : Window
         _player.Unload();
         _active = null;
         _document = null;
+        ClearNotes();
         _chunks = [];
         RebuildTimeline();
         ShowOutline(null);
@@ -637,6 +647,7 @@ public partial class MainWindow : Window
                 if (!inUse.Contains(Path.GetFullPath(file)))
                 {
                     TryDelete(file);
+                    DeleteNotes(file);
                 }
             }
         }
@@ -1186,6 +1197,7 @@ public partial class MainWindow : Window
             case "previousTab": SwitchTab(-1); break;
             case "outline": ToggleOutline(); break;
             case "find": OpenFind(); break;
+            case "note" when _notes is not null: _ = _view?.CreateNoteHereAsync(); break;
             case "back10": SkipBy(TimeSpan.FromSeconds(-10)); break;
             case "forward10": SkipBy(TimeSpan.FromSeconds(10)); break;
         }
@@ -1242,6 +1254,13 @@ public partial class MainWindow : Window
 
         bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
         bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+        if (ctrl && Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) && (e.Key == Key.System ? e.SystemKey : e.Key) == Key.M)
+        {
+            e.Handled = true;
+            ExecuteCommand("note"); // apunte a la selección o al párrafo que se lee (con Alt, WPF lo da como Key.System)
+            return;
+        }
+
         string? command = e.Key switch
         {
             Key.Space when !ctrl => "toggle",
@@ -1712,6 +1731,7 @@ public partial class MainWindow : Window
         Player.SetState(_player.State, _player.HasDocument);
         ReloadButton.IsEnabled = _active is { State.IsEmpty: false }; // pestaña vacía o bienvenida: nada que recargar
         FindButton.IsEnabled = ReloadButton.IsEnabled;
+        UpdateNotesButton();
     }
 }
 
