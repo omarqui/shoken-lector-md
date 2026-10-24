@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Logo de Shoken: el signo de párrafo y tres renglones; el del medio es una curva de entonación.
+       Original del ícono: empaquetado/generar-icono.cs genera app.ico a partir de este archivo. -->
+  <rect width="256" height="256" rx="60" fill="#2F6F8F"/>
+  <g transform="translate(-9 -2)">
+    <g fill="#FBF9F4">
+      <path d="M 72 70 A 22 22 0 0 0 72 114 Z"/>
+      <rect x="68" y="70" width="28" height="10"/>
+      <rect x="68" y="70" width="10" height="112"/>
+      <rect x="86" y="70" width="10" height="112"/>
+    </g>
+    <g fill="none" stroke-linecap="round">
+      <path d="M 116 74 H 196" stroke="#FBF9F4" stroke-width="12"/>
+      <path d="M 112 146 C 134 146, 140 100, 164 102 C 188 104, 192 158, 214 140" stroke="#F2B35B" stroke-width="20"/>
+      <path d="M 116 186 H 168" stroke="#FBF9F4" stroke-width="12"/>
+    </g>
+  </g>
+</svg>

@@ -16,7 +16,7 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon _icon;
     private readonly ContextMenu _menu;
-    private readonly IntPtr _iconHandle;
+    private readonly Drawing.Icon _image;
 
     public TrayIcon(Action open, Action readClipboard, Action exit)
     {
@@ -26,8 +26,8 @@ internal sealed class TrayIcon : IDisposable
         _menu.Items.Add(new Separator());
         _menu.Items.Add(Item("Salir", exit));
 
-        (Drawing.Icon icon, _iconHandle) = CreateIcon();
-        _icon = new Forms.NotifyIcon { Icon = icon, Text = "Shoken · Ctrl+Alt+L lee lo que copiaste", Visible = true };
+        _image = LoadIcon();
+        _icon = new Forms.NotifyIcon { Icon = _image, Text = "Shoken · Ctrl+Alt+L lee lo que copiaste", Visible = true };
         _icon.MouseClick += (_, e) =>
         {
             if (e.Button == Forms.MouseButtons.Right)
@@ -51,7 +51,7 @@ internal sealed class TrayIcon : IDisposable
         // Sin esto queda un "ícono fantasma" en la bandeja hasta que se pasa el mouse por encima.
         _icon.Visible = false;
         _icon.Dispose();
-        DestroyIcon(_iconHandle);
+        _image.Dispose();
     }
 
     private void ShowMenu()
@@ -77,36 +77,13 @@ internal sealed class TrayIcon : IDisposable
         return item;
     }
 
-    /// <summary>El ícono de la app: cuadrado redondeado con el acento y el altavoz de Segoe Fluent Icons.</summary>
-    private static (Drawing.Icon Icon, IntPtr Handle) CreateIcon()
+    /// <summary>El ícono de la app (Assets/app.ico) en el tamaño de la bandeja con la escala actual (16, 20, 24 o 32 px).</summary>
+    private static Drawing.Icon LoadIcon()
     {
-        using var bitmap = new Drawing.Bitmap(32, 32);
-        using (Drawing.Graphics g = Drawing.Graphics.FromImage(bitmap))
-        {
-            g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            using var path = new Drawing.Drawing2D.GraphicsPath();
-            const int r = 8;
-            path.AddArc(1, 1, r * 2, r * 2, 180, 90);
-            path.AddArc(31 - r * 2, 1, r * 2, r * 2, 270, 90);
-            path.AddArc(31 - r * 2, 31 - r * 2, r * 2, r * 2, 0, 90);
-            path.AddArc(1, 31 - r * 2, r * 2, r * 2, 90, 90);
-            path.CloseFigure();
-            using var accent = new Drawing.SolidBrush(Drawing.Color.FromArgb(0x00, 0x5F, 0xB8));
-            g.FillPath(accent, path);
-
-            using var font = new Drawing.Font("Segoe Fluent Icons", 15, Drawing.GraphicsUnit.Pixel);
-            using var format = new Drawing.StringFormat { Alignment = Drawing.StringAlignment.Center, LineAlignment = Drawing.StringAlignment.Center };
-            g.DrawString("", font, Drawing.Brushes.White, new Drawing.RectangleF(0, 1, 32, 32), format);
-        }
-
-        IntPtr handle = bitmap.GetHicon();
-        return (Drawing.Icon.FromHandle(handle), handle);
+        using Stream stream = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico")).Stream;
+        return new Drawing.Icon(stream, Forms.SystemInformation.SmallIconSize);
     }
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr handle);
 }

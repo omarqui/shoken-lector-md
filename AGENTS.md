@@ -24,7 +24,7 @@ Requiere el SDK de .NET 10 y el runtime de WebView2. Corre `dotnet test` antes d
 | `src/Shoken.App` (`net10.0-windows`) | WPF: WebView2 muestra el documento y `MediaPlayer` reproduce el audio. `Controls/` tiene la barra de título y el reproductor (`PlayerBar`) |
 | `tests/Shoken.Core.Tests` | Pruebas xUnit del núcleo (`InternalsVisibleTo` habilitado) |
 | `docs/ejemplo.md` | Documento con todos los elementos de Markdown: úsalo para probar a mano |
-| `empaquetado/` | Manifiesto MSIX (`AppxManifest.xml`) y `empaquetar.ps1`, que arma el paquete para la Microsoft Store |
+| `empaquetado/` | Manifiesto MSIX (`AppxManifest.xml`), `empaquetar.ps1` (arma el paquete para la Microsoft Store) y `generar-icono.cs` (genera `Assets/app.ico` desde `Assets/logo.svg`; no edites el `.ico` a mano) |
 
 El flujo, de punta a punta:
 

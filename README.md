@@ -65,7 +65,7 @@ Antes del primer envío:
 
 - En [Partner Center](https://partner.microsoft.com/dashboard), reserva el nombre **Shoken: lee Markdown con entonación**, idéntico al `DisplayName` de `Properties` en el manifiesto. Copia los datos de *Identidad del producto* a `empaquetado\AppxManifest.xml` (`Identity Name`, `Publisher` y `PublisherDisplayName`), porque los que tiene son de prueba. En el menú Inicio la app se llama solo "Shoken".
 - La versión sale de `<Version>` en `Directory.Build.props` (tres números; el paquete le agrega un `.0` que la Store reserva). Súbela en cada envío.
-- Los logos se generan desde `src\Shoken.App\Assets\app.ico` (su cuadro de 256 px). Para cambiarlos, cambia el ícono.
+- El logo original es `src\Shoken.App\Assets\logo.svg`. Si lo cambias, corre `dotnet run empaquetado/generar-icono.cs`: regenera `app.ico`, del que salen el ícono del ejecutable, el de la ventana, el de la bandeja y los logos de la Store.
 
 ## 1. Configurar Azure (motor principal, gratis)
 
