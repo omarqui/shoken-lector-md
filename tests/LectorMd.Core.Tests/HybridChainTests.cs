@@ -56,7 +56,7 @@ public sealed class HybridChainTests : IDisposable
         var piper = new FakeEngine("Piper");
         var hybrid = new HybridTtsEngine(
             [new CloudEngine(azure, Usage("azure", azureLimit), "Azure"), new CloudEngine(google, Usage("google", googleLimit), "Google")],
-            piper, offlineOnly: false, utcNow: () => _now);
+            [piper], offlineOnly: false, utcNow: () => _now);
         return (hybrid, azure, google, piper);
     }
 
@@ -162,5 +162,65 @@ public sealed class HybridChainTests : IDisposable
         (HybridTtsEngine noQuota, _, FakeEngine google2, _) = Chain(azureLimit: 0);
         google2.Cached = Audio("Google", fromCache: true);
         Assert.Equal("Google", noQuota.TryGetCached(Chunk)?.EngineName);
+    }
+
+    // ------------------------------------------------------------------ motores locales: Kokoro y luego Piper
+
+    private (HybridTtsEngine Hybrid, FakeEngine Kokoro, FakeEngine Piper) LocalChain()
+    {
+        var kokoro = new FakeEngine("Kokoro");
+        var piper = new FakeEngine("Piper");
+        var hybrid = new HybridTtsEngine([], [kokoro, piper], offlineOnly: false, utcNow: () => _now);
+        return (hybrid, kokoro, piper);
+    }
+
+    [Fact]
+    public async Task Locals_KokoroWorks_UsesKokoro_AndPiperIsNotCalled()
+    {
+        (HybridTtsEngine hybrid, _, FakeEngine piper) = LocalChain();
+
+        AudioChunk audio = await hybrid.SynthesizeAsync(Chunk, CancellationToken.None);
+
+        Assert.Equal("Kokoro", audio.EngineName);
+        Assert.Equal(0, piper.Calls);
+    }
+
+    [Fact]
+    public async Task Locals_KokoroFails_FallsBackToPiper_WithKokoroReason_AndRestsKokoroForAWhile()
+    {
+        (HybridTtsEngine hybrid, FakeEngine kokoro, _) = LocalChain();
+        kokoro.FailWith = TtsFailureKind.EngineCrashed;
+
+        AudioChunk audio = await hybrid.SynthesizeAsync(Chunk, CancellationToken.None);
+        await hybrid.SynthesizeAsync(Chunk, CancellationToken.None);
+
+        Assert.Equal("Piper", audio.EngineName);
+        Assert.True(hybrid.Status.UsingFallback);
+        Assert.Contains("Kokoro falló", hybrid.Status.Reason);
+        Assert.Equal(1, kokoro.Calls); // en pausa: el segundo bloque va directo a Piper
+    }
+
+    [Fact]
+    public async Task Locals_KokoroNotInstalled_UsesPiperAsIfItWereTheOnlyOne()
+    {
+        (HybridTtsEngine hybrid, FakeEngine kokoro, _) = LocalChain();
+        kokoro.IsConfigured = false;
+
+        AudioChunk audio = await hybrid.SynthesizeAsync(Chunk, CancellationToken.None);
+
+        Assert.Equal("Piper", audio.EngineName);
+        Assert.False(hybrid.Status.UsingFallback);
+    }
+
+    [Fact]
+    public void Locals_PiperCache_IsNotReused_WhileKokoroCanRead()
+    {
+        (HybridTtsEngine hybrid, FakeEngine kokoro, FakeEngine piper) = LocalChain();
+        piper.Cached = Audio("Piper", fromCache: true);
+
+        Assert.Null(hybrid.TryGetCached(Chunk)); // se generará con Kokoro, no con la voz de respaldo
+
+        kokoro.Cached = Audio("Kokoro", fromCache: true);
+        Assert.Equal("Kokoro", hybrid.TryGetCached(Chunk)?.EngineName);
     }
 }

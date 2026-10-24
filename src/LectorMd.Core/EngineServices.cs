@@ -96,7 +96,18 @@ public sealed class EngineServices : IDisposable
                 new SsmlBuilder(normalizer), cache, googleUsage, GoogleHttp)
             : null;
 
-        // Automático: Azure → Google → Piper. Si se eligió un motor para probarlo, se usa solo ese (sin respaldo).
+        // Kokoro: el modelo se descarga desde Configuración; las voces las trae la app. Crearlo no carga el modelo.
+        var kokoro = new KokoroTtsEngine(
+            new KokoroTtsOptions
+            {
+                ModelPath = paths.KokoroModelFile,
+                Voice = string.IsNullOrWhiteSpace(settings.KokoroVoice) ? "ef_dora" : settings.KokoroVoice.Trim(),
+                VoicesDirectory = KokoroVoicesDirectory,
+                RatePercent = settings.RatePercent,
+            },
+            normalizer, cache);
+
+        // Automático: Azure → Google → Kokoro → Piper. Si se eligió un motor para probarlo, se usa solo ese (sin respaldo).
         EngineChoice choice = settings.Engine;
         var clouds = new List<CloudEngine>();
         if (azure is not null && choice is EngineChoice.Auto or EngineChoice.Azure)
@@ -109,15 +120,32 @@ public sealed class EngineServices : IDisposable
             clouds.Add(new CloudEngine(google, googleUsage, "Google"));
         }
 
-        PiperTtsEngine? local = choice is EngineChoice.Auto or EngineChoice.Piper ? piper : null;
-        if (local is null)
+        var locals = new List<ITtsEngine>();
+        if (choice is EngineChoice.Auto or EngineChoice.Kokoro)
+        {
+            locals.Add(kokoro);
+        }
+        else
+        {
+            kokoro.Dispose();
+        }
+
+        if (piper is not null && choice is EngineChoice.Auto or EngineChoice.Piper)
+        {
+            locals.Add(piper);
+        }
+        else
         {
             piper?.Dispose();
         }
 
-        var engine = new HybridTtsEngine(clouds, local, settings.OfflineOnly || choice == EngineChoice.Piper);
+        bool offline = settings.OfflineOnly || choice is EngineChoice.Kokoro or EngineChoice.Piper;
+        var engine = new HybridTtsEngine(clouds, locals, offline);
         return new EngineServices(parser, new ChunkingOptions(), normalizer, cache, usage, googleUsage, engine);
     }
+
+    /// <summary>Voces de Kokoro en español (.npy), junto al ejecutable de la app.</summary>
+    public static string KokoroVoicesDirectory => Path.Combine(AppContext.BaseDirectory, "kokoro");
 
     // Una sola conexión HTTP para toda la app (crear un HttpClient por motor agota los sockets).
     private static readonly HttpClient GoogleHttp = new() { Timeout = TimeSpan.FromSeconds(30) };

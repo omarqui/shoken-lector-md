@@ -257,14 +257,14 @@ public partial class PlayerBar : UserControl
     }
 
     /// <summary>Marca el motor elegido y habilita solo los que están configurados.</summary>
-    public void SetEngineChoice(EngineChoice current, bool hasAzure, bool hasGoogle, bool hasPiper)
+    public void SetEngineChoice(EngineChoice current, bool hasAzure, bool hasGoogle, bool hasKokoro, bool hasPiper)
     {
         if (EngineChoicePanel.Children.Count == 0)
         {
             foreach ((EngineChoice choice, string label) in new[]
                      {
                          (EngineChoice.Auto, "Automático"), (EngineChoice.Azure, "Azure"),
-                         (EngineChoice.Google, "Google"), (EngineChoice.Piper, "Piper"),
+                         (EngineChoice.Google, "Google"), (EngineChoice.Kokoro, "Kokoro"), (EngineChoice.Piper, "Piper"),
                      })
             {
                 var button = new Button
@@ -290,6 +290,7 @@ public partial class PlayerBar : UserControl
             {
                 EngineChoice.Azure => hasAzure,
                 EngineChoice.Google => hasGoogle,
+                EngineChoice.Kokoro => hasKokoro,
                 EngineChoice.Piper => hasPiper,
                 _ => true,
             };

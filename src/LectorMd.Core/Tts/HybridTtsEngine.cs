@@ -12,26 +12,28 @@ public sealed record EngineStatus(string ActiveEngine, bool UsingFallback, strin
 public sealed record CloudEngine(ITtsEngine Engine, UsageTracker Usage, string Label);
 
 /// <summary>
-/// Cadena de motores: los de la nube en orden (Azure, luego Google) y Piper al final. Si un motor no está
-/// configurado, se quedó sin cuota, no hay conexión o rechaza la petición, el bloque pasa al siguiente y la
-/// lectura sigue. Cada motor en la nube tiene su propia pausa antes de volver a intentarlo.
+/// Cadena de motores: los de la nube en orden (Azure, luego Google) y los locales al final (Kokoro, luego
+/// Piper). Si un motor no está configurado, se quedó sin cuota, no hay conexión o rechaza la petición, el bloque
+/// pasa al siguiente y la lectura sigue. Cada motor tiene su propia pausa antes de volver a intentarlo.
 /// </summary>
 public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 {
     private static readonly TimeSpan NetworkCooldown = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan RateLimitCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan ErrorCooldown = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan LocalCooldown = TimeSpan.FromMinutes(2);
 
     private readonly List<Slot> _clouds;
-    private readonly ITtsEngine? _local;
+    private readonly List<LocalSlot> _locals;
     private readonly bool _offlineOnly;
     private readonly Func<DateTime> _utcNow;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public HybridTtsEngine(IReadOnlyList<CloudEngine> clouds, ITtsEngine? local, bool offlineOnly, Func<DateTime>? utcNow = null)
+    /// <param name="locals">Motores sin conexión en orden de preferencia; el último es el respaldo final.</param>
+    public HybridTtsEngine(IReadOnlyList<CloudEngine> clouds, IReadOnlyList<ITtsEngine> locals, bool offlineOnly, Func<DateTime>? utcNow = null)
     {
         _clouds = clouds.Select(c => new Slot(c)).ToList();
-        _local = local;
+        _locals = locals.Select(l => new LocalSlot(l)).ToList();
         _offlineOnly = offlineOnly;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         Status = InitialStatus();
@@ -45,7 +47,9 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
 
     private IEnumerable<Slot> ConfiguredClouds => _offlineOnly ? [] : _clouds.Where(s => s.Engine.IsConfigured);
 
-    private bool LocalConfigured => _local is { IsConfigured: true };
+    private List<LocalSlot> ConfiguredLocals => _locals.Where(l => l.Engine.IsConfigured).ToList();
+
+    private bool LocalConfigured => ConfiguredLocals.Count > 0;
 
     public bool IsConfigured => ConfiguredClouds.Any() || LocalConfigured;
 
@@ -68,7 +72,21 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
             }
         }
 
-        return LocalConfigured ? _local!.TryGetCached(chunk) : null;
+        // Igual entre los locales: el audio de Piper no se reutiliza mientras Kokoro pueda leer.
+        foreach (LocalSlot slot in ConfiguredLocals)
+        {
+            if (slot.Engine.TryGetCached(chunk) is { } cached)
+            {
+                return cached;
+            }
+
+            if (_utcNow() >= slot.RestUntilUtc)
+            {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     public async Task<AudioChunk> SynthesizeAsync(SpeechChunk chunk, CancellationToken cancellationToken)
@@ -125,24 +143,47 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
             fallbackReason = fallbackReason is null ? reason : $"{fallbackReason}; {slot.Label}: {reason}";
         }
 
-        if (LocalConfigured)
+        List<LocalSlot> locals = ConfiguredLocals;
+        string? localReason = null;
+        for (int i = 0; i < locals.Count; i++)
         {
-            AudioChunk audio = await _local!.SynthesizeAsync(chunk, cancellationToken).ConfigureAwait(false);
-            bool anyCloud = ConfiguredClouds.Any();
-            string? reason = anyCloud ? fallbackReason : _offlineOnly ? "modo sin conexión" : null;
-            SetStatus(new EngineStatus(_local.Name, anyCloud, reason));
-            return audio;
+            LocalSlot slot = locals[i];
+            bool last = i == locals.Count - 1;
+            if (!last && _utcNow() < slot.RestUntilUtc)
+            {
+                localReason = Join(localReason, slot.Reason); // falló hace poco: se va directo al siguiente
+                continue;
+            }
+
+            try
+            {
+                AudioChunk audio = await slot.Engine.SynthesizeAsync(chunk, cancellationToken).ConfigureAwait(false);
+                bool anyCloud = ConfiguredClouds.Any();
+                string? reason = Join(anyCloud ? fallbackReason : null, localReason)
+                                 ?? (!anyCloud && _offlineOnly ? "modo sin conexión" : null);
+                SetStatus(new EngineStatus(slot.Engine.Name, anyCloud || localReason is not null, reason));
+                return audio;
+            }
+            catch (TtsException ex) when (!last)
+            {
+                slot.RestUntilUtc = _utcNow() + LocalCooldown;
+                slot.Reason = ex.Message;
+                localReason = Join(localReason, ex.Message);
+            }
         }
 
         string message = fallbackReason is null
-            ? "No hay ningún motor de voz configurado. Abre Configuración y agrega tu clave de Azure o de Google, o Piper."
-            : _local is null
+            ? "No hay ningún motor de voz configurado. Abre Configuración y agrega tu clave de Azure o de Google, o un motor local (Kokoro o Piper)."
+            : _locals.Count == 0
                 ? $"No hay motor disponible ({fallbackReason}). Con el motor elegido no hay respaldo: prueba con Automático."
-                : $"No hay motor disponible ({fallbackReason}) y Piper no está configurado como respaldo.";
+                : $"No hay motor disponible ({fallbackReason}) y no hay un motor local (Kokoro o Piper) configurado como respaldo.";
         // Con un motor elegido a mano que falló no hay nada que configurar: no se ofrece abrir Configuración.
-        TtsFailureKind kind = _local is null && fallbackReason is not null ? TtsFailureKind.Other : TtsFailureKind.NotConfigured;
+        TtsFailureKind kind = _locals.Count == 0 && fallbackReason is not null ? TtsFailureKind.Other : TtsFailureKind.NotConfigured;
         throw new TtsException(kind, message);
     }
+
+    private static string? Join(string? first, string? second) =>
+        first is null ? second : second is null ? first : $"{first}; {second}";
 
     private string? UnavailableReason(Slot slot)
     {
@@ -214,12 +255,12 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
         if (LocalConfigured)
         {
             bool anyCloud = ConfiguredClouds.Any();
-            return new EngineStatus(_local!.Name, anyCloud, anyCloud ? firstReason : _offlineOnly ? "modo sin conexión" : null);
+            return new EngineStatus(ConfiguredLocals[0].Engine.Name, anyCloud, anyCloud ? firstReason : _offlineOnly ? "modo sin conexión" : null);
         }
 
         return ConfiguredClouds.FirstOrDefault() is { } first
             ? new EngineStatus(first.Engine.Name, false, firstReason)
-            : new EngineStatus("Sin motor de voz", false, "configura Azure, Google o Piper");
+            : new EngineStatus("Sin motor de voz", false, "configura Azure, Google, Kokoro o Piper");
     }
 
     private void SetStatus(EngineStatus status)
@@ -240,8 +281,20 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
             (slot.Engine as IDisposable)?.Dispose();
         }
 
-        (_local as IDisposable)?.Dispose();
+        foreach (LocalSlot slot in _locals)
+        {
+            (slot.Engine as IDisposable)?.Dispose();
+        }
+
         _gate.Dispose();
+    }
+
+    /// <summary>Un motor local: si falla y hay otro después, descansa un rato y lee el siguiente.</summary>
+    private sealed class LocalSlot(ITtsEngine engine)
+    {
+        public ITtsEngine Engine { get; } = engine;
+        public DateTime RestUntilUtc { get; set; } = DateTime.MinValue;
+        public string? Reason { get; set; }
     }
 
     /// <summary>Estado de un motor en la nube: deshabilitado (clave inválida) o en pausa tras una falla.</summary>

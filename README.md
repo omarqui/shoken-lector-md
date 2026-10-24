@@ -3,7 +3,8 @@
 App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **español de México** y aprovecha el formato del documento para decidir las **pausas y la entonación**. Mientras lee, resalta el párrafo y lo va siguiendo en pantalla.
 
 - **Motor principal:** Azure Speech, voces neuronales `es-MX`, con la capa gratuita **F0** (500 000 caracteres al mes).
-- **Respaldo sin conexión:** Piper, una voz neuronal local y gratuita. Entra solo cuando se acaba la cuota, no hay internet o Azure falla.
+- **Respaldo en la nube:** Google Cloud TTS, si agregas su clave.
+- **Respaldo sin conexión:** Kokoro (voz local natural, con acento mexicano) y, al final, Piper. Gratuitos y en tu equipo; entran solo cuando se acaba la cuota, no hay internet o la nube falla.
 - **Costo:** $0. El audio generado se guarda en caché, así que volver a escuchar un documento no gasta cuota.
 
 ---
@@ -80,7 +81,13 @@ Google entra cuando Azure no está disponible y antes de Piper. Sus voces **Neur
 
 Al pasar el plan gratuito Google **cobra** en lugar de cortar, así que la app lleva su propio contador (`uso-google.json`) y no usa Google más allá del **límite mensual** (950 000 por defecto). En el panel del estado (al pasar el mouse) está el consumo de Google y el selector **Usar: Automático · Azure · Google · Piper**, para probar cada voz por separado.
 
-## 2. Configurar Piper (respaldo sin conexión)
+## 2. Kokoro (voz local natural)
+
+En ⚙ **Configuración › Kokoro**, pulsa **Descargar modelo (310 MB)** y luego **Probar Kokoro**. Eso es todo: las voces (Dora, mujer; Alex y Santa, hombres) vienen con la app y el modelo queda en `%LOCALAPPDATA%\LectorMd\kokoro\`. Corre en el equipo, sin tarjeta gráfica ni conexión, unas 2.5 veces más rápido que el tiempo real.
+
+Kokoro fonetiza el español de España; la app lo pasa a español de México antes de leer (seseo: «quince» con s; yeísmo: «calle» como «caye»). Es [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache 2.0) a través de [KokoroSharp](https://github.com/Lyrcaxis/KokoroSharp) (MIT).
+
+## 3. Configurar Piper (último respaldo sin conexión)
 
 1. Descarga **[piper_windows_amd64.zip](https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip)** y descomprímelo, por ejemplo en `C:\Herramientas\piper\`. Deja juntos `piper.exe`, sus DLL y la carpeta `espeak-ng-data`.
 2. Descarga una voz es_MX de [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_MX). Necesitas los **dos** archivos y deben quedar en la misma carpeta:
@@ -88,7 +95,7 @@ Al pasar el plan gratuito Google **cobra** en lugar de cortar, así que la app l
    - `es/es_MX/ald/medium/es_MX-ald-medium.onnx` y `.onnx.json`: voz de hombre, combina con Jorge.
 3. En ⚙ **Configuración**, indica `piper.exe` y el `.onnx`, y pulsa **Probar Piper**.
 
-Si marcas **Usar solo Piper**, la app nunca se conecta a Azure.
+Si marcas **Usar solo los motores locales**, la app nunca se conecta a Azure ni a Google (lee con Kokoro, o Piper si no está).
 
 ## Cómo decide qué motor usar
 
@@ -96,15 +103,21 @@ Para cada bloque de audio, en este orden:
 
 1. **Caché de Azure.** Si ese texto ya se generó antes, se reproduce sin gastar cuota, aunque no haya internet.
 2. **Azure**, si hay clave, queda cuota y responde.
-3. **Piper**, en cualquier otro caso:
+3. **Google**, si hay clave y Azure no está disponible.
+4. **Kokoro**, si su modelo está descargado; si falla, descansa 2 minutos y sigue Piper.
+5. **Piper**, en cualquier otro caso.
+
+Cuándo se pasa de la nube a los motores locales («el respaldo local» es Kokoro, o Piper si Kokoro no está):
 
 | Situación | Qué hace |
 |---|---|
-| Se alcanzó el límite mensual configurado | Usa Piper hasta el día 1 o hasta que subas el límite |
-| Azure responde que la cuota se agotó | Usa Piper el resto del mes |
-| Sin conexión o tiempo de espera agotado | Usa Piper y reintenta Azure en 45 s |
-| Demasiadas peticiones (429) | Reintenta 2 veces y luego usa Piper durante 60 s |
-| Clave o región inválida | Usa Piper hasta que corrijas la configuración |
+| Se alcanzó el límite mensual configurado | Usa el respaldo local hasta el día 1 o hasta que subas el límite |
+| Azure responde que la cuota se agotó | Usa el respaldo local el resto del mes |
+| Sin conexión o tiempo de espera agotado | Usa el respaldo local y reintenta Azure en 45 s |
+| Demasiadas peticiones (429) | Reintenta 2 veces y luego usa el respaldo local durante 60 s |
+| Clave o región inválida | Usa el respaldo local hasta que corrijas la configuración |
+
+En el panel del estado, **Usar** permite dejar un solo motor (Azure, Google, Kokoro o Piper), sin respaldo, para probarlo.
 
 Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **ámbar** y el motivo aparece en su panel al pasar el mouse.
 
@@ -170,7 +183,8 @@ Todo vive en `%LOCALAPPDATA%\LectorMd\`:
 | `pegados\` | Texto Markdown pegado en pestañas. Cada archivo se borra al cerrar su pestaña |
 | `cuenta-azure.json` | Qué cuenta de Azure se usa para consultar el consumo real (sin contraseñas ni tokens) |
 | `pronunciacion.json` | Diccionario de pronunciación |
-| `cache\` | Audio generado (MP3 de Azure, WAV de Piper). Se recorta solo al pasar de 1 GB |
+| `cache\` | Audio generado (MP3 de Azure y Google, WAV de Kokoro y Piper). Se recorta solo al pasar de 1 GB |
+| `kokoro\kokoro.onnx` | Modelo de Kokoro (310 MB), descargado desde Configuración. Borrarlo desactiva Kokoro |
 | `errores.log` | Detalle de errores inesperados |
 
 ## Estructura del código
@@ -181,7 +195,7 @@ src/LectorMd.Core          Lógica sin dependencias de interfaz (net10.0)
   Text/                    Normalización para voz y diccionario de pronunciación
   Ssml/                    SSML con <bookmark> por segmento, pausas y prosodia
   Planning/                Agrupa segmentos en bloques de audio deterministas (para la caché)
-  Tts/                     Azure (Speech SDK), Piper (proceso persistente --json-input) e híbrido
+  Tts/                     Azure (Speech SDK), Google (REST), Kokoro (KokoroSharp, en el proceso), Piper (proceso persistente --json-input) e híbrido
   Caching/, Usage/         Caché de audio, contador mensual de cuota y consumo real (Azure Monitor)
 src/LectorMd.App           WPF: WebView2 para el documento, MediaPlayer para el audio
   Controls/                Barra de título (botones de ventana) y reproductor con línea de tiempo

@@ -174,7 +174,7 @@ public partial class MainWindow : Window
 
         if (_services is { Engine.IsConfigured: false })
         {
-            ShowStatus("Para empezar, configura Azure, Google o Piper en ⚙ Configuración.");
+            ShowStatus("Para empezar, configura Azure, Google, Kokoro o Piper en ⚙ Configuración.");
         }
         else if (_hotkey is null)
         {
@@ -247,7 +247,7 @@ public partial class MainWindow : Window
         AudioCacheTrim(_services);
 
         ShowEngine(_services.Engine.Status.ActiveEngine, _services.Engine.Status.UsingFallback, _services.Engine.Status.Reason);
-        Player.SetEngineChoice(_settings.Engine, _settings.HasAzure, _settings.HasGoogle, _settings.HasPiper);
+        Player.SetEngineChoice(_settings.Engine, _settings.HasAzure, _settings.HasGoogle, File.Exists(_paths.KokoroModelFile), _settings.HasPiper);
         UpdateUsage();
     }
 
@@ -269,7 +269,7 @@ public partial class MainWindow : Window
         }
 
         ShowStatus(choice == EngineChoice.Auto
-            ? "Motor automático: Azure, y si no está disponible, Google y luego Piper."
+            ? "Motor automático: Azure, y si no está disponible, Google, Kokoro y luego Piper."
             : $"Leyendo solo con {choice} (sin respaldo). Vuelve a Automático para la cadena completa.");
     }
 
@@ -1057,10 +1057,10 @@ public partial class MainWindow : Window
 
         if (_services is { Engine.IsConfigured: false })
         {
-            ShowStatus("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
+            ShowStatus("Para leer, configura Azure, Google, Kokoro o Piper en ⚙ Configuración.");
             if (inBackground)
             {
-                _tray?.ShowHint("Para leer, configura Azure, Google o Piper en ⚙ Configuración.");
+                _tray?.ShowHint("Para leer, configura Azure, Google, Kokoro o Piper en ⚙ Configuración.");
             }
 
             return;
@@ -1579,11 +1579,10 @@ public partial class MainWindow : Window
         }
 
         EngineStatus status = _services.Engine.Status;
-        bool isPiper = audio.EngineName.StartsWith("Piper", StringComparison.Ordinal);
-        // Respaldo = el motor que suena no es el principal (Google cuando Azure falla, o Piper).
+        // Respaldo = el motor que suena no es el principal (Google cuando Azure falla, o un motor local).
         bool fallback = status.UsingFallback && status.ActiveEngine == audio.EngineName;
         string source = audio.FromCache ? "Desde caché · sin gastar cuota"
-            : isPiper ? "Generado sin conexión"
+            : IsLocalEngine(audio.EngineName) ? "Generado sin conexión"
             : $"Generado con {Provider(audio.EngineName)}";
         ShowEngine(audio.EngineName, fallback, fallback ? status.Reason : null, source);
         UpdateUsage();
@@ -1656,7 +1655,7 @@ public partial class MainWindow : Window
         bool none = _services is null || !_services.Engine.IsConfigured;
         string detail = none ? "Configúralo en ⚙"
             : fallback ? $"Respaldo: {reason}"
-            : source ?? (name.StartsWith("Piper", StringComparison.Ordinal) ? "Voz local, sin conexión" : "Lista para leer");
+            : source ?? (IsLocalEngine(name) ? "Voz local, sin conexión" : "Lista para leer");
         Player.SetEngine(none ? "Sin motor de voz" : FriendlyEngineName(name), detail,
             none ? StatusBrushes.Error : fallback ? StatusBrushes.Fallback : StatusBrushes.Ok,
             reason);
@@ -1664,6 +1663,9 @@ public partial class MainWindow : Window
 
     /// <summary>"Google · es-US-Neural2-A" → "Google".</summary>
     private static string Provider(string engineName) => engineName.Split(" · ", 2)[0];
+
+    /// <summary>Kokoro y Piper: generan en el equipo, sin conexión ni cuota.</summary>
+    private static bool IsLocalEngine(string engineName) => Provider(engineName) is "Kokoro" or "Piper";
 
     /// <summary>"Azure · es-MX-DaliaNeural" → "Dalia · Azure"; "Piper · es_MX-claude-high" → "Claude · Piper".</summary>
     private static string FriendlyEngineName(string name)

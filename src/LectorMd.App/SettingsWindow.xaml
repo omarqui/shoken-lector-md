@@ -140,10 +140,45 @@
 
                 <Separator Margin="0,22" />
 
+                <!-- Kokoro -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Kokoro · voz local natural" />
+                <TextBlock Style="{StaticResource Hint}">
+                    Lee sin conexión, con una voz más natural que Piper, y va antes que Piper cuando Azure y Google no
+                    están disponibles. Corre en el equipo, sin tarjeta gráfica, con acento mexicano. Su modelo pesa unos
+                    310 MB y se descarga una sola vez (no cierres esta ventana mientras se descarga).
+                </TextBlock>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Modelo" VerticalAlignment="Center" />
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                        <Button x:Name="KokoroDownloadButton" Padding="12,6" Click="OnDownloadKokoroClick" />
+                        <TextBlock x:Name="KokoroModelStatus" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="300" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1" Text="Voz" VerticalAlignment="Center" />
+                    <ComboBox x:Name="KokoroVoiceBox" Grid.Row="1" Grid.Column="1" Margin="0,4" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Margin="170,8,0,0">
+                    <Button x:Name="TestKokoroButton" Content="Probar Kokoro" Padding="12,6" Click="OnTestKokoroClick" />
+                    <TextBlock x:Name="KokoroTestResult" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="320" />
+                </StackPanel>
+
+                <Separator Margin="0,22" />
+
                 <!-- Piper -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Piper · respaldo sin conexión" />
                 <TextBlock Style="{StaticResource Hint}">
-                    Se usa cuando se acaba la cuota, no hay internet o Azure falla. Necesitas piper.exe (con su carpeta
+                    El último respaldo: se usa si no hay Kokoro o falla. Necesitas piper.exe (con su carpeta
                     espeak-ng-data) y un modelo de voz es_MX: el archivo .onnx y su .onnx.json en la misma carpeta.
                 </TextBlock>
 
@@ -173,7 +208,7 @@
                 </StackPanel>
 
                 <CheckBox x:Name="OfflineOnlyBox" Margin="170,14,0,0"
-                          Content="Usar solo Piper (no conectarse a Azure)" />
+                          Content="Usar solo los motores locales: Kokoro y Piper (no conectarse a Azure ni Google)" />
 
                 <Separator Margin="0,22" />
 

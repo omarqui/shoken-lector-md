@@ -19,6 +19,9 @@ public sealed class AppSettings
     /// <summary>Ruta al modelo .onnx (con su .onnx.json al lado), p. ej. es_MX-claude-high.onnx.</summary>
     public string PiperModelPath { get; set; } = "";
 
+    /// <summary>Voz de Kokoro en español (ef_dora, em_alex o em_santa). Su modelo vive en <see cref="AppPaths.KokoroModelFile"/>.</summary>
+    public string KokoroVoice { get; set; } = "ef_dora";
+
     /// <summary>Velocidad de síntesis en % (-30..+30). Cambiarla invalida la caché de audio.</summary>
     public int RatePercent { get; set; }
 
@@ -101,6 +104,7 @@ public enum EngineChoice
     Auto,
     Azure,
     Google,
+    Kokoro,
     Piper,
 }
 
@@ -130,6 +134,9 @@ public sealed class AppPaths(string root)
 
     /// <summary>Texto Markdown pegado en pestañas; cada archivo se borra al cerrar su pestaña.</summary>
     public string PastedDirectory => Path.Combine(Root, "pegados");
+
+    /// <summary>Modelo de Kokoro (unos 310 MB), descargado desde Configuración.</summary>
+    public string KokoroModelFile => Path.Combine(Root, "kokoro", "kokoro.onnx");
 
     /// <summary>Cuenta de Azure con la que se consulta el consumo (sin secretos: el token va en la caché cifrada).</summary>
     public string AzureAccountFile => Path.Combine(Root, "cuenta-azure.json");

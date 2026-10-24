@@ -47,6 +47,24 @@ public sealed class EngineChoiceTests : IDisposable
     }
 
     [Fact]
+    public void EngineChoice_Kokoro_WithoutItsModel_HasNoEngine()
+    {
+        var settings = new AppSettings { AzureKey = "azure-falsa", Engine = EngineChoice.Kokoro };
+        using EngineServices services = EngineServices.Create(settings, new AppPaths(_dir));
+
+        Assert.False(services.Engine.IsConfigured);
+    }
+
+    [Fact]
+    public void Kokoro_KeepsItsModelInTheAppData_AndDefaultsToDora()
+    {
+        var paths = new AppPaths(_dir);
+
+        Assert.Equal(Path.Combine(_dir, "kokoro", "kokoro.onnx"), paths.KokoroModelFile);
+        Assert.Equal("ef_dora", new AppSettings().KokoroVoice);
+    }
+
+    [Fact]
     public void GoogleUsage_HasItsOwnCounterAndLimit()
     {
         var settings = new AppSettings { GoogleApiKey = "google-falsa", GoogleMonthlyCharacterLimit = 1234 };

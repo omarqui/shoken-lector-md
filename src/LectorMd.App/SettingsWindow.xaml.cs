@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
 using LectorMd.App.Services;
+using LectorMd.Core;
 using LectorMd.Core.Caching;
 using LectorMd.Core.Parsing;
 using LectorMd.Core.Planning;
@@ -68,6 +70,14 @@ public partial class SettingsWindow : Window
         ImageAltBox.IsChecked = settings.ReadImageAltText;
         TextSizeBox.SelectedIndex = (int)settings.TextSize;
         PaletteBox.SelectedIndex = (int)settings.Palette;
+        foreach ((string id, string name, string kind) in KokoroTtsEngine.Voices)
+        {
+            KokoroVoiceBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = $"{name} ({kind})", Tag = id });
+        }
+
+        KokoroVoiceBox.SelectedIndex = Math.Max(0, KokoroTtsEngine.Voices.ToList().FindIndex(v => v.Id == settings.KokoroVoice));
+        Closed += (_, _) => _kokoroDownload?.Cancel();
+        UpdateKokoroStatus();
         UpdateCacheInfo();
     }
 
@@ -92,6 +102,7 @@ public partial class SettingsWindow : Window
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
         settings.TextSize = (TextSize)Math.Max(0, TextSizeBox.SelectedIndex);
         settings.Palette = (ThemePalette)Math.Max(0, PaletteBox.SelectedIndex);
+        settings.KokoroVoice = (KokoroVoiceBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "ef_dora";
         settings.AzureTenantId = string.IsNullOrWhiteSpace(AzureTenantBox.Text) ? null : AzureTenantBox.Text.Trim();
         settings.GoogleApiKey = GoogleKeyBox.Password.Trim();
         settings.GoogleVoice = string.IsNullOrWhiteSpace(GoogleVoiceBox.Text) ? "es-US-Neural2-A" : GoogleVoiceBox.Text.Trim();
@@ -221,6 +232,65 @@ public partial class SettingsWindow : Window
             normalizer, new AudioCache(_paths.CacheDirectory), _paths.TempDirectory);
         await RunTestAsync(TestPiperButton, PiperTestResult, engine,
             "Hola. Así suena Piper, la voz sin conexión, cuando Azure no está disponible.");
+    }
+
+    private async void OnTestKokoroClick(object sender, RoutedEventArgs e)
+    {
+        AppSettings settings = ReadForm();
+        var normalizer = new SpeechTextNormalizer(PronunciationDictionary.LoadOrCreate(_paths.PronunciationFile));
+        using var engine = new KokoroTtsEngine(
+            new KokoroTtsOptions
+            {
+                ModelPath = _paths.KokoroModelFile,
+                Voice = settings.KokoroVoice,
+                VoicesDirectory = EngineServices.KokoroVoicesDirectory,
+                RatePercent = settings.RatePercent,
+            },
+            normalizer, new AudioCache(_paths.CacheDirectory));
+        await RunTestAsync(TestKokoroButton, KokoroTestResult, engine,
+            "Hola. Así suena Kokoro, la voz natural sin conexión. Tarda unos quince minutos en la calle.");
+    }
+
+    // ------------------------------------------------------------------ modelo de Kokoro
+
+    private static readonly HttpClient DownloadHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
+    private CancellationTokenSource? _kokoroDownload;
+
+    private void UpdateKokoroStatus()
+    {
+        bool installed = File.Exists(_paths.KokoroModelFile);
+        KokoroDownloadButton.Content = installed ? "Volver a descargar" : "Descargar modelo (310 MB)";
+        KokoroModelStatus.Text = installed ? "✓ Instalado" : "No instalado: Kokoro no se usa hasta descargarlo.";
+        TestKokoroButton.IsEnabled = installed;
+    }
+
+    private async void OnDownloadKokoroClick(object sender, RoutedEventArgs e)
+    {
+        _kokoroDownload = new CancellationTokenSource();
+        KokoroDownloadButton.IsEnabled = false;
+        TestKokoroButton.IsEnabled = false;
+        var progress = new Progress<double>(fraction =>
+            KokoroModelStatus.Text = $"Descargando… {fraction * 100:0} % de 310 MB");
+        try
+        {
+            await KokoroModelDownloader.DownloadAsync(DownloadHttp, KokoroModelDownloader.ModelUrl, _paths.KokoroModelFile,
+                KokoroModelDownloader.ModelBytes, progress, _kokoroDownload.Token);
+            UpdateKokoroStatus();
+        }
+        catch (OperationCanceledException)
+        {
+            // Se cerró la ventana: no queda nada a medias.
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException)
+        {
+            ErrorLog.Write(ex);
+            UpdateKokoroStatus();
+            KokoroModelStatus.Text = $"✗ No se pudo descargar: {ex.Message}";
+        }
+        finally
+        {
+            KokoroDownloadButton.IsEnabled = true;
+        }
     }
 
     private async Task RunTestAsync(System.Windows.Controls.Button button, System.Windows.Controls.TextBlock result,
