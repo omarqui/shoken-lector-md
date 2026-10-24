@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <!-- Logo de Shoken: el signo de párrafo y tres renglones; el del medio es una curva de entonación.
+  <!-- Logo de Shoken: un caballero hecho de texto. Arriba, un renglón que guiña y el monóculo (el aro del ¶) con su
+       cadena; en medio, el bigote amarillo, que es la curva de entonación; abajo, otro renglón.
        Original del ícono: empaquetado/generar-icono.cs genera app.ico a partir de este archivo. -->
   <rect width="256" height="256" rx="60" fill="#1F4E66"/>
-  <g transform="translate(-9 -2)">
-    <g fill="#FFFFFF">
-      <path d="M 72 70 A 22 22 0 0 0 72 114 Z"/>
-      <rect x="68" y="70" width="28" height="10"/>
-      <rect x="68" y="70" width="10" height="112"/>
-      <rect x="86" y="70" width="10" height="112"/>
-    </g>
-    <g fill="none" stroke-linecap="round">
-      <path d="M 116 70 H 196" stroke="#FFFFFF" stroke-width="12"/>
-      <path d="M 112 146 C 134 146, 140 100, 164 102 C 188 104, 192 158, 214 140" stroke="#FFD23F" stroke-width="28"/>
-      <path d="M 116 190 H 168" stroke="#FFFFFF" stroke-width="12"/>
-    </g>
+  <g transform="translate(170 84) scale(1.18) translate(-30 -30)">
+    <circle cx="30" cy="30" r="22" fill="#7CC4D8" fill-opacity="0.45" stroke="#FFFFFF" stroke-width="10"/>
+    <path d="M 17 25 A 14 14 0 0 1 26 16" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+    <path d="M 48.6 48.6 C 67.3 65.6, 74.1 96.1, 67.3 128.3" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-dasharray="0.1 10"/>
+  </g>
+  <g fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round">
+    <path d="M 62 84 H 106"/>
+    <path d="M 84 200 H 172"/>
+  </g>
+  <g transform="translate(128 150) scale(1.15) translate(-164 -132)">
+    <path d="M 120 122 C 116 118, 110 120, 112 126 C 114 138, 122 146, 134 146 C 148 146, 156 136, 164 130 C 172 136, 180 146, 194 146 C 206 146, 214 138, 216 126 C 218 120, 212 118, 208 122" fill="none" stroke="#FFD23F" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>
