@@ -201,9 +201,13 @@
                         <!-- Para probar voces: Automático usa la cadena con respaldos; los demás, solo ese motor. -->
                         <TextBlock Text="USAR" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold" Margin="0,12,0,0"
                                    Foreground="{DynamicResource LectorText2Brush}" />
+                        <!-- Automático (la cadena completa) arriba; abajo, un solo motor, sin respaldo, para probarlo. -->
                         <Border Background="{DynamicResource LectorSurface2Brush}" CornerRadius="8" Padding="3" Margin="0,6,0,0"
-                                HorizontalAlignment="Left" AutomationProperties.Name="Motor de voz">
-                            <StackPanel x:Name="EngineChoicePanel" Orientation="Horizontal" />
+                                AutomationProperties.Name="Motor de voz">
+                            <StackPanel>
+                                <StackPanel x:Name="AutoChoicePanel" />
+                                <WrapPanel x:Name="EngineChoicePanel" HorizontalAlignment="Center" />
+                            </StackPanel>
                         </Border>
                         <!-- Fuera de la sección de Azure: con Google como único motor también se ve lo gastado. -->
                         <TextBlock x:Name="PopupGoogleUsage" FontSize="{DynamicResource LectorFontSize12}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"

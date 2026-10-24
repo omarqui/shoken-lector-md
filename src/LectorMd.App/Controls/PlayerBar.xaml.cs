@@ -256,10 +256,13 @@ public partial class PlayerBar : UserControl
         PopupGoogleUsage.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    /// <summary>Marca el motor elegido y habilita solo los que están configurados.</summary>
+    /// <summary>
+    /// Marca el motor elegido y habilita solo los que están configurados. "Automático" (la cadena completa) va en
+    /// su propia fila; debajo, los motores sueltos, que pasan a otra línea si no caben (texto grande).
+    /// </summary>
     public void SetEngineChoice(EngineChoice current, bool hasAzure, bool hasGoogle, bool hasKokoro, bool hasPiper)
     {
-        if (EngineChoicePanel.Children.Count == 0)
+        if (AutoChoicePanel.Children.Count == 0)
         {
             foreach ((EngineChoice choice, string label) in new[]
                      {
@@ -270,19 +273,19 @@ public partial class PlayerBar : UserControl
                 var button = new Button
                 {
                     Style = (Style)Resources["BareButton"],
-                    Content = label,
+                    Content = new TextBlock { Text = label, TextAlignment = TextAlignment.Center },
                     Height = 30,
-                    Padding = new Thickness(10, 0, 10, 0),
+                    Padding = new Thickness(8, 0, 8, 0),
                     Tag = choice,
                 };
                 button.SetResourceReference(FontSizeProperty, "LectorFontSize12");
                 AutomationProperties.SetName(button, "Usar " + label);
                 button.Click += (_, _) => EngineChoiceRequested?.Invoke(choice);
-                EngineChoicePanel.Children.Add(button);
+                (choice == EngineChoice.Auto ? (Panel)AutoChoicePanel : EngineChoicePanel).Children.Add(button);
             }
         }
 
-        foreach (Button button in EngineChoicePanel.Children.OfType<Button>())
+        foreach (Button button in AutoChoicePanel.Children.OfType<Button>().Concat(EngineChoicePanel.Children.OfType<Button>()))
         {
             var choice = (EngineChoice)button.Tag;
             bool on = choice == current;
@@ -294,7 +297,8 @@ public partial class PlayerBar : UserControl
                 EngineChoice.Piper => hasPiper,
                 _ => true,
             };
-            button.ToolTip = button.IsEnabled ? null : "Configúralo en ⚙ Configuración";
+            button.ToolTip = choice == EngineChoice.Auto ? "Azure → Google → Kokoro → Piper: si uno no está disponible, sigue el siguiente"
+                : button.IsEnabled ? null : "Configúralo en ⚙ Configuración";
             ToolTipService.SetShowOnDisabled(button, true); // si no, el aviso no aparece en un botón deshabilitado
             if (on)
             {
