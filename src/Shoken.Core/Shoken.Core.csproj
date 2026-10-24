@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Shoken.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.4.0" />
+    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.52.0" />
+    <!-- Kokoro (voz local natural). Sin buildTransitive/contentFiles: el paquete copiaría sus 61 voces (79 MB);
+         la app trae solo las tres en español (Assets\kokoro). El modelo se descarga desde Configuración. -->
+    <PackageReference Include="KokoroSharp.CPU" Version="0.8.4" ExcludeAssets="buildTransitive;contentFiles" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shoken.Core.Tests" />
+  </ItemGroup>
+
+</Project>

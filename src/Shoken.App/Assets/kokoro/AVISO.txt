@@ -1,0 +1,8 @@
+Voces de Kokoro en español: ef_dora.npy, em_alex.npy y em_santa.npy
+
+Son parte de Kokoro-82M v1.0, de hexgrad (https://huggingface.co/hexgrad/Kokoro-82M), publicadas bajo la
+Licencia Apache, versión 2.0 (https://www.apache.org/licenses/LICENSE-2.0). Se tomaron sin cambios del paquete
+KokoroSharp 0.8.4 (https://github.com/Lyrcaxis/KokoroSharp, licencia MIT), que las convierte al formato .npy.
+
+El modelo (kokoro.onnx) no se distribuye con Shoken: la app lo descarga desde
+https://github.com/Lyrcaxis/KokoroSharpBinaries/releases cuando el usuario lo pide en Configuración.

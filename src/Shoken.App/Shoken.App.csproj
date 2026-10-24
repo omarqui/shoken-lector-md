@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Solo para el ícono de la bandeja (NotifyIcon); sus using implícitos chocan con WPF y se quitan abajo. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Shoken.App</RootNamespace>
+    <AssemblyName>Shoken</AssemblyName>
+    <!-- ThemeMode (tema Fluent de WPF) todavía está marcado como experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
+    <!-- Ícono del .exe (Explorador, accesos directos); la ventana usa el mismo como recurso. -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shoken.Core\Shoken.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- El SDK de WPF quita System.IO de los using implícitos (choca con System.Windows.Shapes.Path). -->
+    <Using Include="System.IO" />
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+    <EmbeddedResource Include="Assets\lector.css" LogicalName="lector.css" />
+    <EmbeddedResource Include="Assets\lector.js" LogicalName="lector.js" />
+    <!-- Mermaid 12.1.0 (MIT, ver Assets\mermaid.LICENSE.txt), de npm: dibuja los bloques ```mermaid sin internet. -->
+    <EmbeddedResource Include="Assets\mermaid.min.js" LogicalName="mermaid.min.js" />
+    <!-- Voces de Kokoro en español (Kokoro 82M de hexgrad, Apache 2.0; ver Assets\kokoro\AVISO.txt). El modelo no
+         viene con la app: se descarga desde Configuración a %LOCALAPPDATA%\Shoken\kokoro. -->
+    <None Include="Assets\kokoro\*.npy;Assets\kokoro\AVISO.txt" Link="kokoro\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

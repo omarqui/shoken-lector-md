@@ -3,8 +3,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Company>LectorMd</Company>
-    <Product>Lector MD</Product>
+    <Company>Shoken</Company>
+    <Product>Shoken</Product>
     <Version>0.1.0</Version>
   </PropertyGroup>
 </Project>

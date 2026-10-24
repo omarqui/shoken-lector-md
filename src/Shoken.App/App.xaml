@@ -1,0 +1,62 @@
+<Application x:Class="Shoken.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Startup="OnStartup"
+             ShutdownMode="OnMainWindowClose"
+             Exit="OnExit"
+             DispatcherUnhandledException="OnDispatcherUnhandledException">
+    <Application.Resources>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+        <Style x:Key="IconText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Botón de ícono plano (pestañas, barra de título, reproductor): fondo solo al pasar el mouse. -->
+        <Style x:Key="FlatIconButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource LectorTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Back" Property="Background" Value="{DynamicResource LectorSurface2Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Back" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Íconos del reproductor, rellenos (los de Segoe Fluent son de contorno y se ven débiles). Caja de 16×16. -->
+        <Geometry x:Key="PlayGlyph">M3,1.8 C3,1 3.9,0.5 4.6,1 L14,7.1 C14.6,7.5 14.6,8.5 14,8.9 L4.6,15 C3.9,15.5 3,15 3,14.2 Z</Geometry>
+        <Geometry x:Key="PauseGlyph">M3,1 h3 a1,1 0 0 1 1,1 v12 a1,1 0 0 1 -1,1 h-3 a1,1 0 0 1 -1,-1 v-12 a1,1 0 0 1 1,-1 Z M10,1 h3 a1,1 0 0 1 1,1 v12 a1,1 0 0 1 -1,1 h-3 a1,1 0 0 1 -1,-1 v-12 a1,1 0 0 1 1,-1 Z</Geometry>
+        <Geometry x:Key="PreviousGlyph">M2,2 a1,1 0 0 1 2,0 v12 a1,1 0 0 1 -2,0 Z M14,2.6 C14,1.8 13.1,1.3 12.4,1.8 L5.6,7.1 C5,7.5 5,8.5 5.6,8.9 L12.4,14.2 C13.1,14.7 14,14.2 14,13.4 Z</Geometry>
+        <Geometry x:Key="SlowerGlyph">M2,6.8 h12 a1.2,1.2 0 0 1 0,2.4 h-12 a1.2,1.2 0 0 1 0,-2.4 Z</Geometry>
+        <Geometry x:Key="FasterGlyph">M6.8,2 a1.2,1.2 0 0 1 2.4,0 v4.8 h4.8 a1.2,1.2 0 0 1 0,2.4 h-4.8 v4.8 a1.2,1.2 0 0 1 -2.4,0 v-4.8 h-4.8 a1.2,1.2 0 0 1 0,-2.4 h4.8 Z</Geometry>
+        <Geometry x:Key="NextGlyph">M12,2 a1,1 0 0 1 2,0 v12 a1,1 0 0 1 -2,0 Z M2,2.6 C2,1.8 2.9,1.3 3.6,1.8 L10.4,7.1 C11,7.5 11,8.5 10.4,8.9 L3.6,14.2 C2.9,14.7 2,14.2 2,13.4 Z</Geometry>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource LectorFontSize17}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Opacity" Value="0.72" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+    </Application.Resources>
+</Application>

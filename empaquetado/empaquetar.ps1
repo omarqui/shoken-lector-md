@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Arma el paquete MSIX de Lector MD para la Microsoft Store.
+    Arma el paquete MSIX de Shoken para la Microsoft Store.
 
 .DESCRIPTION
     Publica la app autocontenida (win-x64, con el runtime de .NET dentro), genera los logos desde Assets\app.ico,
@@ -71,8 +71,8 @@ foreach ($carpeta in $contenido, $pri) {
     }
 }
 
-Write-Host "Publicando Lector MD $version (win-x64, autocontenida)..."
-dotnet publish (Join-Path $raiz 'src\LectorMd.App') -c Release -r win-x64 --self-contained true -p:DebugType=none -o $contenido
+Write-Host "Publicando Shoken $version (win-x64, autocontenida)..."
+dotnet publish (Join-Path $raiz 'src\Shoken.App') -c Release -r win-x64 --self-contained true -p:DebugType=none -o $contenido
 if ($LASTEXITCODE -ne 0) {
     throw 'Falló dotnet publish.'
 }
@@ -115,7 +115,7 @@ function Save-Logo([Drawing.Image]$icono, [int]$ancho, [int]$alto, [double]$prop
 
 $imagenes = Join-Path $pri 'Images'
 New-Item -ItemType Directory -Force $imagenes | Out-Null
-$icono = Read-IconPng (Join-Path $raiz 'src\LectorMd.App\Assets\app.ico')
+$icono = Read-IconPng (Join-Path $raiz 'src\Shoken.App\Assets\app.ico')
 foreach ($lado in 16, 24, 32, 48, 256) {
     # Barra de tareas, menú Inicio y Explorador; "unplated" evita que Windows le ponga un fondo de color.
     Save-Logo $icono $lado $lado 1 "Square44x44Logo.targetsize-$lado.png"
@@ -140,12 +140,12 @@ Copy-Item $imagenes (Join-Path $contenido 'Images') -Recurse
 # --- Empaquetar ------------------------------------------------------------------------------------------------------
 
 New-Item -ItemType Directory -Force $salida | Out-Null
-$msix = Join-Path $salida "LectorMd_${version}_x64.msix"
+$msix = Join-Path $salida "Shoken_${version}_x64.msix"
 Invoke-Herramienta $makeappx @('pack', '/d', $contenido, '/p', $msix, '/o')
 Write-Host "Listo: $msix"
 
 if ($Registrar) {
     # Instala desde la carpeta (sin firma): solo con el modo de desarrollador activado.
     Add-AppxPackage -Register (Join-Path $contenido 'AppxManifest.xml') -ForceApplicationShutdown
-    Write-Host 'Lector MD quedó instalada en este equipo (búscala en el menú Inicio).'
+    Write-Host 'Shoken quedó instalada en este equipo (búscala en el menú Inicio).'
 }

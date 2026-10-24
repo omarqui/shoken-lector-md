@@ -1,4 +1,4 @@
-# Lector MD
+# Shoken: lee Markdown con entonación
 
 App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **español de México** y aprovecha el formato del documento para decidir las **pausas y la entonación**. Mientras lee, resalta el párrafo y lo va siguiendo en pantalla.
 
@@ -29,7 +29,7 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 | ✅ / ❌ | "sí" / "no". Los demás emojis se omiten |
 | `→`, `~5`, `p. ej.`, `&` | ", ", "aproximadamente 5", "por ejemplo", "y" |
 
-La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/LectorMd.Core/Ssml/SsmlBuilder.cs`.
+La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/Shoken.Core/Ssml/SsmlBuilder.cs`.
 
 ## Requisitos
 
@@ -42,30 +42,30 @@ La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las 
 ```powershell
 dotnet build -c Release
 dotnet test
-dotnet run --project src/LectorMd.App -c Release
+dotnet run --project src/Shoken.App -c Release
 ```
 
 Para tener un ejecutable que puedas fijar en la barra de tareas o usar con "Abrir con…":
 
 ```powershell
-dotnet publish src/LectorMd.App -c Release -r win-x64 --self-contained false -o publicar
-# publicar\LectorMd.exe  (acepta la ruta de un .md como argumento)
+dotnet publish src/Shoken.App -c Release -r win-x64 --self-contained false -o publicar
+# publicar\Shoken.exe  (acepta la ruta de un .md como argumento)
 ```
 
 ### Paquete para la Microsoft Store (MSIX)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File empaquetado\empaquetar.ps1             # deja publicar-msix\LectorMd_<versión>_x64.msix
+powershell -ExecutionPolicy Bypass -File empaquetado\empaquetar.ps1             # deja publicar-msix\Shoken_<versión>_x64.msix
 powershell -ExecutionPolicy Bypass -File empaquetado\empaquetar.ps1 -Registrar  # además la instala aquí para probarla
 ```
 
-El paquete trae el runtime de .NET (no hace falta instalarlo) y declara la asociación con `.md` y `.markdown` y el alias `lectormd` para la terminal. Sale sin firmar, porque la Store lo firma al publicarlo. `-Registrar` instala desde la carpeta del paquete y necesita el **modo de desarrollador** (Configuración › Sistema › Para programadores). La primera vez, el script descarga `makeappx` y `makepri` de NuGet (paquete `Microsoft.Windows.SDK.BuildTools`), así que no hace falta el Windows SDK.
+El paquete trae el runtime de .NET (no hace falta instalarlo) y declara la asociación con `.md` y `.markdown` y el alias `shoken` para la terminal. Sale sin firmar, porque la Store lo firma al publicarlo. `-Registrar` instala desde la carpeta del paquete y necesita el **modo de desarrollador** (Configuración › Sistema › Para programadores). La primera vez, el script descarga `makeappx` y `makepri` de NuGet (paquete `Microsoft.Windows.SDK.BuildTools`), así que no hace falta el Windows SDK.
 
 Antes del primer envío:
 
-- En [Partner Center](https://partner.microsoft.com/dashboard), reserva el nombre y copia los datos de *Identidad del producto* a `empaquetado\AppxManifest.xml` (`Identity Name`, `Publisher` y `PublisherDisplayName`). Los que tiene son de prueba.
+- En [Partner Center](https://partner.microsoft.com/dashboard), reserva el nombre **Shoken: lee Markdown con entonación**, idéntico al `DisplayName` de `Properties` en el manifiesto. Copia los datos de *Identidad del producto* a `empaquetado\AppxManifest.xml` (`Identity Name`, `Publisher` y `PublisherDisplayName`), porque los que tiene son de prueba. En el menú Inicio la app se llama solo "Shoken".
 - La versión sale de `<Version>` en `Directory.Build.props` (tres números; el paquete le agrega un `.0` que la Store reserva). Súbela en cada envío.
-- Los logos se generan desde `src\LectorMd.App\Assets\app.ico` (su cuadro de 256 px). Para cambiarlos, cambia el ícono.
+- Los logos se generan desde `src\Shoken.App\Assets\app.ico` (su cuadro de 256 px). Para cambiarlos, cambia el ícono.
 
 ## 1. Configurar Azure (motor principal, gratis)
 
@@ -98,7 +98,7 @@ Al pasar el plan gratuito Google **cobra** en lugar de cortar, así que la app l
 
 ## 2. Kokoro (voz local natural)
 
-En ⚙ **Configuración › Kokoro**, pulsa **Descargar modelo (310 MB)** y luego **Probar Kokoro**. Eso es todo: las voces (Dora, mujer; Alex y Santa, hombres) vienen con la app y el modelo queda en `%LOCALAPPDATA%\LectorMd\kokoro\`. Corre en el equipo, sin tarjeta gráfica ni conexión, unas 2.5 veces más rápido que el tiempo real.
+En ⚙ **Configuración › Kokoro**, pulsa **Descargar modelo (310 MB)** y luego **Probar Kokoro**. Eso es todo: las voces (Dora, mujer; Alex y Santa, hombres) vienen con la app y el modelo queda en `%LOCALAPPDATA%\Shoken\kokoro\`. Corre en el equipo, sin tarjeta gráfica ni conexión, unas 2.5 veces más rápido que el tiempo real.
 
 Kokoro fonetiza el español de España; la app lo pasa a español de México antes de leer (seseo: «quince» con s; yeísmo: «calle» como «caye»). Es [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache 2.0) a través de [KokoroSharp](https://github.com/Lyrcaxis/KokoroSharp) (MIT).
 
@@ -175,7 +175,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 
 ## Diccionario de pronunciación
 
-`%LOCALAPPDATA%\LectorMd\pronunciacion.json` reemplaza **palabras completas**, sin distinguir mayúsculas, antes de leer. Así se evita que la voz mexicana lea mal siglas o términos en inglés:
+`%LOCALAPPDATA%\Shoken\pronunciacion.json` reemplaza **palabras completas**, sin distinguir mayúsculas, antes de leer. Así se evita que la voz mexicana lea mal siglas o términos en inglés:
 
 ```json
 {
@@ -191,7 +191,7 @@ Se crea con unas 200 entradas iniciales (siglas, herramientas y términos de pro
 
 ## Datos que guarda
 
-Todo vive en `%LOCALAPPDATA%\LectorMd\`:
+Todo vive en `%LOCALAPPDATA%\Shoken\`:
 
 | Archivo | Contenido |
 |---|---|
@@ -205,16 +205,22 @@ Todo vive en `%LOCALAPPDATA%\LectorMd\`:
 | `kokoro\kokoro.onnx` | Modelo de Kokoro (310 MB), descargado desde Configuración. Borrarlo desactiva Kokoro |
 | `errores.log` | Detalle de errores inesperados |
 
+**Si usabas la app cuando se llamaba Lector MD**, tus datos están en `%LOCALAPPDATA%\LectorMd\`. Ciérrala con *Salir* desde la bandeja y renombra la carpeta para conservar la configuración, la caché y los apuntes (la consulta del consumo real de Azure te pedirá iniciar sesión una vez más):
+
+```powershell
+Rename-Item "$env:LOCALAPPDATA\LectorMd" Shoken
+```
+
 **Instalada desde la Store (MSIX)**, la carpeta es otra: `%LOCALAPPDATA%\Packages\<familia del paquete>\LocalState\`, con los mismos archivos. Windows la borra al desinstalar la app. Para llevar ahí los datos de una versión sin empaquetar (configuración, caché, apuntes), abre la app empaquetada una vez, ciérrala con *Salir* desde la bandeja y corre:
 
 ```powershell
-Copy-Item "$env:LOCALAPPDATA\LectorMd\*" "$env:LOCALAPPDATA\Packages\$((Get-AppxPackage *LectorMd*).PackageFamilyName)\LocalState" -Recurse -Force
+Copy-Item "$env:LOCALAPPDATA\Shoken\*" "$env:LOCALAPPDATA\Packages\$((Get-AppxPackage *Shoken*).PackageFamilyName)\LocalState" -Recurse -Force
 ```
 
 ## Estructura del código
 
 ```
-src/LectorMd.Core          Lógica sin dependencias de interfaz (net10.0)
+src/Shoken.Core          Lógica sin dependencias de interfaz (net10.0)
   Parsing/                 Markdown → segmentos (Markdig) + HTML con data-seg
   Text/                    Normalización para voz y diccionario de pronunciación
   Ssml/                    SSML con <bookmark> por segmento, pausas y prosodia
@@ -222,11 +228,11 @@ src/LectorMd.Core          Lógica sin dependencias de interfaz (net10.0)
   Tts/                     Azure (Speech SDK), Google (REST), Kokoro (KokoroSharp, en el proceso), Piper (proceso persistente --json-input) e híbrido
   Caching/, Usage/         Caché de audio, contador mensual de cuota y consumo real (Azure Monitor)
   Notes/                   Apuntes: guardado por documento, líneas y sección de cada cita, y exportación para una IA
-src/LectorMd.App           WPF: WebView2 para el documento, MediaPlayer para el audio
+src/Shoken.App           WPF: WebView2 para el documento, MediaPlayer para el audio
   Controls/                Barra de título (botones de ventana) y reproductor con línea de tiempo
-tests/LectorMd.Core.Tests  Pruebas unitarias xUnit del núcleo
+tests/Shoken.Core.Tests  Pruebas unitarias xUnit del núcleo
 docs/ejemplo.md            Documento de prueba con todos los elementos
-docs/demo-lector.md        Guía rápida (la del audio de demostración)
+docs/demo-shoken.md        Guía rápida (la del audio de demostración)
 ```
 
 El resaltado es exacto porque cada segmento lleva un `<bookmark>` en el SSML. Azure devuelve el instante en que empieza cada uno; con Piper, los instantes se calculan al unir los WAV.
