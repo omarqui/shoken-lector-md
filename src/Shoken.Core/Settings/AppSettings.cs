@@ -127,8 +127,11 @@ public enum AppTheme
 /// </summary>
 public sealed class AppPaths(string root)
 {
+    /// <summary>Familia del paquete MSIX de la app, o null si corre sin empaquetar (dotnet run, publicar\).</summary>
+    public static string? PackageFamilyName { get; } = CurrentPackageFamilyName();
+
     public static AppPaths Default { get; } = new(DefaultRoot(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), CurrentPackageFamilyName()));
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), PackageFamilyName));
 
     /// <summary>
     /// Empaquetada, Windows redirige lo que la app escribe en %LOCALAPPDATA% a una copia privada que el Bloc de notas y
@@ -139,7 +142,6 @@ public sealed class AppPaths(string root)
             ? Path.Combine(localAppData, "Shoken")
             : Path.Combine(localAppData, "Packages", packageFamilyName, "LocalState");
 
-    /// <summary>Familia del paquete MSIX de la app, o null si corre sin empaquetar (dotnet run, publicar\).</summary>
     private static string? CurrentPackageFamilyName()
     {
         if (!OperatingSystem.IsWindows())

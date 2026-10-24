@@ -141,7 +141,7 @@ public partial class MainWindow : Window
             _view.PlayFromRequested += anchor => Dispatcher.InvokeAsync(() => OnPlayFromRequested(anchor));
             _view.CommandRequested += command => Dispatcher.InvokeAsync(() => ExecuteCommand(command));
             _view.LinkActivated += uri => Dispatcher.InvokeAsync(() => OnLinkActivated(uri));
-            _view.FileDropped += path => Dispatcher.InvokeAsync(() => _ = OpenFilesAsync([path]));
+            _view.FilesDropped += paths => Dispatcher.InvokeAsync(() => _ = OnFilesDroppedOnDocumentAsync(paths));
             _view.SelectionMade += (text, at, anchor, isShort) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor, isShort));
             _view.NoteRequested += request => Dispatcher.InvokeAsync(() => OnNoteRequested(request));
             _view.SelectionCleared += () => Dispatcher.InvokeAsync(OnSelectionCleared);
@@ -1198,6 +1198,8 @@ public partial class MainWindow : Window
             case "outline": ToggleOutline(); break;
             case "find": OpenFind(); break;
             case "note" when _notes is not null: _ = _view?.CreateNoteHereAsync(); break;
+            case "nextNote": _ = _view?.GoToNoteAsync(1); break;
+            case "previousNote": _ = _view?.GoToNoteAsync(-1); break;
             case "back10": SkipBy(TimeSpan.FromSeconds(-10)); break;
             case "forward10": SkipBy(TimeSpan.FromSeconds(10)); break;
         }
@@ -1258,6 +1260,13 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             ExecuteCommand("note"); // apunte a la selección o al párrafo que se lee (con Alt, WPF lo da como Key.System)
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Alt && e.Key == Key.System && e.SystemKey is Key.Down or Key.Up)
+        {
+            e.Handled = true;
+            ExecuteCommand(e.SystemKey == Key.Down ? "nextNote" : "previousNote");
             return;
         }
 
@@ -1345,6 +1354,28 @@ public partial class MainWindow : Window
         e.Data.GetData(DataFormats.FileDrop) is string[] files
             ? files.Where(f => File.Exists(f) && DocumentView.IsOpenableFile(f)).ToList()
             : [];
+
+    /// <summary>
+    /// Archivos soltados sobre el documento. A diferencia del resto de la ventana, ahí el cursor no puede avisar antes
+    /// de soltar que no son Markdown (la página no ve sus nombres), así que se avisa después.
+    /// </summary>
+    private async Task OnFilesDroppedOnDocumentAsync(IReadOnlyList<string> paths)
+    {
+        var openable = paths.Where(p => File.Exists(p) && DocumentView.IsOpenableFile(p)).ToList();
+        if (openable.Count == 0)
+        {
+            ShowStatus(paths.Count == 1
+                ? $"\"{Path.GetFileName(paths[0])}\" no es un documento Markdown."
+                : "Ninguno de los archivos soltados es un documento Markdown.");
+            return;
+        }
+
+        await OpenFilesAsync(openable);
+        if (openable.Count < paths.Count)
+        {
+            ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: los demás no son documentos Markdown.");
+        }
+    }
 
     private void OnLinkActivated(Uri uri)
     {

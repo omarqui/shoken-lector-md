@@ -389,6 +389,11 @@
       notes.createHere(); // como en Word y Google Docs
       return;
     }
+    if (e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      notes.go(e.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
     if (e.key === 'Escape' && document.querySelector('.lector-menu')) {
       notes.closeMenu();
       return;
@@ -623,6 +628,8 @@
     let undoTimer = 0;
     let lastSelection = null;
     let activeId = null;
+    let pinnedId = null; // la elegida (navegada, tocada o en edición): su tarjeta va justo a la altura de su cita
+    let link = null; // la línea de la cita a su tarjeta
     let editingId = null;
     let newId = null;
     let menuBlock = null;
@@ -674,8 +681,12 @@
       anchorAll(true);
       editingId = editId || null;
       newId = editId || null;
+      pinnedId = editId || (byId(pinnedId) ? pinnedId : null);
       render();
-      if (editId) focusEditor(editId);
+      if (editId) {
+        activate(editId);
+        focusEditor(editId);
+      }
     }
 
     function setVisible(show) {
@@ -700,14 +711,21 @@
       aside = make('aside', 'lector-notes lector-note-ui');
       aside.setAttribute('aria-label', 'Apuntes');
       aside.innerHTML =
-        '<div class="notes-head"><strong class="notes-title"></strong>' +
+        '<div class="notes-head"><div class="notes-title-row"><strong class="notes-title"></strong>' +
+        '<button type="button" class="note-icon" data-act="previous" title="Apunte anterior (Alt+↑)" aria-label="Apunte anterior">&#xE70E;</button>' +
+        '<button type="button" class="note-icon" data-act="next" title="Apunte siguiente (Alt+↓)" aria-label="Apunte siguiente">&#xE70D;</button></div>' +
         '<button type="button" data-act="export" title="Copia los apuntes pendientes, con sus referencias, para pegarlos en el chat de una IA">Copiar para la IA</button>' +
         '<button type="button" data-act="clear">Borrar resueltos</button></div>' +
         '<div class="notes-cards"></div>';
       markers = make('div', 'lector-note-markers lector-note-ui');
       dots = make('div', 'note-marker-list');
       markers.appendChild(dots);
-      document.body.append(aside, markers);
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'lector-note-link');
+      svg.setAttribute('aria-hidden', 'true');
+      link = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      svg.appendChild(link);
+      document.body.append(svg, aside, markers);
       for (const host of [aside, markers]) {
         host.addEventListener('click', onClick);
         // Elegir el tipo mientras se escribe no le quita el foco al cuadro de la nota.
@@ -717,8 +735,8 @@
         host.addEventListener('change', onChange);
         host.addEventListener('keydown', onKey);
         host.addEventListener('focusout', onFocusOut);
-        host.addEventListener('mouseover', (e) => activate(cardId(e.target)));
-        host.addEventListener('mouseleave', () => activate(null));
+        host.addEventListener('mouseover', (e) => activate(cardId(e.target) || pinnedId));
+        host.addEventListener('mouseleave', () => activate(pinnedId));
       }
       const doc = document.querySelector('main.doc');
       if (doc && window.ResizeObserver) new ResizeObserver(queueLayout).observe(doc);
@@ -789,6 +807,43 @@
       activeId = id;
       for (const card of document.querySelectorAll('.note-card')) card.classList.toggle('active', card.getAttribute('data-id') === id);
       paint();
+      drawLink();
+    }
+
+    // La tarjeta elegida queda justo en su cita y sigue marcada aunque el mouse se vaya.
+    function pin(id) {
+      pinnedId = id;
+      activate(id);
+      layout();
+    }
+
+    function flash(id) {
+      const card = aside.querySelector('.note-card[data-id="' + CSS.escape(id) + '"]');
+      if (!card) return;
+      card.classList.remove('flash');
+      void card.offsetWidth;
+      card.classList.add('flash');
+    }
+
+    // Alt+↓ / Alt+↑ o las flechas de la columna: el apunte siguiente o anterior en el texto; del último vuelve al
+    // primero. Sin uno elegido, se parte de lo que se ve.
+    function go(step) {
+      const placed = list.filter((n) => n.range).sort((a, b) => position(a) - position(b));
+      if (!visible || !placed.length) return;
+      let index = placed.findIndex((n) => n.id === pinnedId);
+      if (index >= 0) {
+        index = (index + step + placed.length) % placed.length;
+      } else {
+        const top = window.scrollY;
+        index = step > 0 ? placed.findIndex((n) => position(n) >= top) : placed.findLastIndex((n) => position(n) < top);
+        if (index < 0) index = step > 0 ? 0 : placed.length - 1;
+      }
+      const n = placed[index];
+      pauseFollow(); // si se está leyendo, que la lectura no se lleve la vista enseguida
+      pin(n.id);
+      window.scrollTo({ top: Math.max(0, position(n) - window.innerHeight * 0.3), behavior: 'smooth' });
+      if (compact) openPopover(n.id);
+      else flash(n.id);
     }
 
     function queueLayout() {
@@ -800,9 +855,13 @@
       });
     }
 
-    // Cada tarjeta a la altura de su cita; si se pisan, la de abajo se corre. Sin ancho, marcas en el margen.
+    // Cada tarjeta a la altura de su cita. Si se pisan, se corren hacia abajo, salvo la elegida: esa queda justo en
+    // su cita y las de arriba se corren hacia arriba (como en Google Docs). Sin ancho, marcas en el margen.
     function layout() {
-      if (!aside || aside.hidden) return;
+      if (!aside || aside.hidden) {
+        drawLink();
+        return;
+      }
       const doc = document.querySelector('main.doc');
       if (!doc) return;
       compact = window.innerWidth < MIN_DOC + COLUMN + 64;
@@ -811,22 +870,52 @@
       const height = document.documentElement.scrollHeight;
       if (compact) {
         layoutMarkers(docRect);
+        drawLink();
         return;
       }
       dots.innerHTML = '';
       closePopover();
       aside.style.left = (docRect.right + window.scrollX - 24) + 'px';
       aside.style.height = height + 'px';
-      const head = aside.querySelector('.notes-head');
-      let bottom = head.offsetTop + head.offsetHeight + 8;
-      for (const card of aside.querySelectorAll('.note-card')) {
+      const gap = 10;
+      const items = Array.from(aside.querySelectorAll('.note-card'), (card) => {
         const n = byId(card.getAttribute('data-id'));
-        const wanted = n && n.range ? n.range.getBoundingClientRect().top + window.scrollY : bottom;
-        const top = Math.max(wanted, bottom);
-        card.style.top = top + 'px';
-        bottom = top + card.offsetHeight + 10;
+        return { card, id: n && n.id, wanted: n && n.range ? position(n) : null, height: card.offsetHeight, top: 0 };
+      });
+      const pinned = items.findIndex((it) => it.id === pinnedId && it.wanted !== null);
+      if (pinned >= 0) {
+        items[pinned].top = items[pinned].wanted;
+        for (let i = pinned - 1; i >= 0; i--) {
+          const limit = items[i + 1].top - gap - items[i].height;
+          items[i].top = items[i].wanted === null ? limit : Math.min(items[i].wanted, limit);
+        }
       }
+      // Ninguna encima del encabezado de la columna ni de la anterior (eso puede bajar también a la elegida).
+      let bottom = aside.querySelector('.notes-head').offsetHeight + 8;
+      items.forEach((it, i) => {
+        it.top = Math.max(i <= pinned ? it.top : it.wanted ?? bottom, bottom);
+        it.card.style.top = it.top + 'px';
+        bottom = it.top + it.height + gap;
+      });
       aside.style.height = Math.max(height, bottom) + 'px';
+      drawLink();
+    }
+
+    // Una línea punteada de la cita a su tarjeta, para la marcada (la del mouse o la elegida).
+    function drawLink() {
+      if (!link) return;
+      const n = activeId && visible && !compact ? byId(activeId) : null;
+      const card = n && n.range ? aside.querySelector('.note-card[data-id="' + CSS.escape(n.id) + '"]') : null;
+      const line = card ? Array.from(n.range.getClientRects()).find((r) => r.width > 0) : null;
+      if (!line) {
+        link.removeAttribute('d');
+        return;
+      }
+      const x = line.right + window.scrollX + 4;
+      const y = line.top + window.scrollY + line.height / 2;
+      const left = parseFloat(aside.style.left);
+      const top = parseFloat(card.style.top) + 16;
+      link.setAttribute('d', 'M' + x + ' ' + y + 'H' + Math.max(x, left - 16) + 'L' + left + ' ' + top);
     }
 
     function layoutMarkers(docRect) {
@@ -932,6 +1021,7 @@
     function remove(id, silent) {
       list = list.filter((n) => n.id !== id);
       if (editingId === id) editingId = null;
+      if (pinnedId === id) pinnedId = null;
       post({ type: 'noteDelete', id, silent: !!silent });
       if (popover && popover.getAttribute('data-for') === id) closePopover();
       render();
@@ -958,11 +1048,14 @@
 
     function onClick(e) {
       const target = e.target instanceof Element ? e.target.closest('[data-act]') : null;
-      if (!target) return;
-      const act = target.getAttribute('data-act');
-      const id = cardId(target);
+      const act = target ? target.getAttribute('data-act') : null;
+      const id = cardId(e.target);
+      // Tocar una tarjeta de la columna la lleva a la altura de su cita.
+      if (id && act !== 'delete' && !compact && byId(id)) pin(id);
+      if (!act) return;
       if (act === 'export') post({ type: 'notesExport' });
       else if (act === 'clear') post({ type: 'notesClearResolved' });
+      else if (act === 'previous' || act === 'next') go(act === 'next' ? 1 : -1);
       else if (act === 'open') openPopover(target.getAttribute('data-id'));
       else if (act === 'kind' && id) setKind(id, target.getAttribute('data-kind'));
       else if (act === 'edit' && id) startEditing(id);
@@ -1104,22 +1197,31 @@
       if (!point) return;
       const hit = list.find((n) => n.range && !n.resolved && n.range.isPointInRange(point.startContainer, point.startOffset));
       if (!hit) return;
-      activate(hit.id);
-      if (compact) {
-        openPopover(hit.id);
-      } else {
-        const card = aside.querySelector('.note-card[data-id="' + CSS.escape(hit.id) + '"]');
-        if (card) {
-          card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          card.classList.remove('flash');
-          void card.offsetWidth;
-          card.classList.add('flash');
-        }
-      }
+      pin(hit.id);
+      if (compact) openPopover(hit.id);
+      else flash(hit.id);
     });
 
-    return { set, setVisible, refresh, rememberSelection, createFromSelection, createForSegment, createHere, closeMenu };
+    return { set, setVisible, refresh, rememberSelection, createFromSelection, createForSegment, createHere, closeMenu, go };
   })();
+
+  // Archivos soltados sobre la página: no se navega a ellos (la página no sabe su ruta); se le pasan a la app, que los
+  // abre en pestañas. Arrastrar texto seleccionado sigue igual.
+  const draggingFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
+  for (const type of ['dragenter', 'dragover']) {
+    document.addEventListener(type, (e) => {
+      if (!draggingFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+  }
+  document.addEventListener('drop', (e) => {
+    if (!draggingFiles(e)) return;
+    e.preventDefault();
+    if (window.chrome && window.chrome.webview && e.dataTransfer.files.length) {
+      window.chrome.webview.postMessageWithAdditionalObjects({ type: 'drop' }, e.dataTransfer.files);
+    }
+  });
 
   // Cambió el texto de la página (se dibujaron los diagramas): índice, búsqueda y apuntes al día.
   function textChanged() {

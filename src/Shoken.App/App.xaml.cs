@@ -39,6 +39,8 @@ public partial class App : Application
 
         if (_instance is not null)
         {
+            RegisterFileAssociation();
+
             // Lo que otras instancias mandaron mientras arrancaba quedó guardado: se entrega cuando las pestañas
             // ya se restauraron (si no, se abriría antes y se mezclaría con la pestaña activa guardada).
             await window.Ready;
@@ -53,6 +55,27 @@ public partial class App : Application
                     ErrorLog.Write(ex);
                 }
             }));
+        }
+    }
+
+    /// <summary>"Abrir con > Shoken" en los .md. Empaquetada ya lo trae el manifiesto.</summary>
+    private static void RegisterFileAssociation()
+    {
+        // Con "dotnet Shoken.dll" el proceso es dotnet.exe: no hay un ejecutable propio que registrar.
+        string? exe = Environment.ProcessPath;
+        if (AppPaths.PackageFamilyName is not null || exe is null
+            || !Path.GetFileName(exe).Equals("Shoken.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            FileAssociation.Register(exe);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+        {
+            ErrorLog.Write(ex);
         }
     }
 

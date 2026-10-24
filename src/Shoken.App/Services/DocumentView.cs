@@ -42,8 +42,8 @@ internal sealed class DocumentView
 
     public event Action<Uri>? LinkActivated;
 
-    /// <summary>Se soltó un archivo Markdown sobre el documento.</summary>
-    public event Action<string>? FileDropped;
+    /// <summary>Se soltaron archivos sobre el documento: sus rutas, incluso las que no son Markdown.</summary>
+    public event Action<IReadOnlyList<string>>? FilesDropped;
 
     /// <summary>El usuario desplazó el documento: nueva posición vertical en píxeles.</summary>
     public event Action<double>? ScrollChanged;
@@ -209,6 +209,13 @@ internal sealed class DocumentView
         return RunScriptAsync("window.lector && window.lector.notes.createHere()");
     }
 
+    /// <summary>El apunte siguiente (1) o anterior (-1) en el texto: lleva la vista a su cita y marca su tarjeta.</summary>
+    public Task GoToNoteAsync(int step)
+    {
+        _webView.Focus();
+        return RunScriptAsync($"window.lector && window.lector.notes.go({Math.Sign(step)})");
+    }
+
     public Task ScrollToYAsync(double y) =>
         RunScriptAsync($"window.lector && window.lector.scrollToY({Math.Max(0, Math.Round(y)).ToString(System.Globalization.CultureInfo.InvariantCulture)})");
 
@@ -292,12 +299,12 @@ internal sealed class DocumentView
             return; // nuestras propias páginas
         }
 
-        // Todo lo demás se cancela. Los clics en enlaces ya los maneja lector.js;
-        // aquí solo se atiende el caso de soltar un archivo .md sobre el documento.
+        // Todo lo demás se cancela. Los clics en enlaces y los archivos soltados ya los maneja lector.js; esto solo
+        // atiende un archivo soltado antes de que cargara la página (el navegador navega a él).
         e.Cancel = true;
-        if (uri.IsFile && IsOpenableFile(uri.LocalPath))
+        if (uri.IsFile)
         {
-            FileDropped?.Invoke(uri.LocalPath);
+            FilesDropped?.Invoke([uri.LocalPath]);
         }
     }
 
@@ -332,6 +339,10 @@ internal sealed class DocumentView
                 case "link" when root.TryGetProperty("href", out JsonElement href)
                                  && Uri.TryCreate(href.GetString(), UriKind.Absolute, out Uri? uri):
                     LinkActivated?.Invoke(uri);
+                    break;
+                // La página no ve rutas; WebView2 adjunta los archivos soltados, con su ruta, al mensaje.
+                case "drop" when e.AdditionalObjects.OfType<CoreWebView2File>().Select(f => f.Path).ToList() is { Count: > 0 } files:
+                    FilesDropped?.Invoke(files);
                     break;
                 // Solo de la página actual: la anterior puede mandar su último desplazamiento ya cambiada la pestaña.
                 case "selection" when root.TryGetProperty("text", out JsonElement text) && text.GetString() is { Length: > 0 } selected:

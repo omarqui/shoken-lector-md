@@ -273,7 +273,9 @@ body.has-notes:not(.notes-compact) main.doc {
   padding: 12px 0 8px;
   background: var(--bg);
 }
-.notes-title { flex-basis: 100%; font-size: 13px; color: var(--muted); font-weight: 600; }
+.notes-title-row { flex-basis: 100%; display: flex; align-items: center; gap: 2px; }
+.notes-title { flex: 1; font-size: 13px; color: var(--muted); font-weight: 600; }
+.notes-head .note-icon { padding: 0; border: 0; background: transparent; font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 12px; }
 .notes-head button, .lector-undo button {
   font: inherit;
   font-size: 13px;
@@ -297,7 +299,10 @@ body.has-notes:not(.notes-compact) main.doc {
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
   transition: box-shadow 0.2s ease, opacity 0.2s ease;
 }
-.lector-notes .note-card { position: absolute; left: 0; right: 0; }
+/* Al elegir un apunte, las tarjetas se acomodan sin saltar. */
+.lector-notes .note-card { position: absolute; left: 0; right: 0; transition: top 0.18s ease, box-shadow 0.2s ease, opacity 0.2s ease; }
+.lector-note-link { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.lector-note-link path { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.85; }
 .note-card.kind-improve { border-left-color: var(--annot-improve-edge); }
 .note-card.kind-other { border-left-color: var(--annot-other-edge); }
 .note-card.active { box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgb(0 0 0 / 0.16); }
@@ -398,7 +403,7 @@ body.notes-compact .notes-head {
   border-radius: 8px;
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
 }
-body.notes-compact .notes-title { flex-basis: auto; }
+body.notes-compact .notes-title-row { flex-basis: auto; }
 body.notes-compact .notes-cards { display: none; }
 .lector-note-markers { position: absolute; top: 0; left: 0; }
 .note-marker {
