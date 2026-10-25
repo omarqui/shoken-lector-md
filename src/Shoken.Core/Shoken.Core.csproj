@@ -17,4 +17,11 @@
     <InternalsVisibleTo Include="Shoken.Core.Tests" />
   </ItemGroup>
 
+  <!-- Demo de entonación: el texto y los datos de la grabación (los genera empaquetado/generar-demo.cs, que compila
+       este proyecto antes de que existan; la prueba de la demo falla si faltan o quedaron viejos). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Demo\asi-lee-shoken.md" LogicalName="demo.md" />
+    <EmbeddedResource Include="Demo\grabacion.json" LogicalName="demo-grabacion.json" Condition="Exists('Demo\grabacion.json')" />
+  </ItemGroup>
+
 </Project>

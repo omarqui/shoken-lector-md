@@ -28,6 +28,11 @@ public partial class MainWindow
             return; // con el editor abierto no se reemplaza lo que se está editando
         }
 
+        if (_active is { IsDemo: true })
+        {
+            return; // la demo no es un documento: sin apuntes ni pronunciación sobre su texto
+        }
+
         _pronounceTerm = text;
         _pronounceAnchor = anchor;
         string? current = CurrentPronunciation(text);

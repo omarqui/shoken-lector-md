@@ -54,6 +54,7 @@ public partial class MainWindow : Window
     private TrayIcon? _tray;
     private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
     private MiniPlayerWindow? _mini; // solo existe mientras la ventana está oculta o minimizada
+    private DropOverlayWindow? _dropOverlay; // tapa la ventana mientras se arrastran archivos sobre ella
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>Sonando o preparando el audio (no en pausa ni detenido).</summary>
@@ -142,10 +143,12 @@ public partial class MainWindow : Window
             _view.CommandRequested += command => Dispatcher.InvokeAsync(() => ExecuteCommand(command));
             _view.LinkActivated += uri => Dispatcher.InvokeAsync(() => OnLinkActivated(uri));
             _view.FilesDropped += paths => Dispatcher.InvokeAsync(() => _ = OnFilesDroppedOnDocumentAsync(paths));
+            _view.FilesDragging += () => Dispatcher.InvokeAsync(() => ShowDropOverlay(null));
             _view.SelectionMade += (text, at, anchor, isShort) => Dispatcher.InvokeAsync(() => OnSelectionMade(text, at, anchor, isShort));
             _view.NoteRequested += request => Dispatcher.InvokeAsync(() => OnNoteRequested(request));
             _view.SelectionCleared += () => Dispatcher.InvokeAsync(OnSelectionCleared);
             _view.FindChanged += counts => Dispatcher.InvokeAsync(() => ShowFindCounts(counts));
+            _view.DemoRequested += action => Dispatcher.InvokeAsync(() => OnDemoRequested(action));
             _view.ScrollChanged += y => Dispatcher.InvokeAsync(() =>
             {
                 // Mientras se carga otra pestaña, la página que sigue a la vista es la anterior.
@@ -191,6 +194,7 @@ public partial class MainWindow : Window
             // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
             e.Cancel = true;
             Hide();
+            PauseDemo(); // la demo no sigue sonando en la bandeja (la lectura normal sí)
             Player.ClosePopup(); // el panel del estado es "siempre visible": no debe quedar flotando sobre otras apps
             if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
             {
@@ -238,6 +242,7 @@ public partial class MainWindow : Window
         }
 
         _services = EngineServices.Create(_settings, _paths);
+        ForgetDemoVoice(); // otra configuración: «Tu voz» de la demo puede ser otra voz
         _services.Engine.StatusChanged += OnEngineStatusChangedBackground;
         _services.Usage.Changed += OnUsageChangedBackground;
         _player.SetEngine(_services.Engine);
@@ -264,7 +269,7 @@ public partial class MainWindow : Window
         _settings.Engine = choice;
         _settingsStore.Save(_settings);
         RebuildServices();
-        if (_active is { State.IsEmpty: false })
+        if (_active is { State.IsEmpty: false } or { IsDemo: true })
         {
             _ = ActivateAsync(_active, force: true, resumeSegmentId: resume >= 0 ? resume : null);
         }
@@ -336,7 +341,7 @@ public partial class MainWindow : Window
             if (tab is null)
             {
                 // Una pestaña vacía se aprovecha, como en un navegador.
-                if (_active is { State.IsEmpty: true } && last is null)
+                if (_active is { IsReusable: true } && last is null)
                 {
                     tab = _active;
                     tab.State.Path = path;
@@ -373,16 +378,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        DocumentTab tab = _active is { State.IsEmpty: true } ? _active : AddTab(new OpenTab(), after: _active);
+        DocumentTab tab = _active is { IsReusable: true } ? _active : AddTab(new OpenTab(), after: _active);
         tab.State.Path = file;
         tab.State.IsPasted = true;
         await ActivateAsync(tab, force: true);
     }
 
     /// <summary>Agrega la pestaña justo después de <paramref name="after"/>, o al final.</summary>
-    private DocumentTab AddTab(OpenTab state, DocumentTab? after)
+    private DocumentTab AddTab(OpenTab state, DocumentTab? after) => AddTab(new DocumentTab(state), after);
+
+    private DocumentTab AddTab(DocumentTab tab, DocumentTab? after)
     {
-        var tab = new DocumentTab(state);
         int index = after is null ? _tabs.Count : _tabs.IndexOf(after) + 1;
         _tabs.Insert(Math.Clamp(index, 0, _tabs.Count), tab);
         return tab;
@@ -402,10 +408,21 @@ public partial class MainWindow : Window
         int activation = ++_activation;
         RememberPosition();
         _player.Unload(); // cambiar de pestaña pausa la lectura; cada una recuerda su párrafo
+        if (_active is { IsDemo: true })
+        {
+            _demoVoiceCts?.Cancel(); // la demo deja de verse: lo que falte de «Tu voz» ya no se genera
+        }
+
         _active = tab;
         ClearNotes(); // los del documento nuevo llegan cuando se muestre
         SelectTab(tab);
         double scrollY = tab.State.ScrollY;
+
+        if (tab.IsDemo)
+        {
+            await ShowDemoTabAsync(activation);
+            return;
+        }
 
         if (tab.State.IsEmpty)
         {
@@ -518,6 +535,11 @@ public partial class MainWindow : Window
         }
 
         bool wasActive = tab == _active;
+        if (tab.IsDemo)
+        {
+            _demoVoiceCts?.Cancel();
+        }
+
         if (wasActive)
         {
             _player.Unload();
@@ -617,8 +639,13 @@ public partial class MainWindow : Window
     private void SaveSession()
     {
         RememberPosition();
-        _settings.OpenTabs = _tabs.Select(t => t.State.Clone()).ToList();
-        _settings.ActiveTab = _active is null ? -1 : _tabs.IndexOf(_active);
+        // La demo no se guarda: si es la activa, al reabrir queda activa la pestaña de antes.
+        List<DocumentTab> saved = _tabs.Where(t => !t.IsDemo).ToList();
+        DocumentTab? active = _active is { IsDemo: true }
+            ? _tabs.Take(_tabs.IndexOf(_active)).LastOrDefault(t => !t.IsDemo) ?? saved.FirstOrDefault()
+            : _active;
+        _settings.OpenTabs = saved.Select(t => t.State.Clone()).ToList();
+        _settings.ActiveTab = active is null ? -1 : saved.IndexOf(active);
         _settings.LastFile = null; // ya migrado a pestañas: si no, volvería a abrirse al cerrar todas
         _settingsStore.Save(_settings);
     }
@@ -936,6 +963,7 @@ public partial class MainWindow : Window
         // Minimizada mientras lee: aparece el mini reproductor; al volver, se va.
         if (WindowState == WindowState.Minimized)
         {
+            PauseDemo(); // la demo no tiene mini reproductor
             if (IsReading) // solo si está sonando: en pausa o detenido no hace falta
             {
                 ShowMiniPlayer();
@@ -1181,8 +1209,27 @@ public partial class MainWindow : Window
 
     private void ExecuteCommand(string command)
     {
+        // En la demo, los atajos de lectura manejan su reproductor (la página ya los atiende si tiene el foco).
+        if (_active is { IsDemo: true } && _view is not null)
+        {
+            (string Function, object? Argument)? call = command switch
+            {
+                "toggle" => ("toggle", null),
+                "stop" => ("stop", null),
+                "next" or "forward10" => ("step", 1),
+                "previous" or "back10" => ("step", -1),
+                _ => null,
+            };
+            if (call is { } demo)
+            {
+                _ = _view.CallDemoAsync(demo.Function, demo.Argument);
+                return;
+            }
+        }
+
         switch (command)
         {
+            case "demo": _ = OpenDemoAsync(); break;
             case "toggle": TogglePlay(); break;
             case "stop": _player.Stop(); break;
             case "next": _player.NextSection(); break;
@@ -1336,6 +1383,36 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Entraron archivos arrastrados (no una pestaña ni un texto): la capa tapa la ventana y los recibe ella.</summary>
+    private void OnDragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            ShowDropOverlay(e.Data);
+        }
+    }
+
+    /// <summary>
+    /// Muestra la capa de "Suelta para abrir". Con <paramref name="data"/> null el arrastre entró por el documento, que
+    /// no sabe qué archivos son; la capa lo averigua en cuanto el mouse se mueve sobre ella.
+    /// </summary>
+    private void ShowDropOverlay(IDataObject? data)
+    {
+        if (!IsVisible || WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        if (_dropOverlay is null)
+        {
+            _dropOverlay = new DropOverlayWindow { Owner = this };
+            _dropOverlay.FilesDropped += files => _ = OpenFilesAsync(files);
+        }
+
+        _dropOverlay.ShowOver(RootPanel, data);
+    }
+
+    // Lo que sigue solo atiende el arrastre si la capa no llegó a abrirse.
     private void OnDragOver(object sender, DragEventArgs e)
     {
         e.Effects = GetDroppedFiles(e).Count > 0 ? DragDropEffects.Copy : DragDropEffects.None;
@@ -1428,9 +1505,14 @@ public partial class MainWindow : Window
         _settingsStore.Save(_settings);
         RebuildServices();
 
-        // Las opciones de lectura (código, tablas) cambian los segmentos: se vuelve a analizar.
-        if (_active is { State.IsEmpty: false })
+        if (window.DemoRequested)
         {
+            _ = OpenDemoAsync(force: true); // con la voz recién configurada
+        }
+        else if (_active is { State.IsEmpty: false } or { IsDemo: true })
+        {
+            // Las opciones de lectura (código, tablas) cambian los segmentos: se vuelve a analizar. La demo vuelve a
+            // mostrar qué voz usaría «Tu voz».
             _ = ActivateAsync(_active, force: true, resumeSegmentId: resume >= 0 ? resume : null);
         }
     }

@@ -13,6 +13,7 @@
         Loaded="OnLoaded"
         Closing="OnClosing"
         StateChanged="OnWindowStateChanged"
+        DragEnter="OnDragEnter"
         DragOver="OnDragOver"
         Drop="OnDrop"
         PreviewKeyDown="OnPreviewKeyDown">

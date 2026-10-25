@@ -3,6 +3,7 @@ using System.Windows;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Shoken.Core.Desktop;
 using Shoken.Core.Model;
 using Shoken.Core.Notes;
 using Shoken.Core.Settings;
@@ -14,8 +15,6 @@ namespace Shoken.App.Services;
 /// <summary>Muestra el documento en un WebView2 y resalta el segmento que se está leyendo.</summary>
 internal sealed class DocumentView
 {
-    private static readonly string[] OpenableExtensions = [".md", ".markdown", ".mdx", ".txt"];
-
     private readonly WebView2 _webView;
     private readonly AppPaths _paths;
     private CoreWebView2? _core;
@@ -45,6 +44,9 @@ internal sealed class DocumentView
     /// <summary>Se soltaron archivos sobre el documento: sus rutas, incluso las que no son Markdown.</summary>
     public event Action<IReadOnlyList<string>>? FilesDropped;
 
+    /// <summary>Entraron al documento archivos arrastrados (la página no sabe cuáles).</summary>
+    public event Action? FilesDragging;
+
     /// <summary>El usuario desplazó el documento: nueva posición vertical en píxeles.</summary>
     public event Action<double>? ScrollChanged;
 
@@ -63,8 +65,10 @@ internal sealed class DocumentView
     /// <summary>Algo que se hizo con los apuntes en la página (crear, editar, borrar, copiar...). Solo de la página actual.</summary>
     public event Action<NoteRequest>? NoteRequested;
 
-    public static bool IsOpenableFile(string path) =>
-        OpenableExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+    /// <summary>La demo de entonación pide algo de «Tu voz» ("voice", "generate", "cancel"). Solo de la página actual.</summary>
+    public event Action<string>? DemoRequested;
+
+    public static bool IsOpenableFile(string path) => DraggedFiles.IsOpenable(path);
 
     public async Task InitializeAsync()
     {
@@ -125,6 +129,32 @@ internal sealed class DocumentView
     public Task ShowWelcomeAsync() => NavigateAsync($"bienvenida-{_instance}.html", HtmlPages.Welcome(ThemeCss));
 
     public Task ShowEmptyTabAsync() => NavigateAsync($"vacia-{_instance}.html", HtmlPages.EmptyTab(ThemeCss));
+
+    /// <summary>Prefijo de los archivos de audio de «Tu voz» en la carpeta de la vista.</summary>
+    private const string DemoVoicePrefix = "demo-tuvoz-";
+
+    /// <summary>La demo de entonación, con los datos que lee demo.js.</summary>
+    public Task ShowDemoAsync(SpeechDocument document, string dataJson) =>
+        NavigateAsync($"demo-{_instance}.html", HtmlPages.Demo(document, dataJson, ThemeCss));
+
+    private static readonly JsonSerializerOptions DemoJson = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    /// <summary>Llama a una función de la demo (window.shokenDemo) con un argumento en JSON, si la página es la demo.</summary>
+    public Task CallDemoAsync(string function, object? argument = null) =>
+        RunScriptAsync($"window.shokenDemo && window.shokenDemo.{function}({(argument is null ? "" : JsonSerializer.Serialize(argument, DemoJson))})");
+
+    /// <summary>
+    /// Copia un audio generado a la carpeta que sirve app.lector para que la demo lo reproduzca; devuelve su URL.
+    /// Cada versión lleva un nombre nuevo para que el navegador no reproduzca la anterior.
+    /// </summary>
+    public string PublishDemoAudio(string name, byte[] audio, string extension)
+    {
+        string file = $"{DemoVoicePrefix}{name}-{++_demoAudioVersion}{extension}";
+        File.WriteAllBytes(Path.Combine(_paths.ViewDirectory, file), audio);
+        return $"https://{HtmlPages.AppHost}/{file}";
+    }
+
+    private int _demoAudioVersion;
 
     public Task ShowDocumentAsync(SpeechDocument document)
     {
@@ -344,6 +374,9 @@ internal sealed class DocumentView
                 case "drop" when e.AdditionalObjects.OfType<CoreWebView2File>().Select(f => f.Path).ToList() is { Count: > 0 } files:
                     FilesDropped?.Invoke(files);
                     break;
+                case "dragFiles":
+                    FilesDragging?.Invoke();
+                    break;
                 // Solo de la página actual: la anterior puede mandar su último desplazamiento ya cambiada la pestaña.
                 case "selection" when root.TryGetProperty("text", out JsonElement text) && text.GetString() is { Length: > 0 } selected:
                     var point = new Point(
@@ -365,6 +398,10 @@ internal sealed class DocumentView
                 case "scroll" when IsCurrentPage(e.Source)
                                    && root.TryGetProperty("y", out JsonElement y) && y.ValueKind == JsonValueKind.Number:
                     ScrollChanged?.Invoke(y.GetDouble());
+                    break;
+                case "demo" when IsCurrentPage(e.Source)
+                                 && root.TryGetProperty("action", out JsonElement action) && action.GetString() is { } demoAction:
+                    DemoRequested?.Invoke(demoAction);
                     break;
             }
         }
@@ -452,8 +489,20 @@ internal sealed class DocumentView
             }
         }
 
+        // El audio de «Tu voz» de la demo se genera de nuevo en cada sesión (y sale de la caché).
+        foreach (string old in Directory.EnumerateFiles(_paths.ViewDirectory, DemoVoicePrefix + "*"))
+        {
+            try
+            {
+                File.Delete(old);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
         Assembly assembly = typeof(DocumentView).Assembly;
-        foreach (string name in new[] { "lector.css", "lector.js", "mermaid.min.js" })
+        foreach (string name in new[] { "lector.css", "lector.js", "mermaid.min.js", "demo.css", "demo.js", "demo-con.mp3", "demo-sin.mp3" })
         {
             using Stream? stream = assembly.GetManifestResourceStream(name);
             if (stream is null)

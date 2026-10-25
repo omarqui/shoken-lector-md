@@ -26,7 +26,7 @@ public sealed class GoogleTtsOptions
 /// (<c>SSML_MARK</c>) para que el resaltado y la línea de tiempo funcionen igual que con Azure.
 /// </summary>
 public sealed class GoogleTtsEngine(GoogleTtsOptions options, SsmlBuilder ssml, AudioCache cache, UsageTracker usage, HttpClient http)
-    : ITtsEngine
+    : ITtsEngine, IBillableEngine
 {
     // v1beta1: la versión que devuelve las marcas de tiempo.
     private const string Endpoint = "https://texttospeech.googleapis.com/v1beta1/text:synthesize";
@@ -40,6 +40,9 @@ public sealed class GoogleTtsEngine(GoogleTtsOptions options, SsmlBuilder ssml, 
     private string LanguageCode => string.Join('-', options.Voice.Split('-').Take(2));
 
     public AudioChunk? TryGetCached(SpeechChunk chunk) => cache.TryGet(Prepare(chunk).Key, chunk, Name);
+
+    // Lo mismo que se cuenta al sintetizar: el SSML que se le manda a Google.
+    public int BillableCharacters(SpeechChunk chunk) => Prepare(chunk).Ssml.Length;
 
     public async Task<AudioChunk> SynthesizeAsync(SpeechChunk chunk, CancellationToken cancellationToken)
     {

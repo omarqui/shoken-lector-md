@@ -19,7 +19,7 @@ public sealed class AzureTtsOptions
 /// Motor principal: voces neuronales de Azure Speech. Sintetiza un bloque por petición (la capa F0
 /// permite 20 peticiones por minuto) y usa los eventos de bookmark para saber cuándo empieza cada segmento.
 /// </summary>
-public sealed class AzureTtsEngine : ITtsEngine, IDisposable
+public sealed class AzureTtsEngine : ITtsEngine, IBillableEngine, IDisposable
 {
     private const string FormatId = "mp3-24khz-96kbps";
 
@@ -50,6 +50,8 @@ public sealed class AzureTtsEngine : ITtsEngine, IDisposable
         (_, string key) = Prepare(chunk);
         return _cache.TryGet(key, chunk, Name);
     }
+
+    public int BillableCharacters(SpeechChunk chunk) => Prepare(chunk).Document.BillableCharacters;
 
     public async Task<AudioChunk> SynthesizeAsync(SpeechChunk chunk, CancellationToken cancellationToken)
     {

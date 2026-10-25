@@ -58,6 +58,12 @@ public interface ITtsEngine
     Task<AudioChunk> SynthesizeAsync(SpeechChunk chunk, CancellationToken cancellationToken);
 }
 
+/// <summary>Motor de la nube que cobra por carácter: cuánto costaría sintetizar un bloque, sin pedirlo.</summary>
+public interface IBillableEngine
+{
+    int BillableCharacters(SpeechChunk chunk);
+}
+
 public enum TtsFailureKind
 {
     NotConfigured,

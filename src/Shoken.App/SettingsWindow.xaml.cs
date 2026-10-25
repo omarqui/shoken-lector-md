@@ -89,6 +89,17 @@ public partial class SettingsWindow : Window
     /// <summary>Configuración resultante si se guardó.</summary>
     public AppSettings? Result { get; private set; }
 
+    /// <summary>Se guardó con «Escuchar la demo de entonación»: la ventana principal abre la demo.</summary>
+    public bool DemoRequested { get; private set; }
+
+    // Guarda como «Guardar» (para no perder lo cambiado) y pide la demo; si no se guardó, no se abre.
+    private void OnDemoClick(object sender, RoutedEventArgs e)
+    {
+        DemoRequested = true;
+        OnSaveClick(sender, e);
+        DemoRequested = Result is not null;
+    }
+
     private AppSettings ReadForm()
     {
         AppSettings settings = _original.Clone();

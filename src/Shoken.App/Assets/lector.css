@@ -499,6 +499,8 @@ body.notes-compact .lector-undo { bottom: 74px; }
   cursor: pointer;
 }
 .welcome button:hover { filter: brightness(1.08); }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.welcome button.secondary { background: var(--soft); color: var(--fg); box-shadow: inset 0 0 0 1px var(--border); }
 .welcome .hint { color: var(--muted); font-size: 0.9em; margin-top: 10px; }
 .welcome .keys {
   display: grid;

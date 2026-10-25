@@ -18,9 +18,11 @@ public sealed class HybridChainTests : IDisposable
     }
 
     /// <summary>Motor falso: responde con su nombre o falla con el error que se le indique.</summary>
-    private sealed class FakeEngine(string name) : ITtsEngine
+    private sealed class FakeEngine(string name) : ITtsEngine, IBillableEngine
     {
         public TtsFailureKind? FailWith { get; set; }
+        public int CharactersPerChunk { get; set; } = 100;
+        public int BillableCharacters(SpeechChunk chunk) => CharactersPerChunk;
         public AudioChunk? Cached { get; set; }
         public int Calls { get; private set; }
 
@@ -58,6 +60,38 @@ public sealed class HybridChainTests : IDisposable
             [new CloudEngine(azure, Usage("azure", azureLimit), "Azure"), new CloudEngine(google, Usage("google", googleLimit), "Google")],
             [piper], offlineOnly: false, utcNow: () => _now);
         return (hybrid, azure, google, piper);
+    }
+
+    [Fact]
+    public void EstimateCloudCost_CountsOnlyChunksNotInCache()
+    {
+        (HybridTtsEngine hybrid, FakeEngine azure, _, _) = Chain(azureLimit: 1000);
+
+        CloudCost cost = hybrid.EstimateCloudCost([Chunk, Chunk])!;
+        Assert.Equal(("Azure", 200, 1000), (cost.Label, cost.Characters, cost.Remaining));
+
+        azure.Cached = Audio("Azure", fromCache: true);
+        Assert.Equal(0, hybrid.EstimateCloudCost([Chunk, Chunk])!.Characters);
+    }
+
+    [Fact]
+    public void EstimateCloudCost_IsNullWhenOnlyALocalEngineWouldRead()
+    {
+        (HybridTtsEngine hybrid, FakeEngine azure, FakeEngine google, _) = Chain();
+        azure.IsConfigured = false;
+        google.IsConfigured = false;
+
+        Assert.Null(hybrid.EstimateCloudCost([Chunk]));
+        Assert.Equal("Piper", hybrid.ExpectedEngineName());
+    }
+
+    [Fact]
+    public void ExpectedEngineName_SkipsACloudEngineWithoutQuota()
+    {
+        (HybridTtsEngine hybrid, _, _, _) = Chain(azureLimit: 0);
+
+        Assert.Equal("Google", hybrid.ExpectedEngineName());
+        Assert.Equal("Google", hybrid.EstimateCloudCost([Chunk])!.Label);
     }
 
     [Fact]

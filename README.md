@@ -31,6 +31,17 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 
 La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/Shoken.Core/Ssml/SsmlBuilder.cs`.
 
+### Escúchalo: la demo de entonación
+
+En la bienvenida, **Escucha cómo entona** abre la pestaña *Así entona Shoken* (también está en ⚙ Configuración › Lectura). Es un texto corto que cuenta lo que hace Shoken con cada elemento, leído dos veces por la misma voz:
+
+- **Con Shoken:** pausas según la estructura, un punto al final de títulos y elementos de lista, y el tono de títulos y negritas.
+- **Sin entonación:** las mismas palabras, de corrido.
+
+Si cambias de versión mientras suena, la otra sigue en la misma parte. Dos líneas de tiempo a la misma escala muestran dónde se alarga la lectura, y junto a cada párrafo se ve qué pausa o cambio de tono le puso Shoken.
+
+La versión grabada (Azure, voz Dalia) viene con la app: funciona sin clave, sin internet y sin gastar cuota. **Tu voz** genera las dos lecturas con tu motor y tu voz. Con Azure o Google, antes de generar te dice cuántos caracteres gasta (unos 2 600 la primera vez; después sale de la caché). Con Kokoro o Piper se oyen las pausas y el punto final, pero no el cambio de tono.
+
 ## Requisitos
 
 - Windows 10 u 11 de 64 bits
@@ -153,7 +164,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 | Leer desde un párrafo | **Doble clic** sobre él |
 | Sección siguiente / anterior | `Ctrl` + `→` / `Ctrl` + `←` |
 | Detener | `Esc` |
-| Abrir (uno o varios) | `Ctrl` + `O`, arrastra los `.md` a la ventana (también sobre el documento) o *Abrir con › Shoken* en el Explorador |
+| Abrir (uno o varios) | `Ctrl` + `O`, arrastra los `.md` a la ventana (antes de soltarlos, una capa dice cuáles se abrirán y cuáles no son Markdown) o *Abrir con › Shoken* en el Explorador |
 | Pegar una ruta o un texto Markdown | `Ctrl` + `V` |
 | Pestaña nueva / cerrar pestaña | `Ctrl` + `T` / `Ctrl` + `W` (o clic central en la pestaña) |
 | Pestaña siguiente / anterior | `Ctrl` + `Tab` / `Ctrl` + `Shift` + `Tab` |
@@ -238,6 +249,7 @@ src/Shoken.Core          Lógica sin dependencias de interfaz (net10.0)
   Tts/                     Azure (Speech SDK), Google (REST), Kokoro (KokoroSharp, en el proceso), Piper (proceso persistente --json-input) e híbrido
   Caching/, Usage/         Caché de audio, contador mensual de cuota y consumo real (Azure Monitor)
   Notes/                   Apuntes: guardado por documento, líneas y sección de cada cita, y exportación para una IA
+  Demo/                    Demo de entonación: su texto, qué hace Shoken con cada parte y los datos de la grabación
 src/Shoken.App           WPF: WebView2 para el documento, MediaPlayer para el audio
   Controls/                Barra de título (botones de ventana) y reproductor con línea de tiempo
 tests/Shoken.Core.Tests  Pruebas unitarias xUnit del núcleo

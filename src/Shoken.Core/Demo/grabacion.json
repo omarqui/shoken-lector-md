@@ -1,0 +1,56 @@
+{
+  "voice": "es-MX-DaliaNeural",
+  "con": {
+    "file": "demo-con.mp3",
+    "durationSeconds": 68.108,
+    "marks": [
+      0,
+      2.804,
+      12.762,
+      15.294,
+      24.617,
+      27.082,
+      30.152,
+      33.322,
+      37.162,
+      39.694,
+      43.101,
+      47.204,
+      51.936,
+      53.674,
+      63.169
+    ],
+    "fingerprints": [
+      "53ef7a858cdf9078aed6c99c205877ef65d7e2b838ac9bee482518bbe54fc5a2",
+      "3b7186fb04be55de1e8bddbe805af3949e21a6e5d820b3a1e7af7954a489b5c8"
+    ],
+    "billableCharacters": 1574
+  },
+  "sin": {
+    "file": "demo-sin.mp3",
+    "durationSeconds": 48.262,
+    "marks": [
+      0,
+      0.988,
+      9.65,
+      10.3,
+      18.412,
+      19.012,
+      20.6,
+      22.462,
+      24.038,
+      24.638,
+      26.788,
+      29.762,
+      33.562,
+      35.15,
+      43.325
+    ],
+    "fingerprints": [
+      "945ac4b287f8912d4f9eb2e7dbc440bec1a4f87d9a77d54b78b8076944542b63"
+    ],
+    "billableCharacters": 1020
+  },
+  "textCharacters": 723,
+  "intonationCharacters": 550
+}

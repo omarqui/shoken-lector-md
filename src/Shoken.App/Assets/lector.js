@@ -1259,13 +1259,18 @@
   })();
 
   // Archivos soltados sobre la página: no se navega a ellos (la página no sabe su ruta); se le pasan a la app, que los
-  // abre en pestañas. Arrastrar texto seleccionado sigue igual.
+  // abre en pestañas. Arrastrar texto seleccionado sigue igual. Al entrar, la app tapa la ventana con su capa de
+  // "Suelta para abrir", que es la que suele recibirlos; lo que se arrastra desde la propia página (una imagen) no la abre.
   const draggingFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
+  let draggingFromPage = false;
+  document.addEventListener('dragstart', () => { draggingFromPage = true; });
+  document.addEventListener('dragend', () => { draggingFromPage = false; });
   for (const type of ['dragenter', 'dragover']) {
     document.addEventListener(type, (e) => {
       if (!draggingFiles(e)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
+      if (type === 'dragenter' && !draggingFromPage) post({ type: 'dragFiles' });
     });
   }
   document.addEventListener('drop', (e) => {

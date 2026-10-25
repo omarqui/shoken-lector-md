@@ -22,6 +22,21 @@ public sealed class ProsodyProfile
     public int StrongPitch { get; init; } = 6;
     public int EmphasisRate { get; init; }
     public int EmphasisPitch { get; init; }
+
+    /// <summary>Velocidad y tono de un segmento entero según su tipo (0 = sin cambio).</summary>
+    internal (int Rate, int Pitch) ForKind(SegmentKind kind) => kind switch
+    {
+        SegmentKind.Heading => (HeadingRate, HeadingPitch),
+        SegmentKind.Quote => (QuoteRate, 0),
+        SegmentKind.AlertLabel => (AlertRate, AlertPitch),
+        _ => (0, 0),
+    };
+
+    /// <summary>Velocidad y tono de un tramo en negrita o en cursiva (0 = sin cambio).</summary>
+    internal (int Rate, int Pitch) ForRun(RunStyle style) =>
+        style.HasFlag(RunStyle.Strong) ? (StrongRate, StrongPitch)
+        : style.HasFlag(RunStyle.Emphasis) ? (EmphasisRate, EmphasisPitch)
+        : (0, 0);
 }
 
 /// <param name="Ssml">Documento SSML completo.</param>
@@ -65,13 +80,7 @@ public sealed class SsmlBuilder(SpeechTextNormalizer normalizer, ProsodyProfile?
 
     private void AppendSegment(StringBuilder body, SpeechSegment segment, int ratePercent)
     {
-        (int kindRate, int kindPitch) = segment.Kind switch
-        {
-            SegmentKind.Heading => (_profile.HeadingRate, _profile.HeadingPitch),
-            SegmentKind.Quote => (_profile.QuoteRate, 0),
-            SegmentKind.AlertLabel => (_profile.AlertRate, _profile.AlertPitch),
-            _ => (0, 0),
-        };
+        (int kindRate, int kindPitch) = _profile.ForKind(segment.Kind);
 
         int rate = CombinePercent(ratePercent, kindRate);
         bool wrap = rate != 0 || kindPitch != 0;
@@ -97,9 +106,7 @@ public sealed class SsmlBuilder(SpeechTextNormalizer normalizer, ProsodyProfile?
             }
 
             RunStyle style = segment.Runs[i].Style;
-            (int runRate, int runPitch) = style.HasFlag(RunStyle.Strong) ? (_profile.StrongRate, _profile.StrongPitch)
-                : style.HasFlag(RunStyle.Emphasis) ? (_profile.EmphasisRate, _profile.EmphasisPitch)
-                : (0, 0);
+            (int runRate, int runPitch) = _profile.ForRun(style);
             bool styled = !segment.IsHeading && !string.IsNullOrWhiteSpace(text) && (runRate != 0 || runPitch != 0);
             if (!styled)
             {

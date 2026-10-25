@@ -12,23 +12,33 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 
     public OpenTab State { get; } = state;
 
+    /// <summary>
+    /// La demo de entonación: no es un documento ni una pestaña vacía (su estado no tiene ruta) y no se guarda en la
+    /// sesión.
+    /// </summary>
+    public bool IsDemo { get; init; }
+
     /// <summary>Títulos contraídos en el índice (por su ancla). Se recuerdan mientras la app está abierta.</summary>
     public HashSet<string> CollapsedOutline { get; } = new(StringComparer.Ordinal);
 
     /// <summary>Ya se aplicó el "contraído al primer nivel" con que abre su índice; desde ahí manda el usuario.</summary>
     public bool OutlineFoldApplied { get; set; }
 
-    public string Name => State.Name;
+    public string Name => IsDemo ? HtmlPages.DemoTitle : State.Name;
 
     /// <summary>Texto pegado (en memoria): su ícono va en otro color que el de los archivos .md.</summary>
     public bool IsPasted => State.IsPasted;
 
-    /// <summary>Ícono de Segoe Fluent: documento (archivo .md), portapapeles (texto pegado) o "+" (vacía).</summary>
-    public string Icon => State.IsEmpty ? "" : State.IsPasted ? "" : "";
+    /// <summary>Ícono de Segoe Fluent: bocina (la demo), documento (archivo .md), portapapeles (texto pegado) o "+" (vacía).</summary>
+    public string Icon => IsDemo ? "" : State.IsEmpty ? "" : State.IsPasted ? "" : "";
 
-    public string ToolTip => State.IsEmpty ? "Pega aquí (Ctrl+V) un texto Markdown o la ruta de un archivo"
+    public string ToolTip => IsDemo ? "El mismo texto con y sin la entonación de Shoken"
+        : State.IsEmpty ? "Pega aquí (Ctrl+V) un texto Markdown o la ruta de un archivo"
         : State.IsPasted ? "Texto pegado (en memoria): se guarda hasta que cierres la pestaña"
         : State.Path;
+
+    /// <summary>Pestaña vacía que se puede aprovechar para abrir o pegar algo (la demo no cuenta).</summary>
+    public bool IsReusable => State.IsEmpty && !IsDemo;
 
     public bool IsFile(string path) =>
         !State.IsEmpty && !State.IsPasted && string.Equals(State.Path, path, StringComparison.OrdinalIgnoreCase);

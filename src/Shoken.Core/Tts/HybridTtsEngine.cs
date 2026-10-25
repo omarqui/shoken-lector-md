@@ -11,6 +11,9 @@ public sealed record EngineStatus(string ActiveEngine, bool UsingFallback, strin
 /// <summary>Un motor en la nube de la cadena, con su contador de cuota y el nombre corto para los mensajes.</summary>
 public sealed record CloudEngine(ITtsEngine Engine, UsageTracker Usage, string Label);
 
+/// <summary>Lo que gastaría el motor de la nube en generar unos bloques: caracteres y lo que queda del mes.</summary>
+public sealed record CloudCost(string Label, int Characters, int Remaining);
+
 /// <summary>
 /// Cadena de motores: los de la nube en orden (Azure, luego Google) y los locales al final (Kokoro, luego
 /// Piper). Si un motor no está configurado, se quedó sin cuota, no hay conexión o rechaza la petición, el bloque
@@ -87,6 +90,41 @@ public sealed class HybridTtsEngine : ITtsEngine, IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>Nombre del motor que leería ahora un bloque nuevo (el primero disponible de la cadena), o null si no hay.</summary>
+    public string? ExpectedEngineName()
+    {
+        if (ConfiguredClouds.FirstOrDefault(s => UnavailableReason(s) is null) is { } cloud)
+        {
+            return cloud.Engine.Name;
+        }
+
+        List<LocalSlot> locals = ConfiguredLocals;
+        for (int i = 0; i < locals.Count; i++)
+        {
+            if (i == locals.Count - 1 || _utcNow() >= locals[i].RestUntilUtc)
+            {
+                return locals[i].Engine.Name;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Lo que costaría generar con la nube los bloques que todavía no están en caché, sin pedir nada: null si los
+    /// leería un motor local (o uno de la nube que no cobra por carácter).
+    /// </summary>
+    public CloudCost? EstimateCloudCost(IEnumerable<SpeechChunk> chunks)
+    {
+        if (ConfiguredClouds.FirstOrDefault(s => UnavailableReason(s) is null) is not { Engine: IBillableEngine billable } slot)
+        {
+            return null;
+        }
+
+        int characters = chunks.Where(c => TryGetCached(c) is null).Sum(billable.BillableCharacters);
+        return new CloudCost(slot.Label, characters, Math.Max(0, slot.Usage.Limit - slot.Usage.Used));
     }
 
     public async Task<AudioChunk> SynthesizeAsync(SpeechChunk chunk, CancellationToken cancellationToken)

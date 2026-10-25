@@ -255,6 +255,13 @@
 
                 <CheckBox x:Name="ImageAltBox" Margin="170,4,0,0" Content="Leer el texto alternativo de las imágenes" />
 
+                <StackPanel Orientation="Horizontal" Margin="170,14,0,0">
+                    <Button Content="Escuchar la demo de entonación" Padding="12,6" Click="OnDemoClick"
+                            ToolTip="Guarda la configuración y abre la demo: el mismo texto con y sin la entonación de Shoken" />
+                    <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="320"
+                               Text="El mismo texto con y sin la entonación. Guarda lo que cambiaste aquí." />
+                </StackPanel>
+
                 <Separator Margin="0,22" />
 
                 <!-- Apuntes -->
