@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Manifiesto del paquete MSIX (Microsoft Store). Lo usa empaquetar.ps1, que pone la versión de Directory.Build.props.
-  Identity Name, Publisher y PublisherDisplayName son de prueba: al reservar el nombre en Partner Center, cámbialos por
-  los de "Identidad del producto" (Package/Identity/Name, Package/Identity/Publisher, Package/Properties/PublisherDisplayName).
-  Properties/DisplayName es el nombre en la Store y debe ser idéntico al reservado. VisualElements/DisplayName es el corto
-  que se ve en Inicio y en la barra de tareas; si Partner Center lo rechaza, pon el reservado también ahí.
+  Identity Name, Publisher y PublisherDisplayName son los de "Identidad del producto" en Partner Center (producto
+  9MWR6KCVN5HC): no los cambies, o la Store rechaza el paquete. Properties/DisplayName es el nombre en la Store y debe
+  ser idéntico a uno de los reservados («Shoken» o «Shoken: lee Markdown con entonación»). VisualElements/DisplayName
+  es el corto que se ve en Inicio y en la barra de tareas; si Partner Center lo rechaza, pon el reservado también ahí.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -14,11 +14,11 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap uap3 desktop rescap">
 
-  <Identity Name="Shoken" Publisher="CN=Shoken" Version="0.0.0.0" ProcessorArchitecture="x64" />
+  <Identity Name="OmarquiAybar.Shoken" Publisher="CN=EC098364-9CE9-46BE-B0B5-F8B4753B53CA" Version="0.0.0.0" ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>Shoken: lee Markdown con entonación</DisplayName>
-    <PublisherDisplayName>Shoken</PublisherDisplayName>
+    <PublisherDisplayName>Omarqui Aybar</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
