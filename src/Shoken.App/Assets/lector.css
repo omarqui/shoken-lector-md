@@ -370,6 +370,14 @@ body.has-notes:not(.notes-compact) main.doc {
   overflow: hidden;
 }
 .note-text { padding: 2px 4px; margin: 0 -4px; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+
+/* En la columna, las tarjetas que no están elegidas se achican (su tipo, una línea de la cita y dos de la nota) para
+   correrse menos. Con el mouse encima (.hovered) se despliegan y corren hacia abajo a las que pisan. Al elegirla,
+   la tarjeta se despliega y se pone a la altura de su cita. */
+.lector-notes .note-card:not(.pinned):not(.hovered) .note-kind[aria-checked="false"],
+.lector-notes .note-card:not(.pinned):not(.hovered) .note-actions { display: none; }
+.lector-notes .note-card:not(.pinned):not(.hovered) .note-quote { -webkit-line-clamp: 1; }
+.lector-notes .note-card:not(.pinned):not(.hovered) .note-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .note-text:hover { background: var(--soft); }
 .note-empty { color: var(--muted); font-style: italic; }
 .note-editor {

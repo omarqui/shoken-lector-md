@@ -26,6 +26,7 @@ internal sealed class ReadAloudController : IDisposable
     private const int PrefetchAhead = 2;
     private const int ProgressIntervalMs = 250;
     private static readonly TimeSpan HighlightLead = TimeSpan.FromMilliseconds(60);
+    private static readonly TimeSpan MinimumStart = TimeSpan.FromMilliseconds(1);
 
     private readonly MediaPlayer _player = new();
     private readonly DispatcherTimer _timer;
@@ -411,10 +412,10 @@ internal sealed class ReadAloudController : IDisposable
         _ended = ended;
         PlaybackDiagnostics.Log($"archivo abierto: dura {(_player.NaturalDuration.HasTimeSpan ? _player.NaturalDuration.TimeSpan.TotalSeconds : -1):0.00} s, " +
                                 $"se pide empezar en {startAt.TotalSeconds:0.000} s");
-        if (startAt > TimeSpan.Zero)
-        {
-            _player.Position = startAt;
-        }
+        // Nunca desde 0 exacto: si después se le cambia la velocidad (SpeedRatio distinto de 1), MediaPlayer salta de
+        // 1 a 5 s hacia adelante y se pierde el inicio del bloque (medido con MP3 de Azure a 1.25x y 1.5x). Desde 1 ms
+        // no pasa.
+        _player.Position = startAt > MinimumStart ? startAt : MinimumStart;
 
         _diagnosticSamples = PlaybackDiagnostics.Enabled ? 15 : 0;
 

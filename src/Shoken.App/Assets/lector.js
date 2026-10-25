@@ -629,6 +629,8 @@
     let lastSelection = null;
     let activeId = null;
     let pinnedId = null; // la elegida (navegada, tocada o en edición): su tarjeta va justo a la altura de su cita
+    let hoverId = null; // la que está bajo el mouse: se despliega y corre hacia abajo a las que pisa
+    const baseTops = new Map(); // dónde quedó cada tarjeta en el último layout(), sin la del mouse desplegada
     let link = null; // la línea de la cita a su tarjeta
     let editingId = null;
     let newId = null;
@@ -738,6 +740,13 @@
         host.addEventListener('mouseover', (e) => activate(cardId(e.target) || pinnedId));
         host.addEventListener('mouseleave', () => activate(pinnedId));
       }
+      // Entre dos tarjetas (el espacio que las separa) se queda desplegada la última: así no tiemblan.
+      aside.addEventListener('mouseover', (e) => {
+        const id = cardId(e.target);
+        if (id) hover(id);
+        else if (e.target instanceof Element && e.target.closest('.notes-head')) hover(null);
+      });
+      aside.addEventListener('mouseleave', () => hover(null));
       const doc = document.querySelector('main.doc');
       if (doc && window.ResizeObserver) new ResizeObserver(queueLayout).observe(doc);
       window.addEventListener('resize', queueLayout);
@@ -760,7 +769,8 @@
           '<div class="note-hint">Ctrl+Enter guarda · Esc cancela</div>'
         : '<div class="note-text" data-act="edit" title="Clic para editar">' + (n.text ? esc(n.text) : '<span class="note-empty">Escribe la nota…</span>') + '</div>';
       return '<article class="note-card kind-' + kind.toLowerCase() + (n.resolved ? ' resolved' : '') + (n.range ? '' : ' orphan') +
-        (activeId === n.id ? ' active' : '') + '" data-id="' + esc(n.id) + '">' +
+        (activeId === n.id ? ' active' : '') + (pinnedId === n.id || editingId === n.id ? ' pinned' : '') +
+        (hoverId === n.id ? ' hovered' : '') + '" data-id="' + esc(n.id) + '">' +
         '<div class="note-top"><div class="note-kinds" role="radiogroup" aria-label="Tipo de apunte">' + kinds + '</div>' +
         '<span class="note-where" title="' + (n.range ? 'Línea en el Markdown' : 'La cita ya no está en el documento') + '">' + where + '</span></div>' +
         '<blockquote class="note-quote">' + esc(n.quote) + '</blockquote>' + body +
@@ -813,6 +823,10 @@
     // La tarjeta elegida queda justo en su cita y sigue marcada aunque el mouse se vaya.
     function pin(id) {
       pinnedId = id;
+      for (const card of aside.querySelectorAll('.note-card')) {
+        const cardFor = card.getAttribute('data-id');
+        card.classList.toggle('pinned', cardFor === id || cardFor === editingId);
+      }
       activate(id);
       layout();
     }
@@ -878,6 +892,8 @@
       aside.style.left = (docRect.right + window.scrollX - 24) + 'px';
       aside.style.height = height + 'px';
       const gap = 10;
+      const hovered = hoverId ? aside.querySelector('.note-card.hovered') : null;
+      if (hovered) hovered.classList.remove('hovered'); // se mide achicada; desplegada la acomoda expandHovered()
       const items = Array.from(aside.querySelectorAll('.note-card'), (card) => {
         const n = byId(card.getAttribute('data-id'));
         return { card, id: n && n.id, wanted: n && n.range ? position(n) : null, height: card.offsetHeight, top: 0 };
@@ -892,13 +908,49 @@
       }
       // Ninguna encima del encabezado de la columna ni de la anterior (eso puede bajar también a la elegida).
       let bottom = aside.querySelector('.notes-head').offsetHeight + 8;
+      baseTops.clear();
       items.forEach((it, i) => {
         it.top = Math.max(i <= pinned ? it.top : it.wanted ?? bottom, bottom);
+        baseTops.set(it.id, it.top);
         it.card.style.top = it.top + 'px';
         bottom = it.top + it.height + gap;
       });
       aside.style.height = Math.max(height, bottom) + 'px';
+      if (hovered) {
+        hovered.classList.add('hovered');
+        expandHovered();
+      }
       drawLink();
+    }
+
+    function hover(id) {
+      if (!aside || id === hoverId) return;
+      hoverId = id;
+      for (const card of aside.querySelectorAll('.note-card')) card.classList.toggle('hovered', card.getAttribute('data-id') === id);
+      if (compact || aside.hidden) return;
+      expandHovered();
+      drawLink();
+    }
+
+    // La del mouse se despliega donde está (no se mueve bajo el puntero) y corre hacia abajo a las que pisa; las demás
+    // vuelven a donde las dejó layout().
+    function expandHovered() {
+      let bottom = -Infinity;
+      let below = false;
+      for (const card of aside.querySelectorAll('.note-card')) {
+        const id = card.getAttribute('data-id');
+        const base = baseTops.has(id) ? baseTops.get(id) : parseFloat(card.style.top);
+        let top = base;
+        if (id === hoverId) {
+          top = parseFloat(card.style.top);
+          below = true;
+        } else if (below) {
+          top = Math.max(base, bottom);
+        }
+        card.style.top = top + 'px';
+        bottom = top + card.offsetHeight + 10;
+      }
+      aside.style.height = Math.max(parseFloat(aside.style.height) || 0, bottom) + 'px';
     }
 
     // Una línea punteada de la cita a su tarjeta, para la marcada (la del mouse o la elegida).
@@ -1022,6 +1074,7 @@
       list = list.filter((n) => n.id !== id);
       if (editingId === id) editingId = null;
       if (pinnedId === id) pinnedId = null;
+      if (hoverId === id) hoverId = null;
       post({ type: 'noteDelete', id, silent: !!silent });
       if (popover && popover.getAttribute('data-for') === id) closePopover();
       render();
