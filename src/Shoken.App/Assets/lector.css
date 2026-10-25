@@ -535,7 +535,7 @@ body.notes-compact.has-notice .lector-undo { bottom: 128px; }
   padding: 32px;
   gap: 4px;
 }
-.welcome-icon { width: 64px; height: 64px; color: var(--accent); margin-bottom: 12px; }
+.welcome-icon { width: 72px; height: 72px; margin-bottom: 12px; }
 .welcome h1 { border: 0; margin: 0; font-size: 1.9em; }
 .welcome .lead { max-width: 30em; color: var(--muted); margin: 8px 0 24px; }
 .welcome button {

@@ -27,6 +27,7 @@ public sealed partial class MiniPlayerWindow : Window
     public MiniPlayerWindow()
     {
         InitializeComponent();
+        AppLogo.Apply(AppBadge);
         _autoClose = new DispatcherTimer { Interval = AutoCloseAfter };
         _autoClose.Tick += (_, _) =>
         {

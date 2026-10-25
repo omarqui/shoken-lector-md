@@ -16,11 +16,8 @@
         </Border.Effect>
         <StackPanel>
             <DockPanel>
-                <Border Width="18" Height="18" CornerRadius="4" Margin="0,0,10,0" VerticalAlignment="Center"
-                        Background="{DynamicResource LectorAccentBrush}">
-                    <TextBlock Style="{StaticResource IconText}" FontSize="11" Text="&#xE767;" HorizontalAlignment="Center"
-                               Foreground="{DynamicResource LectorOnAccentBrush}" />
-                </Border>
+                <Image x:Name="AppBadge" Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource FlatIconButton}" Width="28" Height="28" Click="OnCloseClick"
                         ToolTip="Cerrar (la lectura sigue)" AutomationProperties.Name="Cerrar el mini reproductor">
                     <TextBlock Style="{StaticResource IconText}" FontSize="10" Text="&#xE711;" />

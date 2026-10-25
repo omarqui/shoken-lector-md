@@ -129,11 +129,7 @@ internal static class HtmlPages
 
     private const string WelcomeBody = """
         <section class="welcome">
-          <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z"/>
-            <path d="M15.5 9a4 4 0 0 1 0 6"/>
-            <path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>
-          </svg>
+          <img class="welcome-icon" src="https://app.lector/logo.svg" alt="">
           <h1>Shoken</h1>
           <p class="lead">Abre un archivo Markdown y lo leo en voz alta en español de México, con pausas y entonación según su formato.</p>
           <div class="welcome-actions">

@@ -88,6 +88,7 @@ public partial class MainWindow : Window
             ToastPopup.IsOpen = false;
         };
         InitializeComponent();
+        AppLogo.Apply(AppBadge);
         _fileFromCommandLine = fileToOpen;
         _azureAccount = new AzureAccount(_paths);
         TabList.ItemsSource = _tabs;

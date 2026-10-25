@@ -36,6 +36,8 @@
     <Resource Include="Assets\app.ico" />
     <EmbeddedResource Include="Assets\lector.css" LogicalName="lector.css" />
     <EmbeddedResource Include="Assets\lector.js" LogicalName="lector.js" />
+    <!-- El logo en la página de bienvenida. -->
+    <EmbeddedResource Include="Assets\logo.svg" LogicalName="logo.svg" />
     <!-- Mermaid 12.1.0 (MIT, ver Assets\mermaid.LICENSE.txt), de npm: dibuja los bloques ```mermaid sin internet. -->
     <EmbeddedResource Include="Assets\mermaid.min.js" LogicalName="mermaid.min.js" />
     <!-- Demo de entonación: su página y la grabación incluida (Azure, Dalia), que genera empaquetado/generar-demo.cs. -->
