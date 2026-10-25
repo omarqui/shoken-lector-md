@@ -62,7 +62,10 @@ public sealed class DocumentCoverage
 
     public bool IsBlockHeard(string anchorId) => _heardAnchors.Contains(anchorId);
 
-    /// <returns>True si con este segmento un bloque quedó escuchado y antes no lo estaba.</returns>
+    /// <returns>
+    /// True si cambió lo que se guarda: con este segmento un bloque quedó escuchado y antes no lo estaba, o uno que
+    /// venía de lo guardado volvió a sonar distinto de como se guardó (completo y no solo anunciado, o al revés).
+    /// </returns>
     public bool MarkSegmentHeard(int segmentId)
     {
         if (segmentId < 0 || segmentId >= _document.Segments.Count)
@@ -77,9 +80,20 @@ public sealed class DocumentCoverage
             return false;
         }
 
-        _heardNow.Add(anchor); // aunque ya estuviera guardado: volvió a sonar con las opciones de ahora
-        return _heardAnchors.Add(anchor);
+        bool firstTimeNow = _heardNow.Add(anchor); // aunque ya estuviera guardado: volvió a sonar con las opciones de ahora
+        if (_heardAnchors.Add(anchor))
+        {
+            return true;
+        }
+
+        List<int> ids = _segmentsByAnchor[anchor];
+        return firstTimeNow && _stored.TryGetValue(_document.Segments[ids[0]].BlockKey, out HeardSpoken saved)
+            && saved != SpokenNow(ids);
     }
+
+    /// <summary>Cómo suena el bloque con las opciones de ahora.</summary>
+    private HeardSpoken SpokenNow(List<int> ids) =>
+        ids.All(id => _document.Segments[id].IsAnnouncement) ? HeardSpoken.Announcement : HeardSpoken.Full;
 
     /// <summary>
     /// Solo los bloques del documento actual (lo que ya no existe se descarta). Se guarda qué sonó: un bloque que
@@ -103,8 +117,7 @@ public sealed class DocumentCoverage
                 continue;
             }
 
-            bool announced = ids.All(id => _document.Segments[id].IsAnnouncement);
-            blocks.Add(new HeardBlock(key, announced ? HeardSpoken.Announcement : HeardSpoken.Full));
+            blocks.Add(new HeardBlock(key, SpokenNow(ids)));
         }
 
         return blocks;

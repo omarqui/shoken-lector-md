@@ -421,6 +421,9 @@
   })();
 
   document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented) {
+      return; // ya la atendió un apunte (Esc cancela y redibuja la tarjeta: el destino ya no está en la página)
+    }
     if (find.handleKey(e)) {
       return;
     }
@@ -1467,7 +1470,10 @@
 
     function onKey(e) {
       if (!e.target.matches || !e.target.matches('.note-editor')) {
-        if (e.key === 'Escape' && popover) closePopover();
+        if (e.key === 'Escape' && popover) {
+          e.preventDefault(); // cerrar la tarjeta flotante no detiene la lectura
+          closePopover();
+        }
         return;
       }
       const id = cardId(e.target);

@@ -159,6 +159,27 @@ public class CoverageTests
     }
 
     [Fact]
+    public void Coverage_ReportsAChange_WhenAStoredBlockSoundsDifferentlyNow()
+    {
+        // Guardado como anunciado y ahora leído completo: hay que volver a guardarlo aunque ya contara como escuchado.
+        var code = Parse("```csharp\nint x = 1;\n```", new MarkdownSpeechOptions { CodeBlocks = CodeBlockMode.Read });
+        var changed = new DocumentCoverage(code, [new HeardBlock(code.Segments[0].BlockKey, HeardSpoken.Announcement)]);
+        bool reported = false;
+        foreach (SpeechSegment s in code.Segments)
+        {
+            reported = changed.MarkSegmentHeard(s.Id);
+        }
+
+        Assert.True(reported);
+        Assert.False(changed.MarkSegmentHeard(code.Segments[^1].Id)); // ya se avisó en esta sesión
+
+        // Guardado como completo y vuelto a oír igual: nada que guardar.
+        var doc = Parse("Uno.");
+        var same = new DocumentCoverage(doc, [new HeardBlock(doc.Segments[0].BlockKey, HeardSpoken.Full)]);
+        Assert.False(same.MarkSegmentHeard(0));
+    }
+
+    [Fact]
     public void Coverage_Clear_ForgetsEverything()
     {
         var doc = Parse("Uno.");

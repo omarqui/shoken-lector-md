@@ -334,7 +334,10 @@ body.has-notes:not(.notes-compact) main.doc {
 .note-card.active { box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgb(0 0 0 / 0.16); }
 .note-card.flash { animation: lector-note-flash 0.9s ease-out; }
 @keyframes lector-note-flash { from { box-shadow: 0 0 0 4px var(--accent); } }
-.note-card.resolved { opacity: 0.6; }
+/* Resuelto: sin el color de su tipo, plana y con la nota en gris; sin opacidad, que bajaría el texto de AA. */
+.note-card.resolved { border-left-color: var(--border); }
+.note-card.resolved:not(.active) { box-shadow: none; }
+.note-card.resolved .note-text { color: var(--muted); }
 .note-card.orphan { border-left-style: dashed; }
 .note-card.orphan .note-where { color: var(--caution); }
 
