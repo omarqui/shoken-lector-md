@@ -147,6 +147,7 @@ public partial class MainWindow
             menu.Items.Add(MenuItem("Abrir en el editor", "", () => OpenInEditor(path)));
             menu.Items.Add(MenuItem("Abrir carpeta contenedora", "", () => OpenContainingFolder(path)));
             menu.Items.Add(MenuItem("Recargar", "", () => _ = ReloadTabAsync(tab), gesture: tab == _active ? "F5" : null));
+            menu.Items.Add(MenuItem("Olvidar lo escuchado", "", () => ForgetHeard(tab)));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItem("Copiar ruta", "", () => CopyToClipboard(path, "Ruta copiada")));
             menu.Items.Add(MenuItem("Copiar nombre del archivo", "", () => CopyToClipboard(Path.GetFileName(path), "Nombre copiado")));
@@ -229,7 +230,7 @@ public partial class MainWindow
             var start = new ProcessStartInfo(vsCode ?? "notepad.exe") { UseShellExecute = false };
             start.ArgumentList.Add(path);
             Process.Start(start);
-            ShowToast(vsCode is null ? "Abierto en el Bloc de notas" : "Abierto en VS Code · F5 recarga al volver");
+            ShowToast(vsCode is null ? "Abierto en el Bloc de notas" : "Abierto en VS Code · al guardar, se recarga solo");
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {

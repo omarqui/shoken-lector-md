@@ -21,6 +21,7 @@ public sealed partial class MiniPlayerWindow : Window
     private PlaybackState _state = PlaybackState.Stopped;
     private double _speed = 1.0;
     private string _detail = "";
+    private string? _pendingNotice; // «Se actualiza al pausar»: va delante del párrafo mientras dure
     private bool _moved;
 
     public MiniPlayerWindow()
@@ -59,10 +60,27 @@ public sealed partial class MiniPlayerWindow : Window
     {
         SectionText.Text = section;
         _detail = detail;
-        DetailText.Text = _autoClose.IsEnabled ? DetailText.Text : detail;
+        DetailText.Text = _autoClose.IsEnabled ? DetailText.Text : Detail;
     }
 
     public void ShowNotice(string text) => DetailText.Text = text;
+
+    /// <summary>
+    /// Una indicación que dura (una recarga que espera la pausa): va delante del párrafo, así que el siguiente
+    /// <see cref="SetPosition"/> no la borra. Null la quita.
+    /// </summary>
+    public void SetPendingNotice(string? text)
+    {
+        _pendingNotice = text;
+        if (!_autoClose.IsEnabled)
+        {
+            DetailText.Text = Detail;
+        }
+    }
+
+    private string Detail => _pendingNotice is null ? _detail
+        : _detail.Length == 0 ? _pendingNotice
+        : $"{_pendingNotice} · {_detail}";
 
     public void SetProgress(TimeSpan elapsed, TimeSpan total)
     {
@@ -95,7 +113,7 @@ public sealed partial class MiniPlayerWindow : Window
         if (reading)
         {
             _autoClose.Stop();
-            DetailText.Text = _detail;
+            DetailText.Text = Detail;
         }
         else if (IsMouseOver)
         {

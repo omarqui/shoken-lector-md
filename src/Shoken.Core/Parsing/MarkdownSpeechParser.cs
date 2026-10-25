@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Shoken.Core.Model;
 using Markdig;
@@ -130,7 +132,7 @@ public sealed class MarkdownSpeechParser
                 return;
 
             case MathBlock math:
-                AddSegments(state, math, SegmentKind.Math, [new SpeechRun("Fórmula.")], 200, pauses.CodeBlock);
+                AddSegments(state, math, SegmentKind.Math, [new SpeechRun("Fórmula.")], 200, pauses.CodeBlock, announcement: true);
                 return;
 
             case FencedCodeBlock fenced:
@@ -223,7 +225,7 @@ public sealed class MarkdownSpeechParser
         string language = (info ?? "").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
         if (language.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
         {
-            AddSegments(state, code, SegmentKind.CodeBlock, [new SpeechRun("Diagrama.")], 200, pauses.CodeBlock);
+            AddSegments(state, code, SegmentKind.CodeBlock, [new SpeechRun("Diagrama.")], 200, pauses.CodeBlock, announcement: true);
             return;
         }
 
@@ -231,7 +233,7 @@ public sealed class MarkdownSpeechParser
         if (_options.CodeBlocks == CodeBlockMode.Announce)
         {
             string text = friendly.Length > 0 ? $"Bloque de código en {friendly}." : "Bloque de código.";
-            AddSegments(state, code, SegmentKind.CodeBlock, [new SpeechRun(text)], 200, pauses.CodeBlock);
+            AddSegments(state, code, SegmentKind.CodeBlock, [new SpeechRun(text)], 200, pauses.CodeBlock, announcement: true);
             return;
         }
 
@@ -270,7 +272,7 @@ public sealed class MarkdownSpeechParser
         if (_options.Tables == TableMode.Announce)
         {
             string announce = $"Tabla de {columns} {(columns == 1 ? "columna" : "columnas")} y {dataRows} {(dataRows == 1 ? "fila" : "filas")}.";
-            AddSegments(state, table, SegmentKind.TableHeader, [new SpeechRun(announce)], 250, 400);
+            AddSegments(state, table, SegmentKind.TableHeader, [new SpeechRun(announce)], 250, 400, announcement: true);
             return;
         }
 
@@ -433,7 +435,7 @@ public sealed class MarkdownSpeechParser
     // ---------------------------------------------------------------- segmentos
 
     private static void AddSegments(State state, Block block, SegmentKind kind, List<SpeechRun> runs,
-        int pauseBefore, int pauseAfter, int headingLevel = 0)
+        int pauseBefore, int pauseAfter, int headingLevel = 0, bool announcement = false)
     {
         List<SpeechRun> cleaned = CleanRuns(runs);
         if (cleaned.Count == 0)
@@ -442,6 +444,7 @@ public sealed class MarkdownSpeechParser
         }
 
         string anchor = state.NewAnchor(block);
+        string blockKey = state.KeyOf(block);
         List<List<SpeechRun>> parts = kind == SegmentKind.Heading
             ? [cleaned]
             : SplitLong(cleaned, state.Options.LongSegmentChars);
@@ -452,6 +455,8 @@ public sealed class MarkdownSpeechParser
             {
                 Id = state.Segments.Count,
                 AnchorId = anchor,
+                BlockKey = blockKey,
+                IsAnnouncement = announcement,
                 Kind = kind,
                 HeadingLevel = headingLevel,
                 Runs = parts[i],
@@ -634,6 +639,20 @@ public sealed class MarkdownSpeechParser
             }
 
             return starts.ToArray();
+        }
+
+        /// <summary>
+        /// Clave estable del bloque: 16 hex del SHA-256 de su Markdown fuente con los espacios colapsados.
+        /// Sale del texto del documento, no del que se dice, así que no cambia con las opciones de lectura.
+        /// </summary>
+        public string KeyOf(Block block)
+        {
+            string source = block.Span.Start >= 0 && block.Span.Length > 0 && block.Span.End < markdown.Length
+                ? markdown.Substring(block.Span.Start, block.Span.Length)
+                : "";
+            string normalized = Whitespace.Replace(source, " ").Trim();
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+            return Convert.ToHexString(hash, 0, 8).ToLowerInvariant();
         }
 
         public List<SpeechSegment> Segments { get; } = [];

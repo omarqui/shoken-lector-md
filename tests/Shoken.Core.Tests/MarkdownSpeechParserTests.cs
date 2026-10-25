@@ -187,4 +187,75 @@ public class MarkdownSpeechParserTests
             Assert.Contains($"data-seg=\"{anchor}\"", doc.HtmlBody);
         }
     }
+
+    [Fact]
+    public void Parser_BlockKey_IsTheSameWhateverTheReadingOptions()
+    {
+        const string markdown = "```cs\nvar x = 1;\n```\n\nTexto ![logo](a.png) final.";
+        var docs = new[]
+        {
+            Parse(markdown, new MarkdownSpeechOptions { CodeBlocks = CodeBlockMode.Announce }),
+            Parse(markdown, new MarkdownSpeechOptions { CodeBlocks = CodeBlockMode.Read }),
+            Parse(markdown, new MarkdownSpeechOptions { ReadImageAltText = false }),
+            Parse(markdown, new MarkdownSpeechOptions { ReadImageAltText = true }),
+        };
+
+        string[] codeKeys = docs.Select(d => d.Segments.First(s => s.Kind == SegmentKind.CodeBlock).BlockKey).ToArray();
+        string[] paragraphKeys = docs.Select(d => d.Segments.First(s => s.Kind == SegmentKind.Paragraph).BlockKey).ToArray();
+
+        Assert.Single(codeKeys.Distinct());
+        Assert.Single(paragraphKeys.Distinct());
+        Assert.All(codeKeys.Concat(paragraphKeys), key => Assert.Equal(16, key.Length));
+    }
+
+    [Fact]
+    public void Parser_BlockKey_ChangesOnlyForTheEditedBlock()
+    {
+        var before = Parse("Uno.\n\nDos.");
+        var after = Parse("Uno.\n\nDos y tres.");
+
+        Assert.Equal(before.Segments[0].BlockKey, after.Segments[0].BlockKey);
+        Assert.NotEqual(before.Segments[1].BlockKey, after.Segments[1].BlockKey);
+    }
+
+    [Fact]
+    public void Parser_BlockKey_IsSharedByThePartsOfALongParagraph()
+    {
+        string paragraph = string.Join(" ", Enumerable.Repeat("Esta oración es lo bastante larga para que el párrafo se parta.", 6));
+        var doc = Parse(paragraph, new MarkdownSpeechOptions { LongSegmentChars = 80 });
+
+        Assert.True(doc.Segments.Count > 1);
+        Assert.Single(doc.Segments.Select(s => s.AnchorId).Distinct());
+        Assert.Single(doc.Segments.Select(s => s.BlockKey).Distinct());
+    }
+
+    [Fact]
+    public void Parser_BlockKey_IsTheSameWithLfOrCrlf()
+    {
+        // Una herramienta que reescribe los fines de línea no cambia el documento: no puede borrar lo escuchado.
+        const string markdown = "# Título\n\nUn párrafo\nen dos líneas.\n\n- Uno\n- Dos\n\n> Una cita\n> larga.\n\n" +
+                                "```cs\nvar x = 1;\nvar y = 2;\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nFinal.";
+        var lf = Parse(markdown);
+        var crlf = Parse(markdown.Replace("\n", "\r\n"));
+
+        Assert.Equal(lf.Segments.Count, crlf.Segments.Count);
+        Assert.Equal(lf.Segments.Select(s => s.BlockKey), crlf.Segments.Select(s => s.BlockKey));
+        // Cada bloque tiene su propia clave (ninguno cae en la de un texto vacío).
+        Assert.Equal(lf.Segments.Select(s => s.AnchorId).Distinct().Count(), lf.Segments.Select(s => s.BlockKey).Distinct().Count());
+    }
+
+    [Fact]
+    public void Parser_IsAnnouncement_OnlyForAnnouncedBlocks()
+    {
+        const string code = "```cs\nvar x = 1;\n```";
+        var announced = Parse(code, new MarkdownSpeechOptions { CodeBlocks = CodeBlockMode.Announce });
+        var read = Parse(code, new MarkdownSpeechOptions { CodeBlocks = CodeBlockMode.Read });
+        var diagram = Parse("```mermaid\ngraph TD; A-->B;\n```");
+        var paragraph = Parse("Un párrafo.");
+
+        Assert.True(announced.Segments[0].IsAnnouncement);
+        Assert.False(read.Segments[0].IsAnnouncement);
+        Assert.True(diagram.Segments[0].IsAnnouncement);
+        Assert.False(paragraph.Segments[0].IsAnnouncement);
+    }
 }

@@ -45,6 +45,13 @@ public sealed class DocumentNote
     /// <summary>La cita ya no está en el documento. Se recalcula cada vez que se abre: no se guarda.</summary>
     [JsonIgnore]
     public bool Orphaned { get; set; }
+
+    /// <summary>
+    /// Lo que dice hoy el texto donde estaba la cita, cuando se encontró por parecido porque se retocó; null si está
+    /// igual o ya no está. Se recalcula cada vez que se abre: no se guarda.
+    /// </summary>
+    [JsonIgnore]
+    public string? CurrentQuote { get; set; }
 }
 
 /// <summary>Dónde está un apunte en el Markdown.</summary>

@@ -70,6 +70,12 @@ internal sealed class DocumentView
 
     public static bool IsOpenableFile(string path) => DraggedFiles.IsOpenable(path);
 
+    /// <summary>
+    /// En la página hay un apunte con su cuadro de texto abierto. Recargar navega la página y se perdería lo escrito,
+    /// así que la recarga automática espera a que se guarde o se cancele.
+    /// </summary>
+    public bool IsEditingNote { get; private set; }
+
     public async Task InitializeAsync()
     {
         _paths.EnsureCreated();
@@ -203,8 +209,9 @@ internal sealed class DocumentView
     /// <summary>
     /// Los apuntes del documento abierto: la página ubica cada cita, la subraya y pone su tarjeta al lado.
     /// <paramref name="editId"/> abre esa tarjeta para escribir (recién creada).
+    /// <paramref name="flashId"/> destella esa tarjeta sin tocar el foco (una marca para revisar).
     /// </summary>
-    public Task SetNotesAsync(IEnumerable<DocumentNote> notes, bool visible, string? editId = null)
+    public Task SetNotesAsync(IEnumerable<DocumentNote> notes, bool visible, string? editId = null, string? flashId = null)
     {
         var items = notes.Select(n => new { id = n.Id, quote = n.Quote, kind = n.Kind.ToString(), text = n.Text, resolved = n.Resolved, line = n.Line });
         if (editId is not null)
@@ -212,11 +219,15 @@ internal sealed class DocumentView
             _webView.Focus(); // el cuadro de la nota vive en la página: necesita el foco del WebView2
         }
 
-        return RunScriptAsync($"window.lector && window.lector.notes.set({JsonSerializer.Serialize(items)}, {(visible ? "true" : "false")}, {JsonSerializer.Serialize(editId)})");
+        return RunScriptAsync($"window.lector && window.lector.notes.set({JsonSerializer.Serialize(items)}, {(visible ? "true" : "false")}, {JsonSerializer.Serialize(editId)}, {JsonSerializer.Serialize(flashId)})");
     }
 
     public Task SetNotesVisibleAsync(bool visible) =>
         RunScriptAsync($"window.lector && window.lector.notes.setVisible({(visible ? "true" : "false")})");
+
+    /// <summary>Lo ya escuchado: una línea tenue en el margen de los bloques de esas anclas (y de ningún otro).</summary>
+    public Task SetHeardAsync(IEnumerable<string> anchors) =>
+        RunScriptAsync($"window.lector && window.lector.coverage.set({JsonSerializer.Serialize(anchors.ToArray())})");
 
     /// <summary>Pide un apunte para lo seleccionado (o lo último que se seleccionó); false si no hay selección.</summary>
     public async Task<bool> CreateNoteFromSelectionAsync()
@@ -231,6 +242,13 @@ internal sealed class DocumentView
         _webView.Focus();
         return RunScriptAsync($"window.lector && window.lector.notes.createForSegment({JsonSerializer.Serialize(anchor)})");
     }
+
+    /// <summary>
+    /// Tecla M: marca un párrafo entero para revisar, sin nota. No enfoca el WebView: la lectura sigue y el foco se queda
+    /// donde estaba.
+    /// </summary>
+    public Task MarkSegmentAsync(string anchor) =>
+        RunScriptAsync($"window.lector && window.lector.notes.mark({JsonSerializer.Serialize(anchor)})");
 
     /// <summary>Ctrl+Alt+M: la selección; sin selección la página avisa (<see cref="NoteRequest.NoSelection"/>).</summary>
     public Task CreateNoteHereAsync()
@@ -248,6 +266,44 @@ internal sealed class DocumentView
 
     public Task ScrollToYAsync(double y) =>
         RunScriptAsync($"window.lector && window.lector.scrollToY({Math.Max(0, Math.Round(y)).ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+
+    /// <summary>
+    /// El primer bloque que se ve (su data-seg) y cuántos píxeles de él quedaron arriba del borde de la vista,
+    /// o null si la página no está lista o no tiene bloques.
+    /// </summary>
+    public async Task<(string Anchor, double Offset)?> GetVisibleBlockAsync()
+    {
+        string json = await EvaluateAsync("window.lector ? window.lector.visibleBlock() : null");
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(json);
+            JsonElement root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("anchor", out JsonElement anchor) && anchor.GetString() is { } text
+                && root.TryGetProperty("offset", out JsonElement offset))
+            {
+                return (text, offset.GetDouble());
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
+    }
+
+    /// <summary>Deja la vista con el bloque <paramref name="anchor"/> a <paramref name="offset"/> píxeles arriba del borde.</summary>
+    public Task ScrollToBlockAsync(string anchor, double offset) =>
+        RunScriptAsync($"window.lector && window.lector.scrollToBlock({JsonSerializer.Serialize(anchor)}, {Math.Round(offset).ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+
+    /// <summary>
+    /// Aviso al pie del documento, con el estilo del de «Deshacer» de los apuntes. Se queda hasta que se pulse un botón:
+    /// cada uno manda su comando (<see cref="CommandRequested"/>) y cierra el aviso.
+    /// </summary>
+    public Task ShowNoticeAsync(string text, IEnumerable<(string Command, string Label)> actions) =>
+        RunScriptAsync($"window.lector && window.lector.notice.show({JsonSerializer.Serialize(text)}, {JsonSerializer.Serialize(actions.Select(a => new { id = a.Command, label = a.Label }))})");
+
+    public Task HideNoticeAsync() => RunScriptAsync("window.lector && window.lector.notice.hide()");
 
     /// <summary>Traduce un enlace https://doc.lector/... a la ruta local dentro de la carpeta del documento.</summary>
     public string? ResolveDocumentLink(Uri uri)
@@ -293,6 +349,7 @@ internal sealed class DocumentView
 
         // Desde ya, lo que mande la página anterior (un apunte editado, su desplazamiento) no es de la nueva.
         _expectedUrl = null;
+        IsEditingNote = false; // la página nueva empieza sin ningún apunte abierto
         await File.WriteAllTextAsync(Path.Combine(_paths.ViewDirectory, fileName), html, new UTF8Encoding(false));
         var navigation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _navigation = navigation;
@@ -387,6 +444,11 @@ internal sealed class DocumentView
                     break;
                 case { } note when note.StartsWith("note", StringComparison.Ordinal) && IsCurrentPage(e.Source)
                                    && ReadNoteRequest(note, root) is { } request:
+                    if (request is NoteRequest.Editing editing)
+                    {
+                        IsEditingNote = editing.IsEditing;
+                    }
+
                     NoteRequested?.Invoke(request);
                     break;
                 case "selectionCleared":
@@ -442,7 +504,7 @@ internal sealed class DocumentView
         switch (type)
         {
             case "noteCreate" when Text(root, "quote") is { Length: > 0 } quote && Text(root, "startSeg") is { } start:
-                return new NoteRequest.Create(quote, start, Text(root, "endSeg") ?? start);
+                return new NoteRequest.Create(quote, start, Text(root, "endSeg") ?? start, Flag("quiet") == true);
             case "noteUpdate" when id is not null:
                 NoteKind? kind = Enum.TryParse(Text(root, "kind"), out NoteKind parsed) ? parsed : null;
                 return new NoteRequest.Update(id, Text(root, "text"), kind, Flag("resolved"));
@@ -454,7 +516,7 @@ internal sealed class DocumentView
                 return new NoteRequest.Anchored(results.EnumerateArray()
                     .Where(r => r.ValueKind == JsonValueKind.Object && Text(r, "id") is not null)
                     .Select(r => new NoteAnchor(Text(r, "id")!, r.TryGetProperty("found", out JsonElement f) && f.ValueKind == JsonValueKind.True,
-                        Text(r, "startSeg"), Text(r, "endSeg")))
+                        Text(r, "startSeg"), Text(r, "endSeg"), Text(r, "current")))
                     .ToList());
             case "notesExport":
                 return new NoteRequest.Export();
@@ -462,6 +524,10 @@ internal sealed class DocumentView
                 return new NoteRequest.ClearResolved();
             case "noteNoSelection":
                 return new NoteRequest.NoSelection();
+            case "noteMarkDuplicate":
+                return new NoteRequest.MarkDuplicate();
+            case "noteEditing" when Flag("editing") is { } editing:
+                return new NoteRequest.Editing(editing);
             default:
                 return null;
         }
@@ -520,7 +586,11 @@ internal sealed class DocumentView
 internal abstract record NoteRequest
 {
     /// <summary>Apunte nuevo sobre <paramref name="Quote"/>, que empieza y termina en esos bloques (data-seg).</summary>
-    public sealed record Create(string Quote, string StartAnchor, string EndAnchor) : NoteRequest;
+    /// <param name="Quiet">Una marca para revisar (tecla M): sin editor ni forzar la columna a verse.</param>
+    public sealed record Create(string Quote, string StartAnchor, string EndAnchor, bool Quiet = false) : NoteRequest;
+
+    /// <summary>La tecla M sobre un párrafo que ya estaba marcado.</summary>
+    public sealed record MarkDuplicate : NoteRequest;
 
     /// <summary>Cambió la nota, el tipo o "resuelto" (null = no cambió).</summary>
     public sealed record Update(string Id, string? Text, NoteKind? Kind, bool? Resolved) : NoteRequest;
@@ -539,7 +609,11 @@ internal abstract record NoteRequest
 
     /// <summary>Ctrl+Alt+M sin texto seleccionado.</summary>
     public sealed record NoSelection : NoteRequest;
+
+    /// <summary>Se abrió (true) o se cerró (false) el cuadro de texto de un apunte.</summary>
+    public sealed record Editing(bool IsEditing) : NoteRequest;
 }
 
 /// <summary>Una cita ubicada en la página (o no: <paramref name="Found"/> = false).</summary>
-internal sealed record NoteAnchor(string Id, bool Found, string? StartAnchor, string? EndAnchor);
+/// <param name="Current">Lo que dice hoy el texto, cuando se encontró por parecido porque se retocó; null si está igual.</param>
+internal sealed record NoteAnchor(string Id, bool Found, string? StartAnchor, string? EndAnchor, string? Current);

@@ -55,6 +55,10 @@ public partial class MainWindow : Window
     private GlobalHotkey? _hotkey; // Ctrl+Alt+L: leer el portapapeles desde cualquier app
     private MiniPlayerWindow? _mini; // solo existe mientras la ventana está oculta o minimizada
     private DropOverlayWindow? _dropOverlay; // tapa la ventana mientras se arrastran archivos sobre ella
+    private readonly DocumentWatcher _watcher; // el archivo de la pestaña activa: si cambia en el disco, se recarga solo
+    private string? _loadedMarkdown; // el texto que se cargó de ese archivo (null mientras se abre): distingue un cambio real
+    private ReloadAction _pendingReload = ReloadAction.Ignore; // WhenPaused o WhenEditingEnds: una recarga que espera
+    private int _documentCheck; // cada vez que se mira el archivo cambiado; decide solo la última
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>Sonando o preparando el audio (no en pausa ni detenido).</summary>
@@ -89,12 +93,17 @@ public partial class MainWindow : Window
         TabList.ItemsSource = _tabs;
 
         _player.SegmentChanged += OnSegmentChanged;
+        _player.SegmentHeard += OnSegmentHeard;
         _player.StateChanged += OnPlaybackStateChanged;
         _player.ChunkStarted += OnChunkStarted;
         _player.DocumentFinished += OnDocumentFinished;
         _player.Failed += OnPlaybackFailed;
         _player.AudioDeviceLost += () =>
             ShowStatus("Se perdió la salida de audio (se desconectó o cambió). Quedó en pausa: pulsa Espacio para seguir desde el párrafo donde ibas.");
+
+        _watcher = new DocumentWatcher(Dispatcher);
+        _watcher.Changed += path => _ = OnDocumentChangedAsync(path);
+        _watcher.Missing += OnDocumentMissing;
 
         _player.ProgressChanged += OnProgressChanged;
         // RDP se come el inicio del audio tras un silencio (medido: la app arranca en el punto exacto); 0.5 s de
@@ -132,6 +141,7 @@ public partial class MainWindow : Window
         {
             _exiting = true;
             SaveSession();
+            SaveCoverageNow();
         };
         _hotkey = GlobalHotkey.TryRegister(this, ModifierKeys.Control | ModifierKeys.Alt, Key.L, () => _ = ReadClipboardAloudAsync());
 
@@ -189,6 +199,7 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         SaveSession();
+        SaveCoverageNow();
         if (!_exiting)
         {
             // Cerrar la ventana deja la app en la bandeja: el atajo sigue activo y, si estaba leyendo, sigue.
@@ -215,6 +226,7 @@ public partial class MainWindow : Window
         // le pasaría su archivo a esta ventana ya cerrada.
         _mini?.Close();
         _hotkey?.Dispose();
+        _watcher.Dispose();
         _tray?.Dispose();
         _player.Dispose();
         _services?.Dispose();
@@ -398,7 +410,11 @@ public partial class MainWindow : Window
 
     /// <param name="resumeSegmentId">Párrafo donde seguir; si es null se usa el que recuerda la pestaña.</param>
     /// <param name="force">Vuelve a cargar el documento aunque la pestaña ya sea la activa.</param>
-    private async Task ActivateAsync(DocumentTab tab, bool force = false, int? resumeSegmentId = null)
+    /// <param name="markdown">
+    /// El texto del archivo, si ya se leyó (la recarga automática): no se vuelve a leer, así un archivo que el editor
+    /// todavía tiene tomado no hace fallar la carga ni cierra la pestaña.
+    /// </param>
+    private async Task ActivateAsync(DocumentTab tab, bool force = false, int? resumeSegmentId = null, string? markdown = null)
     {
         if (_services is null || _view is null || (tab == _active && !force && resumeSegmentId is null))
         {
@@ -406,7 +422,16 @@ public partial class MainWindow : Window
         }
 
         int activation = ++_activation;
+        PendingReload = ReloadAction.Ignore; // otra pestaña, o esta recargada por cualquier vía: lo que esperaba ya no aplica
         RememberPosition();
+        StopCoverage(); // lo escuchado del documento que se deja se guarda ya
+        // Si es la misma pestaña, el párrafo que llega es un id del documento anterior: se describe por su contenido
+        // antes de que lo reemplace el nuevo.
+        ResumePoint? resumePoint = resumeSegmentId is { } given && tab == _active && _document is { } previous
+            ? ResumePoint.Of(previous, given)
+            : tab.State.ResumeSegmentId >= 0
+                ? new ResumePoint(tab.State.ResumeSegmentId, tab.State.ResumeBlockKey, tab.State.ResumePart)
+                : null;
         _player.Unload(); // cambiar de pestaña pausa la lectura; cada una recuerda su párrafo
         if (_active is { IsDemo: true })
         {
@@ -414,6 +439,9 @@ public partial class MainWindow : Window
         }
 
         _active = tab;
+        // Solo se vigila el archivo de la pestaña activa (las demás lo vuelven a leer al activarse); un texto pegado no.
+        _watcher.Watch(tab.IsDemo || tab.State.IsEmpty || tab.State.IsPasted ? null : tab.State.Path);
+        _loadedMarkdown = null;
         ClearNotes(); // los del documento nuevo llegan cuando se muestre
         SelectTab(tab);
         double scrollY = tab.State.ScrollY;
@@ -443,12 +471,13 @@ public partial class MainWindow : Window
         IReadOnlyList<SpeechChunk> chunks;
         try
         {
-            string markdown = await File.ReadAllTextAsync(tab.State.Path);
+            markdown ??= await File.ReadAllTextAsync(tab.State.Path);
             if (activation != _activation)
             {
                 return;
             }
 
+            _loadedMarkdown = markdown;
             // Un texto pegado no tiene carpeta propia: sin ruta, sus enlaces relativos no apuntan a "pegados".
             document = _services.Parse(markdown, tab.State.IsPasted ? null : tab.State.Path);
             chunks = _services.Plan(document);
@@ -461,10 +490,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        int? resume = resumeSegmentId ?? (tab.State.ResumeSegmentId >= 0 ? tab.State.ResumeSegmentId : null);
+        // Se resuelve siempre contra el documento nuevo: el párrafo se reconoce por su contenido, no por su número.
+        int found = resumePoint is null ? -1 : ResumeLocator.Find(document, resumePoint);
+        int? resume = found >= 0 ? found : null;
         _player.Load(document, chunks, resume);
         _document = document;
         _chunks = chunks;
+        StartCoverage(tab, document); // antes de la línea de tiempo y el índice, que lo muestran
         _lastElapsed = TimeSpan.Zero; // otro documento: la posición del anterior no sirve para −10/+10
         RebuildTimeline();
         if (tab.State.IsPasted)
@@ -485,6 +517,8 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        await ShowHeardAsync();
 
         string? resumeAnchor = resume is { } id && id < document.Segments.Count ? document.Segments[id].AnchorId : null;
         if (resumeAnchor is not null)
@@ -543,6 +577,7 @@ public partial class MainWindow : Window
         if (wasActive)
         {
             _player.Unload();
+            StopCoverage();
             _active = null;
             _document = null;
             ClearNotes();
@@ -575,7 +610,11 @@ public partial class MainWindow : Window
     private async Task ShowNoTabsAsync()
     {
         _activation++;
+        PendingReload = ReloadAction.Ignore;
+        _watcher.Watch(null);
+        _loadedMarkdown = null;
         _player.Unload();
+        StopCoverage();
         _active = null;
         _document = null;
         ClearNotes();
@@ -632,7 +671,11 @@ public partial class MainWindow : Window
     {
         if (_active is not null && _player.HasDocument)
         {
-            _active.State.ResumeSegmentId = _player.CurrentSegmentId;
+            int id = _player.CurrentSegmentId;
+            ResumePoint point = _document is { } document ? ResumePoint.Of(document, id) : new ResumePoint(id, null, 0);
+            _active.State.ResumeSegmentId = point.SegmentId;
+            _active.State.ResumeBlockKey = point.BlockKey;
+            _active.State.ResumePart = point.Part;
         }
     }
 
@@ -805,7 +848,7 @@ public partial class MainWindow : Window
                 ? ""
                 : (chapters.Any(c => c.IsEstimated) ? "≈" : "") + PlayerBar.Format(TimeSpan.FromTicks(chapters.Sum(c => c.Duration.Ticks)));
             int matches = _findCounts is { } counts ? counts.Take(end).Skip(i).Sum() : 0;
-            return new OutlineItem(_outline[i], i, time, matches, hasChildren, isCollapsed);
+            return new OutlineItem(_outline[i], i, time, matches, hasChildren, isCollapsed, chapters, HeardFraction(chapters));
         }).ToList();
         OutlineList.SelectedIndex = DocumentOutline.RowOf(_outlineRows, _markedEntry);
         _settingOutline = false;
@@ -1134,6 +1177,7 @@ public partial class MainWindow : Window
             _mini.Closed += (_, _) => _mini = null;
         }
 
+        _mini.SetPendingNotice(PendingReloadNotice);
         _mini.SetPosition(Player.CurrentSection, Player.CurrentDetail);
         _mini.SetSpeed(_settings.PlaybackSpeed);
         _mini.SetState(_player.State);
@@ -1199,10 +1243,256 @@ public partial class MainWindow : Window
             return;
         }
 
-        int resume = _player.CurrentSegmentId;
-        RebuildServices(); // vuelve a cargar también el diccionario de pronunciación
-        await ActivateAsync(_active, force: true, resumeSegmentId: resume >= 0 ? resume : null);
+        await ReloadCurrentAsync(rebuildServices: true, keepPlaying: false);
         ShowStatus("Documento recargado.");
+    }
+
+    /// <summary>
+    /// Vuelve a leer el archivo de la pestaña activa dejando todo donde estaba: la lectura en el mismo párrafo (por su
+    /// contenido) y la vista en el mismo bloque, con los mismos píxeles de él arriba.
+    /// </summary>
+    /// <param name="markdown">El texto ya leído (la recarga automática), o null para leer el archivo (F5).</param>
+    /// <returns>False si no había qué recargar o si otra activación la reemplazó.</returns>
+    private async Task<bool> ReloadCurrentAsync(bool rebuildServices, bool keepPlaying, string? markdown = null)
+    {
+        if (_active is null || _active.State.IsEmpty)
+        {
+            return false;
+        }
+
+        DocumentTab tab = _active;
+        PendingReload = ReloadAction.Ignore; // la recarga que esperaba es esta
+        SpeechDocument? before = _document;
+        bool wasPlaying = keepPlaying && IsReading; // también si estaba preparando el audio del bloque siguiente
+        int current = _player.CurrentSegmentId;
+        var visible = await _view!.GetVisibleBlockAsync();
+        ResumePoint? viewPoint = null;
+        if (before is not null && visible is { } block)
+        {
+            int first = before.Segments.ToList().FindIndex(s => s.AnchorId == block.Anchor);
+            viewPoint = first >= 0 ? ResumePoint.Of(before, first) : null;
+        }
+
+        if (rebuildServices)
+        {
+            RebuildServices(); // vuelve a cargar también el diccionario de pronunciación
+        }
+
+        int expected = _activation + 1; // ActivateAsync la incrementa antes de su primer await
+        await ActivateAsync(tab, force: true, resumeSegmentId: current >= 0 ? current : null, markdown: markdown);
+        // Si otra activación la superó (F5 dos veces, el vigilante), el documento puede no ser el de esta recarga.
+        if (_activation != expected || _shownActivation != expected || _active != tab || _document is not { } after || _view is null)
+        {
+            return false;
+        }
+
+        if (viewPoint is not null && visible is { } offset)
+        {
+            int target = ResumeLocator.Find(after, viewPoint);
+            if (target >= 0)
+            {
+                await _view.ScrollToBlockAsync(after.Segments[target].AnchorId, offset.Offset);
+            }
+        }
+
+        // Si el párrafo no se resolvió, CurrentSegmentId es -1 y PlayFrom empezaría desde el principio: no se toca.
+        if (wasPlaying && _player.HasDocument && _player.CurrentSegmentId >= 0)
+        {
+            _player.PlayFrom(_player.CurrentSegmentId);
+        }
+
+        return true;
+    }
+
+    // ------------------------------------------------------------------ recarga automática
+
+    /// <summary>
+    /// El archivo de la pestaña activa cambió en el disco (o terminó lo que la recarga esperaba). Si el texto ya no es el
+    /// cargado, <see cref="ReloadPolicy"/> decide: recargar ya, preguntar, o esperar a la pausa o a que se guarde el apunte.
+    /// </summary>
+    private async Task OnDocumentChangedAsync(string path)
+    {
+        if (_active is not { } tab || !tab.IsFile(path) || _view is null)
+        {
+            return;
+        }
+
+        int check = ++_documentCheck;
+        string? markdown = await ReadDocumentAsync(path);
+        // Si no se pudo leer (ya no está, o el editor lo sigue teniendo tomado), la pestaña se queda con lo que tiene: el
+        // próximo cambio lo vuelve a intentar. Sin texto cargado, la pestaña se está abriendo y va a leer el archivo como
+        // está ahora. Si mientras tanto llegó otro cambio, decide ese.
+        if (markdown is null || check != _documentCheck || _active != tab || _loadedMarkdown is not { } loaded || _view is null)
+        {
+            return;
+        }
+
+        ReloadAction action = ReloadPolicy.Decide(
+            contentChanged: markdown != loaded,
+            playing: IsReading,
+            windowInFront: IsActive && IsVisible && WindowState != WindowState.Minimized,
+            editingNote: _view.IsEditingNote);
+        switch (action)
+        {
+            case ReloadAction.Ignore:
+                // Volvió a ser el texto cargado: lo que esperaba, y el aviso, ya no hacen falta.
+                PendingReload = ReloadAction.Ignore;
+                _ = _view.HideNoticeAsync();
+                break;
+            case ReloadAction.ReloadNow:
+                // Con el texto ya leído: la recarga no vuelve a abrir el archivo (si fallara, cerraría la pestaña).
+                if (await ReloadCurrentAsync(rebuildServices: false, keepPlaying: false, markdown))
+                {
+                    ShowFileNotice("Documento actualizado");
+                }
+
+                break;
+            case ReloadAction.Ask when _pendingReload != ReloadAction.WhenPaused: // ya eligió «Al pausar»: esa recarga lo trae
+                _ = ShowReloadNoticeAsync();
+                break;
+            case ReloadAction.WhenPaused:
+                // Sin preguntar: el aviso queda esperando en la ventana para cuando el usuario vuelva.
+                if (_pendingReload != ReloadAction.WhenPaused)
+                {
+                    PendingReload = ReloadAction.WhenPaused; // el mini reproductor lo indica mientras espera
+                    _ = ShowReloadNoticeAsync();
+                }
+
+                break;
+            case ReloadAction.WhenEditingEnds:
+                // Al guardar o cancelar el apunte se decide de nuevo. Mientras, un aviso sin botones (no le quita el foco
+                // al apunte ni lo tapa): quien vuelve y ve el texto viejo sabe por qué. Una vez por espera.
+                if (_pendingReload != ReloadAction.WhenEditingEnds)
+                {
+                    PendingReload = ReloadAction.WhenEditingEnds;
+                    _ = _view.ShowNoticeAsync("El archivo cambió: se recarga al guardar o cancelar el apunte", []);
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>
+    /// La recarga que espera (WhenPaused o WhenEditingEnds), o Ignore. Mientras espera «Al pausar», el mini reproductor
+    /// muestra «Se actualiza al pausar» (el aviso de la página no se ve con la ventana oculta).
+    /// </summary>
+    private ReloadAction PendingReload
+    {
+        get => _pendingReload;
+        set
+        {
+            _pendingReload = value;
+            _mini?.SetPendingNotice(PendingReloadNotice);
+        }
+    }
+
+    /// <summary>Lo que indica el mini reproductor por la recarga que espera, o null.</summary>
+    private string? PendingReloadNotice => _pendingReload == ReloadAction.WhenPaused ? "Se actualiza al pausar" : null;
+
+    /// <summary>
+    /// El texto del archivo, o null si ya no está o el editor lo sigue teniendo tomado (se espera hasta unos 5 s: hay
+    /// editores que lo dejan abierto mientras escriben en varias pasadas).
+    /// </summary>
+    private static async Task<string?> ReadDocumentAsync(string path)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                // Como File.ReadAllTextAsync (UTF-8, o lo que diga el BOM), pero sin chocar con el editor que lo tiene abierto.
+                await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                return await reader.ReadToEndAsync();
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return null;
+            }
+            catch (IOException) when (attempt < 20)
+            {
+                await Task.Delay(250); // todavía lo está escribiendo
+            }
+            catch (IOException)
+            {
+                return null; // sigue tomado: al soltarlo, o con el próximo cambio, se vuelve a intentar
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                ErrorLog.Write(ex);
+                return null;
+            }
+        }
+    }
+
+    /// <summary>El archivo se borró o se renombró: la pestaña sigue abierta con lo último que se cargó.</summary>
+    private void OnDocumentMissing(string path)
+    {
+        if (_active is not { } tab || !tab.IsFile(path))
+        {
+            return;
+        }
+
+        // Recargar ya no puede: lo que esperaba se descarta.
+        PendingReload = ReloadAction.Ignore;
+        _ = _view?.HideNoticeAsync();
+        ShowFileNotice("El archivo ya no está en su carpeta.", ok: false);
+    }
+
+    private Task ShowReloadNoticeAsync() =>
+        _view?.ShowNoticeAsync("El archivo cambió en el disco.",
+            [("reloadNow", "Recargar ahora"), ("reloadOnPause", "Al pausar"), ("reloadDismiss", "Ahora no")]) ?? Task.CompletedTask;
+
+    /// <summary>
+    /// «Recargar ahora» en el aviso: si estaba sonando, sigue desde el mismo párrafo. Si el archivo no se puede leer, la
+    /// pestaña se queda con lo último que se cargó.
+    /// </summary>
+    private async Task ReloadFromNoticeAsync()
+    {
+        if (_active is not { State.IsEmpty: false, State.IsPasted: false } tab)
+        {
+            return;
+        }
+
+        string path = tab.State.Path;
+        if (await ReadDocumentAsync(path) is not { } markdown)
+        {
+            ShowFileNotice(File.Exists(path) ? "No se pudo leer el archivo: sigue lo último que se cargó." : "El archivo ya no está en su carpeta.", ok: false);
+            return;
+        }
+
+        if (_active == tab && await ReloadCurrentAsync(rebuildServices: false, keepPlaying: true, markdown))
+        {
+            ShowFileNotice("Documento actualizado");
+        }
+    }
+
+    /// <summary>«Al pausar» en el aviso: se recarga en la próxima pausa o detención (si ya no suena, ahora).</summary>
+    private void ReloadOnPause()
+    {
+        if (IsReading)
+        {
+            PendingReload = ReloadAction.WhenPaused;
+        }
+        else if (_active is { State.IsEmpty: false, State.IsPasted: false } tab)
+        {
+            _ = OnDocumentChangedAsync(tab.State.Path);
+        }
+    }
+
+    /// <summary>
+    /// Con la ventana al frente, el aviso breve; si no, en la barra del reproductor: el aviso breve es un Popup y
+    /// flotaría sobre la app en la que está el usuario (por eso se cierra al desactivarse la ventana).
+    /// </summary>
+    private void ShowFileNotice(string message, bool ok = true)
+    {
+        if (IsActive)
+        {
+            ShowToast(message, ok);
+        }
+        else
+        {
+            ShowStatus(message);
+        }
     }
 
     // ------------------------------------------------------------------ comandos
@@ -1245,10 +1535,15 @@ public partial class MainWindow : Window
             case "outline": ToggleOutline(); break;
             case "find": OpenFind(); break;
             case "note" when _notes is not null: _ = _view?.CreateNoteHereAsync(); break;
+            case "mark": MarkForReview(); break;
             case "nextNote": _ = _view?.GoToNoteAsync(1); break;
             case "previousNote": _ = _view?.GoToNoteAsync(-1); break;
             case "back10": SkipBy(TimeSpan.FromSeconds(-10)); break;
             case "forward10": SkipBy(TimeSpan.FromSeconds(10)); break;
+            // Los botones del aviso «El archivo cambió en el disco».
+            case "reloadNow": _ = ReloadFromNoticeAsync(); break;
+            case "reloadOnPause": ReloadOnPause(); break;
+            case "reloadDismiss": PendingReload = ReloadAction.Ignore; break; // hasta que el archivo vuelva a cambiar
         }
     }
 
@@ -1333,6 +1628,7 @@ public partial class MainWindow : Window
             Key.Tab when ctrl => shift ? "previousTab" : "nextTab",
             Key.B when ctrl => "outline",
             Key.F when ctrl => "find",
+            Key.M when Keyboard.Modifiers == ModifierKeys.None && !e.IsRepeat => "mark", // marcar sin parar la lectura
             // Flechas solas: −10 s / +10 s (en las listas de pestañas e índice siguen moviendo la selección).
             Key.Left when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "back10",
             Key.Right when !ctrl && !e.IsRepeat && e.OriginalSource is not ListBoxItem => "forward10",
@@ -1684,6 +1980,7 @@ public partial class MainWindow : Window
             ? null
             : ReadingTimeline.Build(_document, _chunks, chunk => _services.Engine.TryGetCached(chunk));
         Player.SetTimeline(_timeline, keepProgress);
+        Player.SetHeard(HeardSpans()); // con las duraciones nuevas
         RefreshOutline();
     }
 
@@ -1697,6 +1994,20 @@ public partial class MainWindow : Window
         if (state == PlaybackState.Loading)
         {
             ShowStatus("Preparando el audio…");
+        }
+
+        // «Al pausar»: la recarga que esperaba se decide de nuevo al pausar o detener. Saltar a otro párrafo pasa un
+        // instante por «detenido» antes de volver a cargar: se mira cuando eso ya pasó.
+        if (state is PlaybackState.Paused or PlaybackState.Stopped && _pendingReload == ReloadAction.WhenPaused)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (!IsReading && _pendingReload == ReloadAction.WhenPaused && _active is { } tab)
+                {
+                    PendingReload = ReloadAction.Ignore;
+                    _ = OnDocumentChangedAsync(tab.State.Path);
+                }
+            }, DispatcherPriority.Background);
         }
 
         UpdateButtons();

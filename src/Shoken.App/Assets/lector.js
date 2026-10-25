@@ -60,6 +60,26 @@
     diagrams.rememberScroll(y);
   }
 
+  // El primer bloque que se ve (data-seg) y cuántos píxeles de él quedaron arriba del borde; la app lo usa para
+  // dejar la vista donde estaba cuando el documento cambia.
+  function visibleBlock() {
+    for (const el of document.querySelectorAll('[data-seg]')) {
+      const first = elementsFor(el.getAttribute('data-seg'))[0] || el;
+      const rect = first.getBoundingClientRect();
+      if (rect.bottom > 1) {
+        return { anchor: el.getAttribute('data-seg'), offset: -rect.top };
+      }
+    }
+    return null;
+  }
+
+  function scrollToBlock(anchor, offset) {
+    const first = elementsFor(anchor)[0];
+    if (first) {
+      scrollToY(first.getBoundingClientRect().top + window.scrollY + (offset || 0));
+    }
+  }
+
   // La app guarda la posición de cada pestaña para restaurarla al volver o al reabrir.
   let scrollTimer = 0;
   window.addEventListener('scroll', () => {
@@ -129,7 +149,7 @@
 
     function build() {
       const root = document.querySelector('main.doc') || document.body;
-      const nodes = [], segs = [], lines = [], nodeOf = [], offsetOf = [];
+      const nodes = [], segs = [], lines = [], nodeOf = [], offsetOf = [], blocks = [];
       let text = '';
       let space = true;
       let lastSeg = null;
@@ -148,6 +168,7 @@
         segs.push(lastSeg);
         lines.push(lastLine);
         const s = n.nodeValue;
+        const from = text.length;
         for (let i = 0; i < s.length; i++) {
           const c = s.charCodeAt(i);
           const f = c <= 32 || (c > 127 && /\s/.test(s[i])) ? ' ' : (c < 128 ? s[i].toLowerCase() : fold(s[i]));
@@ -163,20 +184,32 @@
             offsetOf.push(i);
           }
         }
+        // Cada bloque legible (data-seg) es un tramo seguido del texto plegado.
+        if (lastSeg !== null && text.length > from) {
+          const last = blocks[blocks.length - 1];
+          if (last && last.seg === lastSeg) last.end = text.length;
+          else blocks.push({ seg: lastSeg, line: lastLine, start: from, end: text.length });
+        }
       }
-      return { text, nodes, segs, lines, nodeOf, offsetOf };
+      return { text, nodes, segs, lines, nodeOf, offsetOf, blocks };
+    }
+
+    // El rango de la página que corresponde a [start, end) del texto plegado.
+    function rangeOf(start, end) {
+      const { nodes, nodeOf, offsetOf } = get();
+      const range = document.createRange();
+      range.setStart(nodes[nodeOf[start]], offsetOf[start]);
+      range.setEnd(nodes[nodeOf[end - 1]], offsetOf[end - 1] + 1);
+      return range;
     }
 
     // Cada aparición de "query" (ya plegada) como un rango, con el bloque y la línea donde empieza y termina.
     function findAll(query, limit) {
-      const { text, nodes, segs, lines, nodeOf, offsetOf } = get();
+      const { text, segs, lines, nodeOf } = get();
       const found = [];
       for (let at = query ? text.indexOf(query) : -1; at >= 0 && found.length < limit; at = text.indexOf(query, at + query.length)) {
-        const end = at + query.length - 1;
-        const range = document.createRange();
-        range.setStart(nodes[nodeOf[at]], offsetOf[at]);
-        range.setEnd(nodes[nodeOf[end]], offsetOf[end] + 1);
-        found.push({ range, seg: segs[nodeOf[at]], endSeg: segs[nodeOf[end]], line: lines[nodeOf[at]] });
+        const end = at + query.length;
+        found.push({ range: rangeOf(at, end), seg: segs[nodeOf[at]], endSeg: segs[nodeOf[end - 1]], line: lines[nodeOf[at]] });
       }
       return found;
     }
@@ -184,7 +217,14 @@
     // El texto no cambia mientras la página está abierta, salvo al dibujar los diagramas.
     const get = () => cached || (cached = build());
 
-    return { fold, findAll, invalidate: () => { cached = null; } };
+    return {
+      fold,
+      findAll,
+      rangeOf,
+      blocks: () => get().blocks, // [{ seg, line, start, end }], en offsets del texto plegado
+      slice: (start, end) => get().text.slice(start, end),
+      invalidate: () => { cached = null; },
+    };
   })();
 
   // Búsqueda (Ctrl+F): sin distinguir acentos ni mayúsculas, sobre el índice compartido. La app recibe cuántos
@@ -420,6 +460,9 @@
     else if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) command = 'outline';
     else if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.altKey && !e.shiftKey) command = 'back10';
     else if (e.key === 'ArrowRight' && !e.ctrlKey && !e.altKey && !e.shiftKey) command = 'forward10';
+    // Marcar sin parar: una marca por pulsación (mantenerla apretada no repite) y nunca escribiendo (ni en un apunte).
+    else if ((e.key === 'm' || e.key === 'M') && !e.repeat && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey
+      && !(e.target instanceof Element && e.target.closest('input, textarea, [contenteditable], .lector-note-ui'))) command = 'mark';
 
     if (command) {
       e.preventDefault();
@@ -616,7 +659,12 @@
     const KINDS = { Clarify: 'Aclarar', Improve: 'Mejorar', Other: 'Otro' };
     const COLUMN = 280;
     const MIN_DOC = 560; // con menos ancho para el texto, la columna se vuelve marcas en el margen
-    let list = []; // { id, quote, kind, text, resolved, line, range, seg, endSeg, shownLine }
+    const NEAR_LINES = 40; // cuántas líneas alrededor de la guardada cuentan como "cerca" de donde estaba la cita
+    const MIN_LIKENESS = 0.6; // parecido mínimo para seguir a una cita retocada; menos, y queda huérfana
+    const MAX_SPAN_WORDS = 400; // con citas más largas solo se comparan bloques enteros (los tramos costarían mucho)
+    const MAX_LCS_CELLS = 20e6; // tope de LCS por apunte para los tramos que cruzan bloques (unas decenas de ms)
+    let list = []; // { id, quote, kind, text, resolved, line, range, seg, endSeg, shownLine, current }
+    let undoAction = null; // lo que hace «Deshacer» en el aviso que se ve
     let visible = true;
     let compact = false;
     let aside = null;
@@ -633,6 +681,7 @@
     const baseTops = new Map(); // dónde quedó cada tarjeta en el último layout(), sin la del mouse desplegada
     let link = null; // la línea de la cita a su tarjeta
     let editingId = null;
+    let reportedEditing = false; // lo último que se le dijo a la app sobre editingId
     let newId = null;
     let menuBlock = null;
     let queued = false;
@@ -645,12 +694,217 @@
       lastSelection = range.cloneRange();
     }
 
-    // La cita en la página: si aparece varias veces, la más cercana a la línea donde estaba.
+    // La app no recarga la página mientras hay un apunte abierto para escribir (se perdería lo escrito): se le avisa al
+    // abrirlo y al cerrarlo. Se avisa al terminar el cambio, así pasar de una tarjeta a otra no cuenta como cerrar.
+    function reportEditing() {
+      queueMicrotask(() => {
+        const editing = editingId !== null;
+        if (editing === reportedEditing) return;
+        reportedEditing = editing;
+        post({ type: 'noteEditing', editing });
+      });
+    }
+
+    // La cita en la página, en este orden: tal cual cerca de la línea donde estaba; si no, lo más parecido cerca (se
+    // retocó: current dice cómo quedó); si no, tal cual en cualquier parte (se movió). Entre varias, la más cercana.
     function locate(note) {
       const query = textIndex.fold(note.quote).replace(/\s+/g, ' ').trim();
       const found = textIndex.findAll(query, 200);
-      if (!found.length) return null;
-      return found.reduce((best, f) => (Math.abs(f.line - note.line) < Math.abs(best.line - note.line) ? f : best));
+      const distance = (where) => Math.abs(where.line - note.line);
+      const nearest = (places) => places.reduce((best, f) => (distance(f) < distance(best) ? f : best));
+      const near = found.filter((f) => distance(f) <= NEAR_LINES);
+      if (near.length) return nearest(near);
+      return similar(query, note.line) || (found.length ? nearest(found) : null);
+    }
+
+    const wordsOf = (folded) => Array.from(folded.matchAll(/[\p{L}\p{N}]+/gu), (m) => ({ word: m[0], start: m.index, end: m.index + m[0].length }));
+
+    // Lo más parecido a la cita cerca de su línea, si llega al parecido mínimo. Parecido = 2·LCS / (|a| + |b|), con
+    // las palabras plegadas como unidad. Las palabras de los bloques cercanos se toman seguidas, en el orden del
+    // documento: así también sigue a una cita de varios párrafos o elementos de lista que se retocó.
+    function similar(query, line) {
+      const quote = query.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      if (!quote.length) return null;
+      const all = textIndex.blocks();
+      const isNear = (block) => Math.abs(block.line - line) <= NEAR_LINES;
+      const first = all.findIndex(isNear);
+      if (first < 0) return null;
+      const near = all.slice(first, all.findLastIndex(isNear) + 1);
+      const words = []; // { word, start, end, block }: posiciones en el texto plegado; block, el índice en near
+      const firstWord = near.map(() => -1), lastWord = near.map(() => -1); // las palabras de cada bloque
+      near.forEach((block, b) => {
+        for (const w of wordsOf(textIndex.slice(block.start, block.end))) {
+          if (firstWord[b] < 0) firstWord[b] = words.length;
+          lastWord[b] = words.length;
+          words.push({ word: w.word, start: block.start + w.start, end: block.start + w.end, block: b });
+        }
+      });
+      const plain = words.map((w) => w.word);
+      const best = likeliest(quote, plain, words, near.map((block) => (isNear(block) ? Math.abs(block.line - line) : null)), firstWord, lastWord);
+      if (!best) return null;
+      // La proyección no sale de los bloques donde empieza y termina el tramo.
+      const lo = firstWord[words[best.from].block], hi = lastWord[words[best.to].block];
+      const [from, to] = best.from > lo || best.to < hi ? project(quote, plain, best.from, best.to, lo, hi) : [best.from, best.to];
+      // Con la puntuación pegada a las palabras de los extremos (comillas, el punto final), como se selecciona.
+      const startBlock = near[words[from].block], endBlock = near[words[to].block];
+      const text = textIndex.slice(startBlock.start, endBlock.end);
+      let start = words[from].start - startBlock.start;
+      let end = words[to].end - startBlock.start;
+      while (start > 0 && !/[\s\p{L}\p{N}]/u.test(text[start - 1])) start--;
+      while (end < text.length && !/[\s\p{L}\p{N}]/u.test(text[end])) end++;
+      const range = textIndex.rangeOf(startBlock.start + start, startBlock.start + end);
+      return { range, seg: startBlock.seg, endSeg: endBlock.seg, line: startBlock.line, current: range.toString().replace(/\s+/g, ' ').trim() };
+    }
+
+    // Los candidatos, en el orden del documento: cada bloque cercano entero y los tramos de ceil(0,7·n) a ceil(1,3·n)
+    // palabras que empiezan en él, aunque sigan en los bloques siguientes. Gana el mayor parecido; en un empate, el
+    // que empieza más cerca de la línea. Si esos tramos costarían más que MAX_LCS_CELLS, o la cita pasa de 400 palabras,
+    // se compara cada bloque por su lado (bestSpan). distances[b] es null si el bloque b no está cerca.
+    function likeliest(quote, plain, words, distances, firstWord, lastWord) {
+      const n = quote.length;
+      const minLen = Math.ceil(0.7 * n), maxLen = Math.ceil(1.3 * n);
+      let starts = n <= MAX_SPAN_WORDS ? windowStarts(quote, plain, minLen, maxLen, (s) => distances[words[s].block] !== null) : null;
+      if (starts && starts.length * n * maxLen > MAX_LCS_CELLS) starts = null;
+      let best = null;
+      const consider = (score, from, to, distance) => {
+        if (score >= MIN_LIKENESS && (!best || score > best.score || (score === best.score && distance < best.distance))) {
+          best = { score, from, to, distance };
+        }
+      };
+      let next = 0; // el próximo de starts
+      for (let b = 0; b < distances.length; b++) {
+        const lo = firstWord[b], hi = lastWord[b], distance = distances[b];
+        if (lo < 0 || distance === null) continue;
+        const block = plain.slice(lo, hi + 1);
+        if (!starts) {
+          const span = bestSpan(quote, block);
+          if (span) consider(span.score, lo + span.from, lo + span.to, distance);
+          continue;
+        }
+        consider(wholeScore(quote, block), lo, hi, distance);
+        for (; next < starts.length && starts[next] <= hi; next++) {
+          const s = starts[next];
+          const lcs = lcsFrom(quote, plain, s, maxLen);
+          for (let len = minLen; len < lcs.length; len++) consider(2 * lcs[len] / (n + len), s, s + len - 1, distance);
+        }
+      }
+      return best;
+    }
+
+    // Dónde puede empezar un tramo que llegue al mínimo: en una palabra de la cita (el que empieza con otra nunca gana
+    // al que empieza en la siguiente; salvo el último inicio posible) y con bastantes palabras de la cita en las
+    // maxLen siguientes (el LCS no pasa de las que tienen en común). Se cuentan con una ventana que se corre.
+    function windowStarts(quote, words, minLen, maxLen, allowed) {
+      const n = quote.length;
+      const need = new Map();
+      for (const w of quote) need.set(w, (need.get(w) || 0) + 1);
+      const count = new Map();
+      let shared = 0, end = 0; // en común entre la cita y words[s..end)
+      const starts = [];
+      for (let s = 0; s + minLen <= words.length; s++) {
+        for (const limit = Math.min(words.length, s + maxLen); end < limit; end++) {
+          const k = count.get(words[end]) || 0;
+          if (k < (need.get(words[end]) || 0)) shared++;
+          count.set(words[end], k + 1);
+        }
+        if (allowed(s) && (need.has(words[s]) || s + minLen === words.length) && 2 * shared / (n + minLen) >= MIN_LIKENESS) {
+          starts.push(s);
+        }
+        const k = count.get(words[s]);
+        count.set(words[s], k - 1);
+        if (k <= (need.get(words[s]) || 0)) shared--;
+      }
+      return starts;
+    }
+
+    // Las palabras que tienen en común (contando repetidas): el LCS no pasa de ahí.
+    function sharedWords(quote, words) {
+      const left = new Map();
+      for (const w of quote) left.set(w, (left.get(w) || 0) + 1);
+      let shared = 0;
+      for (const w of words) {
+        const k = left.get(w);
+        if (k) { left.set(w, k - 1); shared++; }
+      }
+      return shared;
+    }
+
+    // El parecido del bloque entero (0 si ni con todas las palabras en común llegaría al mínimo).
+    function wholeScore(quote, words) {
+      const n = quote.length, m = words.length;
+      if (!m || 2 * sharedWords(quote, words) / (n + m) < MIN_LIKENESS) return 0;
+      return 2 * lcsFrom(quote, words, 0, m)[m] / (n + m);
+    }
+
+    // Dentro de un bloque: el bloque entero y, si la cita es más corta, cada tramo seguido de entre 0,7 y 1,3 veces su
+    // largo. Devuelve { score, from, to } (índices de palabras) o null si ninguno puede llegar al mínimo.
+    function bestSpan(quote, words) {
+      const n = quote.length, m = words.length;
+      if (!m) return null;
+      const spans = n < m && n <= MAX_SPAN_WORDS;
+      const minLen = spans ? Math.ceil(0.7 * n) : m;
+      const maxLen = spans ? Math.ceil(1.3 * n) : m;
+      // El LCS no pasa de las palabras en común: si ni así llega al mínimo, el bloque no se compara.
+      if (2 * sharedWords(quote, words) / (n + minLen) < MIN_LIKENESS) return null;
+      const whole = lcsFrom(quote, words, 0, m);
+      let best = { score: 2 * whole[m] / (n + m), from: 0, to: m - 1 };
+      if (!spans) return best;
+      const inQuote = new Set(quote);
+      for (let s = 0; s + minLen <= m; s++) {
+        // Un tramo que empieza con una palabra que no está en la cita nunca gana al que empieza en la siguiente.
+        if (!inQuote.has(words[s]) && s + minLen < m) continue;
+        const lcs = lcsFrom(quote, words, s, maxLen);
+        for (let len = minLen; len < lcs.length; len++) {
+          const score = 2 * lcs[len] / (n + len);
+          if (score > best.score) best = { score, from: s, to: s + len - 1 };
+        }
+      }
+      return best;
+    }
+
+    // El tramo que gana suele dejar afuera las palabras cambiadas de sus bordes (sin ellas se parece más). Para que se
+    // vea qué cambió, los bordes de la cita se ubican a través de las coincidencias: antes de la primera, tantas
+    // palabras como le quedan a la cita antes de la suya, y lo mismo después de la última. Sin salir de [lo, hi].
+    function project(quote, words, from, to, lo, hi) {
+      const n = quote.length, len = to - from + 1;
+      const rest = Array.from({ length: n + 1 }, () => new Int32Array(len + 1)); // rest[i][j] = LCS(quote[i..], tramo[j..])
+      for (let i = n - 1; i >= 0; i--) {
+        for (let j = len - 1; j >= 0; j--) {
+          rest[i][j] = quote[i] === words[from + j] ? rest[i + 1][j + 1] + 1 : Math.max(rest[i + 1][j], rest[i][j + 1]);
+        }
+      }
+      let first = null, last = null;
+      for (let i = 0, j = 0; i < n && j < len;) {
+        if (quote[i] === words[from + j]) {
+          first = first || [i, j];
+          last = [i, j];
+          i++;
+          j++;
+        } else if (rest[i + 1][j] >= rest[i][j + 1]) {
+          i++;
+        } else {
+          j++;
+        }
+      }
+      if (!first) return [from, to];
+      return [Math.max(lo, from + first[1] - first[0]), Math.min(hi, from + last[1] + n - 1 - last[0])];
+    }
+
+    // Una sola pasada da el LCS de la cita contra cada tramo que empieza en "start": lcs[len], con len hasta maxLen.
+    function lcsFrom(quote, words, start, maxLen) {
+      const n = quote.length;
+      const count = Math.min(maxLen, words.length - start);
+      const lcs = new Int32Array(count + 1);
+      let previous = new Int32Array(n + 1), row = new Int32Array(n + 1);
+      for (let j = 1; j <= count; j++) {
+        const w = words[start + j - 1];
+        for (let i = 1; i <= n; i++) {
+          row[i] = quote[i - 1] === w ? previous[i - 1] + 1 : Math.max(previous[i], row[i - 1]);
+        }
+        lcs[j] = row[n];
+        [previous, row] = [row, previous];
+      }
+      return lcs;
     }
 
     function anchorAll(report) {
@@ -660,17 +914,31 @@
         n.seg = where ? where.seg : null;
         n.endSeg = where ? where.endSeg : null;
         n.shownLine = where ? where.line : n.line;
+        n.current = where && where.current ? where.current : null;
       }
       if (report && list.length) {
-        post({ type: 'notesAnchored', results: list.map((n) => ({ id: n.id, found: !!n.range, startSeg: n.seg, endSeg: n.endSeg })) });
+        post({
+          type: 'notesAnchored',
+          results: list.map((n) => ({ id: n.id, found: !!n.range, startSeg: n.seg, endSeg: n.endSeg, current: n.current })),
+        });
       }
     }
 
-    // Lo que manda la app al abrir el documento o tras crear, borrar o restaurar; editId abre esa tarjeta para escribir.
-    function set(items, show, editId) {
-      // Si se estaba escribiendo otro apunte (y se creó uno nuevo), lo escrito se guarda antes de redibujar.
+    // Lo que manda la app al abrir el documento o tras crear, borrar o restaurar; editId abre esa tarjeta para escribir
+    // y flashId la destella sin mover el foco (una marca para revisar).
+    function set(items, show, editId, flashId) {
+      // Una marca para revisar (flashId sin editId) no cierra el apunte que se está escribiendo: sigue abierto, con lo
+      // escrito, el cursor y el foco. Si no, y se estaba escribiendo otro apunte (y se creó uno nuevo), lo escrito se
+      // guarda antes de redibujar.
       const editor = editingId ? editorFor(editingId) : null;
-      const draft = editor && editingId !== editId ? { id: editingId, text: editor.value.trim() } : null;
+      const keep = !editId && flashId && editingId && items.some((n) => n.id === editingId) ? editingId : null;
+      const kept = keep && editor
+        ? {
+          value: editor.value, start: editor.selectionStart, end: editor.selectionEnd,
+          focused: document.activeElement === editor, floating: !!(popover && popover.getAttribute('data-for') === keep),
+        }
+        : null;
+      const draft = editor && !keep && editingId !== editId ? { id: editingId, text: editor.value.trim() } : null;
       if (popover) popover.remove();
       popover = null;
       visible = !!show;
@@ -681,14 +949,28 @@
         post({ type: 'noteUpdate', id: draft.id, text: draft.text });
       }
       anchorAll(true);
-      editingId = editId || null;
-      newId = editId || null;
+      editingId = editId || keep || null;
+      reportEditing();
+      newId = editId || (keep ? newId : null); // si el que sigue abierto era nuevo, vacío todavía se descarta
       pinnedId = editId || (byId(pinnedId) ? pinnedId : null);
       render();
       if (editId) {
         activate(editId);
         focusEditor(editId);
+        return;
       }
+      if (kept) restoreEditor(keep, kept);
+      if (flashId && visible) flash(flashId);
+    }
+
+    // El editor que siguió abierto al redibujar: lo escrito, el cursor y, si lo tenía, el foco (sin mover la vista).
+    function restoreEditor(id, kept) {
+      if (kept.floating && compact) openPopover(id);
+      const box = editorFor(id);
+      if (!box) return;
+      box.value = kept.value;
+      box.setSelectionRange(kept.start, kept.end);
+      if (kept.focused) box.focus({ preventScroll: true });
     }
 
     function setVisible(show) {
@@ -717,7 +999,8 @@
         '<button type="button" class="note-icon" data-act="previous" title="Apunte anterior (Alt+↑)" aria-label="Apunte anterior">&#xE70E;</button>' +
         '<button type="button" class="note-icon" data-act="next" title="Apunte siguiente (Alt+↓)" aria-label="Apunte siguiente">&#xE70D;</button></div>' +
         '<button type="button" data-act="export" title="Copia los apuntes pendientes, con sus referencias, para pegarlos en el chat de una IA">Copiar para la IA</button>' +
-        '<button type="button" data-act="clear">Borrar resueltos</button></div>' +
+        '<button type="button" data-act="clear">Borrar resueltos</button>' +
+        '<div class="notes-orphans" hidden><span></span> · <button type="button" data-act="resolveOrphans">Marcar resueltos</button></div></div>' +
         '<div class="notes-cards"></div>';
       markers = make('div', 'lector-note-markers lector-note-ui');
       dots = make('div', 'note-marker-list');
@@ -767,13 +1050,19 @@
       const body = editingId === n.id
         ? '<textarea class="note-editor" rows="3" aria-label="Nota" placeholder="¿Qué quieres que la IA aclare o mejore?">' + esc(n.text) + '</textarea>' +
           '<div class="note-hint">Ctrl+Enter guarda · Esc cancela</div>'
-        : '<div class="note-text" data-act="edit" title="Clic para editar">' + (n.text ? esc(n.text) : '<span class="note-empty">Escribe la nota…</span>') + '</div>';
-      return '<article class="note-card kind-' + kind.toLowerCase() + (n.resolved ? ' resolved' : '') + (n.range ? '' : ' orphan') +
+        : '<div class="note-text" data-act="edit" title="Clic para editar">' + (n.text ? esc(n.text) : '<span class="note-empty">Por revisar · sin nota</span>') + '</div>';
+      // Si la cita se retocó, la original tachada y lo que dice ahora (compacta, solo una línea de lo actual).
+      const quote = n.range && n.current
+        ? '<div class="note-changed-label">La cita cambió</div>' +
+          '<blockquote class="note-quote note-quote-old" title="Cita original">' + esc(n.quote) + '</blockquote>' +
+          '<blockquote class="note-quote note-quote-new" title="Ahora dice">' + esc(n.current) + '</blockquote>'
+        : '<blockquote class="note-quote">' + esc(n.quote) + '</blockquote>';
+      return '<article class="note-card kind-' + kind.toLowerCase() + (n.resolved ? ' resolved' : '') + (n.range ? (n.current ? ' changed' : '') : ' orphan') +
         (activeId === n.id ? ' active' : '') + (pinnedId === n.id || editingId === n.id ? ' pinned' : '') +
         (hoverId === n.id ? ' hovered' : '') + '" data-id="' + esc(n.id) + '">' +
         '<div class="note-top"><div class="note-kinds" role="radiogroup" aria-label="Tipo de apunte">' + kinds + '</div>' +
         '<span class="note-where" title="' + (n.range ? 'Línea en el Markdown' : 'La cita ya no está en el documento') + '">' + where + '</span></div>' +
-        '<blockquote class="note-quote">' + esc(n.quote) + '</blockquote>' + body +
+        quote + body +
         '<div class="note-actions">' +
         '<button type="button" class="note-icon" data-act="play" title="Leer desde aquí" aria-label="Leer desde aquí"' + (n.seg ? '' : ' disabled') + '>&#xE768;</button>' +
         '<label class="note-done"><input type="checkbox" data-act="resolved"' + (n.resolved ? ' checked' : '') + '> Resuelto</label>' +
@@ -790,6 +1079,10 @@
       aside.querySelector('.notes-title').textContent = 'Apuntes (' + pending + (list.length > pending ? ' de ' + list.length : '') + ')';
       aside.querySelector('[data-act="export"]').disabled = pending === 0;
       aside.querySelector('[data-act="clear"]').disabled = !list.some((n) => n.resolved);
+      const orphans = list.filter((n) => !n.resolved && !n.range).length;
+      const orphanRow = aside.querySelector('.notes-orphans');
+      orphanRow.hidden = orphans === 0;
+      orphanRow.firstChild.textContent = orphans === 1 ? '1 apunte ya no encuentra su cita' : orphans + ' apuntes ya no encuentran su cita';
       const ordered = [...list].sort((a, b) => position(a) - position(b) || a.line - b.line);
       aside.querySelector('.notes-cards').innerHTML = ordered.map(cardHtml).join('');
       if (popover && !byId(popover.getAttribute('data-for'))) closePopover();
@@ -1033,6 +1326,7 @@
     function startEditing(id) {
       if (editingId && editingId !== id) save(editingId);
       editingId = id;
+      reportEditing();
       rerenderCard(id);
       focusEditor(id);
     }
@@ -1046,6 +1340,7 @@
       const n = byId(id);
       if (!n) return;
       editingId = null;
+      reportEditing();
       if (newId === id && !value.trim()) {
         newId = null;
         remove(id, true); // recién creado y se dejó vacío: como en Google Docs, no queda
@@ -1061,6 +1356,7 @@
       const n = byId(id);
       if (!n) return;
       editingId = null;
+      reportEditing();
       if (newId === id && !n.text) {
         newId = null;
         remove(id, true); // un apunte recién creado y vacío no deja rastro
@@ -1072,28 +1368,51 @@
 
     function remove(id, silent) {
       list = list.filter((n) => n.id !== id);
-      if (editingId === id) editingId = null;
+      if (editingId === id) {
+        editingId = null;
+        reportEditing();
+      }
       if (pinnedId === id) pinnedId = null;
       if (hoverId === id) hoverId = null;
       post({ type: 'noteDelete', id, silent: !!silent });
       if (popover && popover.getAttribute('data-for') === id) closePopover();
       render();
-      if (!silent) showUndo(id);
+      if (!silent) showUndo('Apunte borrado', () => post({ type: 'noteRestore', id }));
     }
 
-    function showUndo(id) {
+    // «Marcar resueltos» de la cabecera: los pendientes que ya no encuentran su cita, de una vez y con aviso para deshacer.
+    function resolveOrphans() {
+      const ids = list.filter((n) => !n.resolved && !n.range).map((n) => n.id);
+      if (!ids.length) return;
+      setResolved(ids, true);
+      showUndo(ids.length === 1 ? '1 apunte marcado como resuelto' : ids.length + ' apuntes marcados como resueltos', () => setResolved(ids, false));
+    }
+
+    function setResolved(ids, resolved) {
+      for (const id of ids) {
+        const n = byId(id);
+        if (!n || n.resolved === resolved) continue;
+        n.resolved = resolved;
+        post({ type: 'noteUpdate', id, resolved });
+      }
+      render();
+    }
+
+    function showUndo(text, undo) {
       if (!undoBar) {
         undoBar = make('div', 'lector-undo lector-note-ui');
         undoBar.setAttribute('role', 'status');
         document.body.appendChild(undoBar);
         undoBar.addEventListener('click', (e) => {
-          const button = e.target instanceof Element ? e.target.closest('[data-undo]') : null;
-          if (!button) return;
-          post({ type: 'noteRestore', id: button.getAttribute('data-undo') });
+          if (!(e.target instanceof Element && e.target.closest('[data-undo]'))) return;
           undoBar.hidden = true;
+          const action = undoAction;
+          undoAction = null;
+          if (action) action();
         });
       }
-      undoBar.innerHTML = 'Apunte borrado <button type="button" data-undo="' + esc(id) + '">Deshacer</button>';
+      undoAction = undo;
+      undoBar.innerHTML = esc(text) + ' <button type="button" data-undo>Deshacer</button>';
       undoBar.hidden = false;
       clearTimeout(undoTimer);
       undoTimer = setTimeout(() => { undoBar.hidden = true; }, 6000);
@@ -1108,6 +1427,7 @@
       if (!act) return;
       if (act === 'export') post({ type: 'notesExport' });
       else if (act === 'clear') post({ type: 'notesClearResolved' });
+      else if (act === 'resolveOrphans') resolveOrphans();
       else if (act === 'previous' || act === 'next') go(act === 'next' ? 1 : -1);
       else if (act === 'open') openPopover(target.getAttribute('data-id'));
       else if (act === 'kind' && id) setKind(id, target.getAttribute('data-kind'));
@@ -1191,6 +1511,20 @@
       if (text) post({ type: 'noteCreate', quote: text, startSeg: anchor, endSeg: anchor });
     }
 
+    // Tecla M: marca el bloque entero para revisar, sin texto y sin abrir el editor. Si ya hay un apunte pendiente con
+    // ese mismo texto, solo avisa a la app.
+    function mark(anchor) {
+      const el = elementsFor(anchor)[0];
+      const text = el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+      if (!text) return;
+      const folded = textIndex.fold(text).replace(/\s+/g, ' ').trim();
+      if (list.some((n) => !n.resolved && textIndex.fold(n.quote).replace(/\s+/g, ' ').trim() === folded)) {
+        post({ type: 'noteMarkDuplicate' });
+        return;
+      }
+      post({ type: 'noteCreate', quote: text, startSeg: anchor, endSeg: anchor, quiet: true });
+    }
+
     // Ctrl+Alt+M: la selección; sin selección decide la app (el párrafo que se está leyendo).
     function createHere() {
       if (!createFromSelection()) post({ type: 'noteNoSelection' });
@@ -1255,7 +1589,82 @@
       else flash(hit.id);
     });
 
-    return { set, setVisible, refresh, rememberSelection, createFromSelection, createForSegment, createHere, closeMenu, go };
+    return { set, setVisible, refresh, rememberSelection, createFromSelection, createForSegment, createHere, mark, closeMenu, go };
+  })();
+
+  // Aviso de la app con botones al pie de la página («El archivo cambió en el disco»), con el estilo del de «Deshacer»
+  // de los apuntes. Se queda hasta que se elige algo: cada botón le manda su comando a la app y cierra el aviso.
+  const notice = (() => {
+    let bar = null;
+
+    // actions: [{ id, label }]; id es el comando que recibe la app. Sin botones es solo una indicación («quiet»):
+    // queda por debajo de los apuntes y no recibe el mouse, así no tapa ni le quita el foco al que se escribe.
+    function show(text, actions) {
+      if (!bar) {
+        bar = Object.assign(document.createElement('div'), { className: 'lector-notice lector-note-ui' });
+        bar.setAttribute('role', 'status');
+        document.body.appendChild(bar);
+        bar.addEventListener('click', (e) => {
+          const button = e.target instanceof Element ? e.target.closest('[data-notice]') : null;
+          if (!button) return;
+          hide();
+          post({ type: 'command', command: button.getAttribute('data-notice') });
+        });
+      }
+      bar.replaceChildren(Object.assign(document.createElement('span'), { textContent: text }));
+      for (const action of actions || []) {
+        const button = Object.assign(document.createElement('button'), { type: 'button', textContent: action.label });
+        button.setAttribute('data-notice', action.id);
+        bar.appendChild(button);
+      }
+      bar.classList.toggle('quiet', !(actions && actions.length));
+      bar.hidden = false;
+      document.body.classList.add('has-notice');
+    }
+
+    function hide() {
+      if (bar) bar.hidden = true;
+      document.body.classList.remove('has-notice');
+    }
+
+    return { show, hide };
+  })();
+
+  // Lo ya escuchado (lo decide la app): una línea tenue en el margen izquierdo de cada bloque. Todas van en una misma
+  // columna, 24 px a la izquierda del texto, aunque el bloque esté en una lista, una cita o una tabla: aquí se calcula
+  // dónde cae esa columna respecto del borde de cada bloque (--heard-left) y lector.css dibuja la línea.
+  const coverage = (() => {
+    const GUTTER = 24;
+
+    function set(anchors) {
+      const wanted = new Set(anchors || []);
+      const heard = new Set();
+      for (const el of document.querySelectorAll('[data-seg]')) {
+        if (wanted.has(el.getAttribute('data-seg'))) heard.add(visualTarget(el));
+      }
+
+      // Primero se mide todo y después se escribe, para que la página no rehaga su diseño por cada bloque.
+      const main = document.querySelector('main.doc');
+      const column = main ? main.getBoundingClientRect().left + parseFloat(getComputedStyle(main).paddingLeft) - GUTTER : 0;
+      const lefts = new Map();
+      for (const el of heard) {
+        // Una fila se corre con la tabla cuando esta se desplaza a lo ancho: se mide como si no lo estuviera.
+        const table = el.tagName === 'TR' ? el.closest('table') : null;
+        lefts.set(el, column - el.getBoundingClientRect().left - (table ? table.scrollLeft : 0));
+      }
+
+      for (const el of document.querySelectorAll('.lector-heard')) {
+        if (lefts.has(el)) continue;
+        el.classList.remove('lector-heard');
+        el.style.removeProperty('--heard-left');
+      }
+      for (const [el, left] of lefts) {
+        el.style.setProperty('--heard-left', left + 'px');
+        el.classList.add('lector-heard');
+      }
+    }
+
+    return { set };
   })();
 
   // Archivos soltados sobre la página: no se navega a ellos (la página no sabe su ruta); se le pasan a la app, que los
@@ -1288,5 +1697,5 @@
     notes.refresh();
   }
 
-  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, find, diagrams, setColors, notes };
+  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, visibleBlock, scrollToBlock, find, diagrams, setColors, notes, notice, coverage };
 })();

@@ -1,7 +1,6 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Shoken.Core.Settings;
 
 namespace Shoken.Core.Notes;
 
@@ -63,11 +62,7 @@ public sealed class NoteStore(string directory)
         }
     }
 
-    private string FileFor(string documentPath)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(documentPath).ToUpperInvariant()));
-        return Path.Combine(directory, Convert.ToHexString(hash)[..20].ToLowerInvariant() + ".json");
-    }
+    private string FileFor(string documentPath) => DocumentFiles.PathFor(directory, documentPath);
 
     private sealed record NoteFile(string Document, List<DocumentNote> Notes);
 }

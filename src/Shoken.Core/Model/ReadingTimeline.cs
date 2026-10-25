@@ -6,6 +6,9 @@ namespace Shoken.Core.Model;
 /// <summary>Un tramo de la línea de tiempo: un título del índice y todo lo que hay hasta el siguiente.</summary>
 public sealed record TimelineChapter(string Title, string? AnchorId, int FirstSegmentId, TimeSpan Start, TimeSpan Duration, bool IsEstimated);
 
+/// <summary>Un tramo continuo de la línea de tiempo (por ejemplo, lo escuchado).</summary>
+public sealed record TimelineSpan(TimeSpan Start, TimeSpan Duration);
+
 /// <summary>
 /// Duración del documento por segmento y por capítulo. Usa la duración real de los bloques que ya están
 /// en la caché y estima el resto, para mostrar cuánto falta antes de haber generado todo el audio.
@@ -17,6 +20,7 @@ public sealed class ReadingTimeline
 
     private readonly TimeSpan[] _starts;
     private readonly TimeSpan[] _durations;
+    private readonly int[] _chapterOf; // el capítulo de cada segmento: se arma una sola vez, con la línea de tiempo
 
     private ReadingTimeline(TimeSpan[] starts, TimeSpan[] durations, IReadOnlyList<TimelineChapter> chapters, TimeSpan total)
     {
@@ -24,6 +28,17 @@ public sealed class ReadingTimeline
         _durations = durations;
         Chapters = chapters;
         Total = total;
+        _chapterOf = new int[durations.Length];
+        for (int segment = 0, chapter = 0; segment < _chapterOf.Length; segment++)
+        {
+            // Los capítulos van en orden: el del segmento es el último que empieza antes de él o en él.
+            while (chapter + 1 < chapters.Count && chapters[chapter + 1].FirstSegmentId <= segment)
+            {
+                chapter++;
+            }
+
+            _chapterOf[segment] = chapter;
+        }
     }
 
     public IReadOnlyList<TimelineChapter> Chapters { get; }
@@ -81,17 +96,13 @@ public sealed class ReadingTimeline
 
     public TimeSpan DurationOf(int segmentId) => InRange(segmentId) ? _durations[segmentId] : TimeSpan.Zero;
 
-    /// <summary>Índice del capítulo que contiene el segmento.</summary>
-    public int ChapterIndexOf(int segmentId)
-    {
-        int index = 0;
-        for (int i = 0; i < Chapters.Count && Chapters[i].FirstSegmentId <= segmentId; i++)
-        {
-            index = i;
-        }
+    /// <summary>Índice del capítulo que contiene el segmento (fuera del documento, el primero o el último).</summary>
+    public int ChapterIndexOf(int segmentId) =>
+        InRange(segmentId) ? _chapterOf[segmentId] : segmentId < 0 ? 0 : Math.Max(0, Chapters.Count - 1);
 
-        return index;
-    }
+    /// <summary>Dónde termina un capítulo: el primer segmento del siguiente, o el total de segmentos si es el último.</summary>
+    public int ChapterEnd(int chapterIndex) =>
+        chapterIndex + 1 < Chapters.Count ? Chapters[chapterIndex + 1].FirstSegmentId : _durations.Length;
 
     /// <summary>Tiempo transcurrido desde el inicio del documento en un punto de un segmento.</summary>
     public TimeSpan ElapsedAt(int segmentId, TimeSpan intoSegment)
@@ -122,6 +133,44 @@ public sealed class ReadingTimeline
 
         int last = _durations.Length - 1;
         return (last, _durations[last]);
+    }
+
+    /// <summary>Los tramos de la línea de tiempo que ocupan esos segmentos; los consecutivos se unen en uno.</summary>
+    public IReadOnlyList<TimelineSpan> SpansOf(IReadOnlySet<int> segments)
+    {
+        var spans = new List<TimelineSpan>();
+        int? runStart = null;
+        for (int i = 0; i <= _durations.Length; i++)
+        {
+            bool inSet = i < _durations.Length && segments.Contains(i);
+            if (inSet && runStart is null)
+            {
+                runStart = i;
+            }
+            else if (!inSet && runStart is { } first)
+            {
+                int last = i - 1;
+                spans.Add(new TimelineSpan(_starts[first], _starts[last] + _durations[last] - _starts[first]));
+                runStart = null;
+            }
+        }
+
+        return spans;
+    }
+
+    /// <summary>Cuánto dura lo escuchado entre dos segmentos (el final no se incluye).</summary>
+    public TimeSpan HeardDuration(IReadOnlySet<int> segments, int fromSegment, int toSegmentExclusive)
+    {
+        TimeSpan total = TimeSpan.Zero;
+        for (int i = Math.Max(0, fromSegment); i < Math.Min(toSegmentExclusive, _durations.Length); i++)
+        {
+            if (segments.Contains(i))
+            {
+                total += _durations[i];
+            }
+        }
+
+        return total;
     }
 
     private bool InRange(int segmentId) => segmentId >= 0 && segmentId < _durations.Length;

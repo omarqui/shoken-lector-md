@@ -18,7 +18,9 @@ public static class NoteExporter
         "- **Aclarar**: explícame ese punto con más claridad y, si el texto lo necesita, propón cómo reescribirlo para que se entienda.\n" +
         "- **Mejorar**: propón una versión mejorada de ese texto (más clara, precisa o completa) sin cambiar lo que quiere decir.\n" +
         "- **Otro**: haz lo que pide la nota.\n\n" +
-        "Responde apunte por apunte, en el mismo orden y con su número.";
+        "Responde apunte por apunte, en el mismo orden y con su número.\n\n" +
+        "Si un apunte trae «Cita original» y «Ahora dice», ese texto ya cambió desde que lo señalé: dime si el cambio " +
+        "resuelve mi nota y, si no, qué falta.";
 
     public static string KindName(NoteKind kind) => kind switch
     {
@@ -70,14 +72,29 @@ public static class NoteExporter
             }
 
             text.Append("\n\n");
-            foreach (string line in note.Quote.Trim().Split('\n'))
+            if (note.CurrentQuote is { Length: > 0 } current)
             {
-                text.Append("> ").Append(line.TrimEnd()).Append('\n');
+                text.Append("Cita original:\n\n");
+                AppendQuote(text, note.Quote);
+                text.Append("\nAhora dice:\n\n");
+                AppendQuote(text, current);
+            }
+            else
+            {
+                AppendQuote(text, note.Quote);
             }
 
             text.Append('\n').Append(note.Text.Trim().Length > 0 ? note.Text.Trim() : "(sin nota)").Append("\n\n");
         }
 
         return text.ToString().TrimEnd() + "\n";
+    }
+
+    private static void AppendQuote(StringBuilder text, string quote)
+    {
+        foreach (string line in quote.Trim().Split('\n'))
+        {
+            text.Append("> ").Append(line.TrimEnd()).Append('\n');
+        }
     }
 }

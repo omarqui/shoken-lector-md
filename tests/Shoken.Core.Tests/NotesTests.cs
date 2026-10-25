@@ -80,6 +80,46 @@ public sealed class NotesTests : IDisposable
     }
 
     [Fact]
+    public void Notes_CurrentQuote_IsNotSaved()
+    {
+        var store = new NoteStore(_dir);
+        DocumentNote note = Note("cita", 1);
+        note.CurrentQuote = "cita retocada";
+        store.Save(@"C:\Docs\guia.md", [note]);
+
+        Assert.Null(store.Load(@"C:\Docs\guia.md").Single().CurrentQuote);
+    }
+
+    [Fact]
+    public void Exporter_ShowsTheOriginalAndTheCurrentText_WhenTheQuoteChanged()
+    {
+        DocumentNote note = Note("Si la DGII rechaza el envío, reintenta tres veces.", 3, text: "revisa el límite");
+        note.CurrentQuote = "Si la DGII rechaza el envío, reintenta cinco veces.";
+
+        string md = NoteExporter.ToMarkdown(null, new NoteSource(@"C:\Docs\guia.md", "Guía"), [note]);
+
+        Assert.Contains("Cita original:\n\n> Si la DGII rechaza el envío, reintenta tres veces.\n\n" +
+            "Ahora dice:\n\n> Si la DGII rechaza el envío, reintenta cinco veces.\n\nrevisa el límite", md);
+    }
+
+    [Fact]
+    public void Exporter_QuotesOnlyTheOriginal_WhenTheQuoteDidNotChange()
+    {
+        string md = NoteExporter.ToMarkdown(null, new NoteSource(@"C:\Docs\guia.md", "Guía"), [Note("cita", 3)]);
+
+        Assert.DoesNotContain("Ahora dice:", md);
+        Assert.DoesNotContain("Cita original:\n", md);
+        Assert.Contains("> cita\n", md);
+    }
+
+    [Fact]
+    public void Exporter_DefaultInstruction_ExplainsChangedQuotes()
+    {
+        Assert.Contains("Cita original", NoteExporter.DefaultInstruction);
+        Assert.Contains("Ahora dice", NoteExporter.DefaultInstruction);
+    }
+
+    [Fact]
     public void Settings_ShowTheNotesColumn_UseTheDefaultInstruction_AndKeepNotesInTheAppData()
     {
         var settings = new Settings.AppSettings();

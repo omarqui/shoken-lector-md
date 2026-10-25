@@ -279,33 +279,46 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <DockPanel Margin="{Binding Margin}" ToolTip="{Binding Text}">
-                                    <!-- Contraer o expandir los subtítulos. Sin subtítulos no se ve, pero alinea el texto. -->
-                                    <Button DockPanel.Dock="Left" Style="{StaticResource OutlineRowButton}" Width="18" Height="20" Margin="0,-2,4,-2"
-                                            Visibility="{Binding ChevronVisibility}" Click="OnOutlineChevronClick"
-                                            ToolTip="{Binding ChevronName}" AutomationProperties.Name="{Binding ChevronName}">
-                                        <TextBlock Style="{StaticResource IconText}" FontSize="9" Text="{Binding Chevron}"
+                                <Grid Margin="{Binding Margin}">
+                                    <DockPanel ToolTip="{Binding Text}">
+                                        <!-- Contraer o expandir los subtítulos. Sin subtítulos no se ve, pero alinea el texto. -->
+                                        <Button DockPanel.Dock="Left" Style="{StaticResource OutlineRowButton}" Width="18" Height="20" Margin="0,-2,4,-2"
+                                                Visibility="{Binding ChevronVisibility}" Click="OnOutlineChevronClick"
+                                                ToolTip="{Binding ChevronName}" AutomationProperties.Name="{Binding ChevronName}">
+                                            <TextBlock Style="{StaticResource IconText}" FontSize="9" Text="{Binding Chevron}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                                        </Button>
+                                        <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
+                                        <!-- ✓ discreto cuando toda la sección ya se escuchó. -->
+                                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource IconText}" FontSize="10" Text="&#xE73E;" Margin="8,0,-3,0"
+                                                   VerticalAlignment="Center" Foreground="{DynamicResource LectorText2Brush}" Visibility="{Binding HeardCheckVisibility}" />
+                                        <!-- Resultados de la búsqueda (Ctrl+F) en esta sección. -->
+                                        <Border DockPanel.Dock="Right" Visibility="{Binding MatchesVisibility}" Background="{DynamicResource LectorAccentBrush}"
+                                                CornerRadius="8" MinWidth="18" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Matches}" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                                       Foreground="{DynamicResource LectorOnAccentBrush}" />
+                                        </Border>
+                                        <!-- Leer desde aquí: aparece al pasar el mouse y en la sección actual. -->
+                                        <Button x:Name="PlayButton" DockPanel.Dock="Right" Style="{StaticResource OutlineRowButton}" Width="24" Height="22"
+                                                Margin="6,-3,0,-3" Visibility="Collapsed" Click="OnOutlinePlayClick"
+                                                ToolTip="{Binding PlayName}" AutomationProperties.Name="{Binding PlayName}">
+                                            <TextBlock Style="{StaticResource IconText}" FontSize="11" Text="&#xE768;"
+                                                       Foreground="{DynamicResource LectorAccentBrush}" />
+                                        </Button>
+                                        <TextBlock Text="{Binding Text}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis"
                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
-                                    </Button>
-                                    <!-- Duración de la sección (estimada con ≈ hasta que su audio esté en caché). -->
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" FontSize="{DynamicResource LectorFontSize12}" Margin="8,0,0,0" VerticalAlignment="Center"
-                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Opacity="0.8" />
-                                    <!-- Resultados de la búsqueda (Ctrl+F) en esta sección. -->
-                                    <Border DockPanel.Dock="Right" Visibility="{Binding MatchesVisibility}" Background="{DynamicResource LectorAccentBrush}"
-                                            CornerRadius="8" MinWidth="18" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Matches}" FontSize="{DynamicResource LectorFontSize11}" FontWeight="SemiBold" HorizontalAlignment="Center"
-                                                   Foreground="{DynamicResource LectorOnAccentBrush}" />
+                                    </DockPanel>
+                                    <!-- Lo escuchado de la sección: una línea fina bajo la fila, tan larga como lo escuchado. Va en el
+                                         margen inferior de la fila, así que no cambia su altura. -->
+                                    <Border Height="2" CornerRadius="1" VerticalAlignment="Bottom" Margin="22,0,0,-6" IsHitTestVisible="False"
+                                            Background="{DynamicResource LectorHeardBrush}" RenderTransformOrigin="0,0.5">
+                                        <Border.RenderTransform>
+                                            <ScaleTransform ScaleX="{Binding HeardFraction}" />
+                                        </Border.RenderTransform>
                                     </Border>
-                                    <!-- Leer desde aquí: aparece al pasar el mouse y en la sección actual. -->
-                                    <Button x:Name="PlayButton" DockPanel.Dock="Right" Style="{StaticResource OutlineRowButton}" Width="24" Height="22"
-                                            Margin="6,-3,0,-3" Visibility="Collapsed" Click="OnOutlinePlayClick"
-                                            ToolTip="{Binding PlayName}" AutomationProperties.Name="{Binding PlayName}">
-                                        <TextBlock Style="{StaticResource IconText}" FontSize="11" Text="&#xE768;"
-                                                   Foreground="{DynamicResource LectorAccentBrush}" />
-                                    </Button>
-                                    <TextBlock Text="{Binding Text}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis"
-                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
-                                </DockPanel>
+                                </Grid>
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
                                         <Setter TargetName="PlayButton" Property="Visibility" Value="Visible" />

@@ -56,10 +56,18 @@ internal sealed class DocumentTab(OpenTab state) : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Un título en el panel del índice. Si está contraído, su duración y sus resultados son los de toda la sección.
+/// Un título en el panel del índice. Si está contraído, su duración, sus resultados y lo escuchado son los de toda la
+/// sección.
 /// </summary>
-internal sealed class OutlineItem(OutlineEntry entry, int index, string time, int matches, bool hasChildren, bool isCollapsed)
+/// <param name="chapters">Los capítulos de la línea de tiempo que suma la fila.</param>
+/// <param name="heardFraction">Cuánto de la sección ya se escuchó, de 0 a 1 (por duración).</param>
+internal sealed class OutlineItem(OutlineEntry entry, int index, string time, int matches, bool hasChildren, bool isCollapsed,
+    IReadOnlyList<TimelineChapter> chapters, double heardFraction) : INotifyPropertyChanged
 {
+    private double _heardFraction = Math.Clamp(heardFraction, 0, 1);
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public OutlineEntry Entry { get; } = entry;
 
     /// <summary>Posición en el índice completo (con las secciones contraídas, no coincide con la fila).</summary>
@@ -79,6 +87,39 @@ internal sealed class OutlineItem(OutlineEntry entry, int index, string time, in
 
     public Visibility MatchesVisibility => matches > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>Con ellos se vuelve a calcular lo escuchado de la fila.</summary>
+    public IReadOnlyList<TimelineChapter> Chapters { get; } = chapters;
+
+    /// <summary>
+    /// Lo escuchado de la sección: el largo de la línea fina bajo la fila (ScaleX). Al escuchar un párrafo cambia aquí,
+    /// sin rehacer la lista: rehacerla cerraría los tooltips y volvería a anunciar la fila con el foco.
+    /// </summary>
+    public double HeardFraction
+    {
+        get => _heardFraction;
+        set
+        {
+            double fraction = Math.Clamp(value, 0, 1);
+            if (fraction == _heardFraction)
+            {
+                return;
+            }
+
+            bool wasHeard = IsHeard;
+            _heardFraction = fraction;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HeardFraction)));
+            if (IsHeard != wasHeard)
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HeardCheckVisibility)));
+            }
+        }
+    }
+
+    private bool IsHeard => HeardFraction >= 0.999;
+
+    /// <summary>✓ junto a la duración cuando la sección ya se escuchó completa.</summary>
+    public Visibility HeardCheckVisibility => IsHeard ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>Flecha de Segoe Fluent: ▸ contraído, ▾ expandido. Sin subtítulos no se ve, pero ocupa su lugar.</summary>
     public string Chevron => IsCollapsed ? "" : "";
 
@@ -94,5 +135,5 @@ internal sealed class OutlineItem(OutlineEntry entry, int index, string time, in
 
     // Lo que anuncia un lector de pantalla para el elemento de la lista.
     public override string ToString() =>
-        Text + (IsCollapsed ? ", contraído" : "") + (matches > 0 ? $", {matches} resultados" : "");
+        Text + (IsCollapsed ? ", contraído" : "") + (IsHeard ? ", escuchada" : "") + (matches > 0 ? $", {matches} resultados" : "");
 }

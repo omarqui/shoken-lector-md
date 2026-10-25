@@ -24,7 +24,7 @@ public partial class PlayerBar : UserControl
     private readonly DispatcherTimer _noticeTimer;
     private readonly DispatcherTimer _statusCloseTimer;
     private string? _usagePercent;
-    private readonly List<(Border Fill, TextBlock Label, TimelineChapter Chapter)> _cells = [];
+    private readonly List<(Border Fill, Grid Heard, TextBlock Label, TimelineChapter Chapter)> _cells = [];
     private double _speed = 1.0; // velocidad actual: base de los botones − y +
     private ReadingTimeline? _timeline;
     private string _detail = "";
@@ -111,7 +111,9 @@ public partial class PlayerBar : UserControl
             var track = new Grid { Height = 6 };
             var trackBack = new Border { CornerRadius = new CornerRadius(3) };
             trackBack.SetResourceReference(Border.BackgroundProperty, "LectorTrackBrush");
+            var heard = new Grid(); // lo ya escuchado (SetHeard): entre el fondo y el avance
             track.Children.Add(trackBack);
+            track.Children.Add(heard);
             track.Children.Add(fill);
 
             var label = new TextBlock { Text = chapter.Title, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
@@ -135,10 +137,54 @@ public partial class PlayerBar : UserControl
             cell.Click += (_, _) => ChapterClicked?.Invoke(anchor);
             Grid.SetColumn(cell, i);
             TimelineGrid.Children.Add(cell);
-            _cells.Add((fill, label, chapter));
+            _cells.Add((fill, heard, label, chapter));
         }
 
         SetProgress(keepProgress ? _lastElapsed : TimeSpan.Zero, keepProgress ? _lastChapter : -1);
+    }
+
+    /// <summary>
+    /// Pinta lo ya escuchado con un tono apenas distinto de la pista, debajo del avance. Los tramos son de la línea de
+    /// tiempo actual: hay que volver a pasarlos después de cada <see cref="SetTimeline"/>.
+    /// </summary>
+    public void SetHeard(IReadOnlyList<TimelineSpan> spans)
+    {
+        foreach ((_, Grid heard, _, TimelineChapter chapter) in _cells)
+        {
+            heard.Children.Clear();
+            heard.ColumnDefinitions.Clear();
+            if (chapter.Duration <= TimeSpan.Zero)
+            {
+                continue;
+            }
+
+            TimeSpan start = chapter.Start;
+            TimeSpan end = chapter.Start + chapter.Duration;
+            // Columnas proporcionales: hueco, escuchado, hueco, escuchado… (sin medir el ancho de la pista).
+            TimeSpan at = start;
+            foreach (TimelineSpan span in spans)
+            {
+                TimeSpan from = span.Start > start ? span.Start : start;
+                TimeSpan to = span.Start + span.Duration < end ? span.Start + span.Duration : end;
+                if (to <= from)
+                {
+                    continue;
+                }
+
+                heard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength((from - at).TotalSeconds, GridUnitType.Star) });
+                heard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength((to - from).TotalSeconds, GridUnitType.Star) });
+                var part = new Border { CornerRadius = new CornerRadius(3) };
+                part.SetResourceReference(Border.BackgroundProperty, "LectorHeardBrush");
+                Grid.SetColumn(part, heard.ColumnDefinitions.Count - 1);
+                heard.Children.Add(part);
+                at = to;
+            }
+
+            if (heard.Children.Count > 0)
+            {
+                heard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength((end - at).TotalSeconds, GridUnitType.Star) });
+            }
+        }
     }
 
     /// <summary>Rellena lo escuchado hasta <paramref name="elapsed"/> y marca el capítulo actual.</summary>
@@ -153,7 +199,7 @@ public partial class PlayerBar : UserControl
 
         for (int i = 0; i < _cells.Count; i++)
         {
-            (Border fill, TextBlock label, TimelineChapter chapter) = _cells[i];
+            (Border fill, _, TextBlock label, TimelineChapter chapter) = _cells[i];
             double fraction = chapter.Duration <= TimeSpan.Zero
                 ? (elapsed >= chapter.Start + chapter.Duration && i < chapterIndex ? 1 : 0)
                 : Math.Clamp((elapsed - chapter.Start) / chapter.Duration, 0, 1);

@@ -60,6 +60,15 @@ public sealed class SpeechSegment
     /// <summary>Última línea (1-based) del bloque en el Markdown: un párrafo puede ocupar varias.</summary>
     public int EndLine { get; init; }
 
+    /// <summary>
+    /// Clave del bloque de la página: 16 hex del SHA-256 de su Markdown fuente sin espacios repetidos.
+    /// No depende de las opciones de lectura y la comparten todos los segmentos del bloque.
+    /// </summary>
+    public string BlockKey { get; init; } = "";
+
+    /// <summary>Verdadero si el texto es un anuncio («Fórmula.», «Diagrama.», «Bloque de código…», tabla) y no el contenido.</summary>
+    public bool IsAnnouncement { get; init; }
+
     public bool IsHeading => Kind == SegmentKind.Heading;
 
     public string PlainText => _plainText ??= string.Concat(Runs.Select(r => r.Text));

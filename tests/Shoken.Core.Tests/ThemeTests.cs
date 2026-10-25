@@ -57,6 +57,26 @@ public class ThemeTests
         Assert.True(ColorContrast.Ratio(css["muted"], css["soft"]) >= 4.5, "tipos sin elegir de la tarjeta");
     }
 
+    [Theory]
+    [MemberData(nameof(EveryPaletteAndMode))]
+    public void Palettes_HeardIsSubtleButVisible(ThemePalette palette, bool dark)
+    {
+        PaletteColors c = ThemePalettes.Get(palette, dark);
+
+        double overDocument = ColorContrast.Ratio(c.Heard, c.Document);
+        Assert.InRange(overDocument, 1.3, 2.5); // tenue sobre el documento, pero se nota
+        Assert.True(ColorContrast.Ratio(c.Heard, c.Track) >= 1.15, "se distingue sobre la línea de tiempo");
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryPaletteAndMode))]
+    public void DocumentVariables_IncludeHeard(ThemePalette palette, bool dark)
+    {
+        PaletteColors c = ThemePalettes.Get(palette, dark);
+
+        Assert.Equal(c.Heard, ThemePalettes.DocumentVariables(c, dark)["heard"]);
+    }
+
     [Fact]
     public void Palettes_ClassicIsTheOriginalDesign()
     {

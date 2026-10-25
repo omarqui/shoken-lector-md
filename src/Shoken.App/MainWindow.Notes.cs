@@ -99,6 +99,16 @@ public partial class MainWindow
             case NoteRequest.NoSelection:
                 CreateNoteForReadingParagraph();
                 break;
+            case NoteRequest.MarkDuplicate:
+                ShowToast("Ese párrafo ya estaba marcado.");
+                break;
+            case NoteRequest.Editing { IsEditing: false } when _pendingReload == ReloadAction.WhenEditingEnds:
+                // Se guardó o se canceló el apunte por el que esperaba la recarga: se decide de nuevo. El aviso de la
+                // espera ya no aplica (si hace falta otro, lo pone la decisión; si recarga, se va con la página).
+                PendingReload = ReloadAction.Ignore;
+                _ = _view.HideNoticeAsync();
+                _ = OnDocumentChangedAsync(context.Path);
+                break;
         }
 
         DocumentNote? Find(string id) => context.Notes.Find(n => n.Id == id);
@@ -118,6 +128,14 @@ public partial class MainWindow
         };
         context.Notes.Add(note);
         SaveNotes(context);
+
+        if (create.Quiet)
+        {
+            // Marca para revisar (tecla M): sin editor, sin forzar la columna y sin mover el foco; la lectura sigue.
+            _ = _view?.SetNotesAsync(context.Notes, _settings.ShowNotes, editId: null, flashId: note.Id);
+            ShowToast(_settings.ShowNotes ? "Marcado para revisar" : "Marcado para revisar (los apuntes están ocultos)");
+            return;
+        }
 
         if (!_settings.ShowNotes)
         {
@@ -143,6 +161,25 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>Tecla M: marca para revisar el párrafo que suena (o donde quedó la lectura), sin parar ni abrir el editor.</summary>
+    private void MarkForReview()
+    {
+        if (_active is { IsDemo: true })
+        {
+            return; // la demo no lleva apuntes: la M no hace nada (llegue por WPF o por lector.js)
+        }
+
+        int id = _player.CurrentSegmentId;
+        if (_view is not null && _notes is not null && _document is { } document && id >= 0 && id < document.Segments.Count)
+        {
+            _ = _view.MarkSegmentAsync(document.Segments[id].AnchorId);
+        }
+        else
+        {
+            ShowToast("Empieza a leer para marcar un párrafo.", ok: false);
+        }
+    }
+
     /// <summary>Clic en "Apunte" junto a la selección.</summary>
     private async void OnNoteChipClick(object sender, RoutedEventArgs e)
     {
@@ -153,7 +190,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Las citas se volvieron a buscar al abrir: líneas y sección al día, y cuáles ya no están.</summary>
+    /// <summary>Las citas se volvieron a buscar al abrir: líneas y sección al día, cuáles cambiaron y cuáles ya no están.</summary>
     private void UpdateLocations(NotesContext context, IReadOnlyList<NoteAnchor> results)
     {
         bool changed = false;
@@ -165,6 +202,7 @@ public partial class MainWindow
             }
 
             note.Orphaned = !result.Found;
+            note.CurrentQuote = result.Current;
             if (result is { Found: true, StartAnchor: { } start })
             {
                 NoteLocation location = NoteReferences.Describe(context.Document, context.Outline, start, result.EndAnchor ?? start);

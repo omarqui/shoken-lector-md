@@ -17,6 +17,12 @@ public sealed class OpenTab
     /// <summary>Párrafo donde seguir leyendo, o -1 para empezar desde el principio.</summary>
     public int ResumeSegmentId { get; set; } = -1;
 
+    /// <summary>Huella del bloque donde seguir leyendo, para encontrarlo aunque el archivo cambie (null si no se guardó).</summary>
+    public string? ResumeBlockKey { get; set; }
+
+    /// <summary>Parte del bloque donde seguir leyendo (0 si es el primer segmento o el bloque no se partió).</summary>
+    public int ResumePart { get; set; }
+
     /// <summary>Desplazamiento vertical del documento, en píxeles.</summary>
     public double ScrollY { get; set; }
 

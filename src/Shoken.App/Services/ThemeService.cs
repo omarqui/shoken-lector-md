@@ -63,6 +63,7 @@ internal static class ThemeService
         Set("LectorCurrentBrush", c.Current);
         Set("LectorCurrentTextBrush", c.CurrentText);
         Set("LectorTrackBrush", c.Track);
+        Set("LectorHeardBrush", c.Heard); // lo ya escuchado: tenue, para el margen, el índice y la línea de tiempo
     }
 
     private static SolidColorBrush Frozen(Color color)

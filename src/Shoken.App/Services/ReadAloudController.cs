@@ -1,6 +1,7 @@
 using System.Windows.Media;
 using System.Windows.Threading;
 using Shoken.Core.Audio;
+using Shoken.Core.Coverage;
 using Shoken.Core.Model;
 using Shoken.Core.Planning;
 using Shoken.Core.Tts;
@@ -30,6 +31,7 @@ internal sealed class ReadAloudController : IDisposable
 
     private readonly MediaPlayer _player = new();
     private readonly DispatcherTimer _timer;
+    private readonly HeardTracker _heard = new();
 
     private ITtsEngine? _engine;
     private SpeechDocument? _document;
@@ -46,6 +48,7 @@ internal sealed class ReadAloudController : IDisposable
     private long _lastProgressTicks;
     private int _diagnosticSamples; // muestras de posición que faltan registrar (solo con LECTORMD_DIAGNOSTICO=1)
     private TimeSpan _positionFloor; // antes de esta posición del bloque se muestra el párrafo pedido (pre-arranque)
+    private bool _seeking; // −10 s / +10 s (dentro del bloque o al caer en otro): el cambio de párrafo no es avance de la lectura
 
     /// <summary>Cuánto antes del párrafo pedido arrancar (solo en Escritorio remoto; 0 en el equipo local).</summary>
     public TimeSpan PreRoll { get; set; }
@@ -57,9 +60,13 @@ internal sealed class ReadAloudController : IDisposable
         _player.MediaEnded += (_, _) => _ended?.TrySetResult();
         _player.MediaFailed += (_, e) => _ended?.TrySetException(
             e.ErrorException ?? new InvalidOperationException("No se pudo reproducir el audio."));
+        _heard.SegmentHeard += id => SegmentHeard?.Invoke(id);
     }
 
     public event Action<SpeechSegment>? SegmentChanged;
+
+    /// <summary>Un segmento sonó completo, de principio a fin y sin saltos (ver <see cref="HeardTracker"/>).</summary>
+    public event Action<int>? SegmentHeard;
 
     public event Action<PlaybackState>? StateChanged;
 
@@ -203,6 +210,7 @@ internal sealed class ReadAloudController : IDisposable
         }
 
         _currentSegmentId = -1;
+        _heard.Reset();
         SetState(PlaybackState.Stopped);
     }
 
@@ -226,7 +234,17 @@ internal sealed class ReadAloudController : IDisposable
         _player.Position = target;
         _positionFloor = TimeSpan.Zero; // el usuario se movió: ya no hay pre-arranque que ocultar
         _lastProgressTicks = 0; // que la línea de tiempo se actualice ya, aunque esté en pausa
-        UpdateCurrentSegment(target);
+        _seeking = true;
+        try
+        {
+            UpdateCurrentSegment(target);
+        }
+        finally
+        {
+            _seeking = false;
+        }
+
+        _heard.Jumped(_currentSegmentId); // el párrafo donde cayó no sonó desde su principio
         return true;
     }
 
@@ -287,6 +305,7 @@ internal sealed class ReadAloudController : IDisposable
     private async Task RunAsync(ITtsEngine engine, int startSegmentId, TimeSpan intoSegment = default)
     {
         Stop();
+        _heard.Started(startSegmentId, intoSegment <= TimeSpan.Zero); // a mitad del párrafo (−10 s / +10 s), ese no cuenta
         _resumeSegmentId = startSegmentId; // mientras carga, CurrentSegmentId es el párrafo pedido
         var session = new CancellationTokenSource();
         _session = session;
@@ -323,8 +342,11 @@ internal sealed class ReadAloudController : IDisposable
                     startAt = startAt > PreRoll ? startAt - PreRoll : TimeSpan.Zero;
                 }
 
+                // A mitad del párrafo (−10 s / +10 s), el punto sale de duraciones estimadas: puede caer ya en el
+                // siguiente párrafo, que tampoco sonó desde su principio.
+                bool landing = first && intoSegment > TimeSpan.Zero;
                 first = false;
-                await PlayChunkAsync(audio, startAt, token);
+                await PlayChunkAsync(audio, startAt, landing, token);
                 pending.Remove(index);
             }
 
@@ -379,7 +401,8 @@ internal sealed class ReadAloudController : IDisposable
         return task;
     }
 
-    private async Task PlayChunkAsync(AudioChunk audio, TimeSpan startAt, CancellationToken token)
+    /// <param name="landing">True si la lectura cae a mitad de un párrafo: el primer cambio de párrafo es un salto.</param>
+    private async Task PlayChunkAsync(AudioChunk audio, TimeSpan startAt, bool landing, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         _current = audio;
@@ -420,7 +443,25 @@ internal sealed class ReadAloudController : IDisposable
         _diagnosticSamples = PlaybackDiagnostics.Enabled ? 15 : 0;
 
         _mediaReady = true;
-        UpdateCurrentSegment(startAt);
+        if (landing)
+        {
+            _seeking = true;
+            try
+            {
+                UpdateCurrentSegment(startAt);
+            }
+            finally
+            {
+                _seeking = false;
+            }
+
+            _heard.Jumped(_currentSegmentId); // el párrafo donde cayó no sonó desde su principio
+        }
+        else
+        {
+            UpdateCurrentSegment(startAt);
+        }
+
         if (_pausePending)
         {
             SetState(PlaybackState.Paused); // Resume() iniciará la reproducción
@@ -472,6 +513,11 @@ internal sealed class ReadAloudController : IDisposable
         if (id >= 0 && id < _document.Segments.Count && id != _currentSegmentId)
         {
             _currentSegmentId = id;
+            if (!_seeking)
+            {
+                _heard.Moved(id);
+            }
+
             SegmentChanged?.Invoke(_document.Segments[id]);
         }
 
@@ -492,6 +538,7 @@ internal sealed class ReadAloudController : IDisposable
         _mediaReady = false;
         _pausePending = false;
         _session = null;
+        _heard.Finished(); // el último párrafo también sonó completo
         _currentSegmentId = -1;
         _resumeSegmentId = null;
         SetState(PlaybackState.Stopped);

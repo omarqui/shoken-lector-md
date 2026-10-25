@@ -181,6 +181,9 @@ public sealed class AppPaths(string root)
     /// <summary>Apuntes de cada documento (un archivo por documento).</summary>
     public string NotesDirectory => Path.Combine(Root, "apuntes");
 
+    /// <summary>Qué bloques de cada documento se escucharon (un archivo por documento).</summary>
+    public string HeardDirectory => Path.Combine(Root, "escuchado");
+
     /// <summary>Modelo de Kokoro (unos 310 MB), descargado desde Configuración.</summary>
     public string KokoroModelFile => Path.Combine(Root, "kokoro", "kokoro.onnx");
 

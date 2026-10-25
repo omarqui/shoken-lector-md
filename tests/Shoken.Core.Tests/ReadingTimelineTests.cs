@@ -145,6 +145,25 @@ public class ReadingTimelineTests
     }
 
     [Fact]
+    public void ChapterIndexOf_AgreesWithChapterEnd_OnEverySegment()
+    {
+        SpeechDocument doc = new MarkdownSpeechParser().Parse("Intro.\n\n# A\n\nTexto a.\n\nMás a.\n\n## A1\n\nTexto a1.\n\n# B\n\nTexto b.");
+        ReadingTimeline timeline = ReadingTimeline.Build(doc, ChunkPlanner.Plan(doc.Segments), _ => null);
+
+        for (int chapter = 0; chapter < timeline.Chapters.Count; chapter++)
+        {
+            int first = timeline.Chapters[chapter].FirstSegmentId;
+            int end = timeline.ChapterEnd(chapter);
+            Assert.True(end > first);
+            Assert.All(Enumerable.Range(first, end - first), id => Assert.Equal(chapter, timeline.ChapterIndexOf(id)));
+        }
+
+        Assert.Equal(doc.Segments.Count, timeline.ChapterEnd(timeline.Chapters.Count - 1));
+        Assert.Equal(0, timeline.ChapterIndexOf(-1)); // fuera del documento: el primero o el último
+        Assert.Equal(timeline.Chapters.Count - 1, timeline.ChapterIndexOf(doc.Segments.Count + 3));
+    }
+
+    [Fact]
     public void PositionAt_FindsTheSegmentAndTheOffsetInsideIt()
     {
         // Tres segmentos de 2 s cada uno (30 caracteres a 15 por segundo).
@@ -164,6 +183,38 @@ public class ReadingTimelineTests
 
         Assert.Equal((0, TimeSpan.Zero), timeline.PositionAt(TimeSpan.FromSeconds(-10)));
         Assert.Equal(1, timeline.PositionAt(TimeSpan.FromHours(1)).SegmentId);
+    }
+
+    private static ReadingTimeline FourSegmentsOfTwoSeconds()
+    {
+        // Cuatro segmentos de 2 s cada uno (30 caracteres a 15 por segundo).
+        SpeechDocument doc = Document(Segment(0, new string('a', 30)), Segment(1, new string('b', 30)),
+            Segment(2, new string('c', 30)), Segment(3, new string('d', 30)));
+        return ReadingTimeline.Build(doc, [new SpeechChunk { Index = 0, Segments = doc.Segments }], _ => null);
+    }
+
+    [Fact]
+    public void Timeline_SpansOf_MergesConsecutiveSegments()
+    {
+        ReadingTimeline timeline = FourSegmentsOfTwoSeconds();
+
+        IReadOnlyList<TimelineSpan> spans = timeline.SpansOf(new HashSet<int> { 0, 1, 3 });
+
+        Assert.Equal(
+            [new TimelineSpan(TimeSpan.Zero, TimeSpan.FromSeconds(4)), new TimelineSpan(TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(2))],
+            spans);
+        Assert.Empty(timeline.SpansOf(new HashSet<int>()));
+    }
+
+    [Fact]
+    public void Timeline_HeardDuration_SumsOnlyHeardSegmentsInRange()
+    {
+        ReadingTimeline timeline = FourSegmentsOfTwoSeconds();
+        var heard = new HashSet<int> { 0, 1, 3 };
+
+        Assert.Equal(TimeSpan.FromSeconds(4), timeline.HeardDuration(heard, 0, 3));
+        Assert.Equal(TimeSpan.FromSeconds(2), timeline.HeardDuration(heard, 1, 3));
+        Assert.Equal(TimeSpan.FromSeconds(6), timeline.HeardDuration(heard, 0, 4));
     }
 
     [Fact]

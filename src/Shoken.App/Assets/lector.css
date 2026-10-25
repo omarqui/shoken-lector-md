@@ -10,6 +10,7 @@
   --accent-fg: #ffffff;
   --reading: #eaf2fb;
   --reading-edge: #005fb8;
+  --heard: #c2c2c2;
   --find: #fff0a8;
   --find-current: #f2a33a;
   --find-current-fg: #1b1b1b;
@@ -34,6 +35,7 @@
     --accent-fg: #00344d;
     --reading: #1e3a4c;
     --reading-edge: #60cdff;
+    --heard: #5e5e5e;
     --find: #5c4d12;
     --find-current: #d68a1e;
     --find-current-fg: #1b1b1b;
@@ -185,6 +187,27 @@ tr.lector-reading > td, tr.lector-reading > th { background-color: var(--reading
 pre.lector-reading { box-shadow: -6px 0 0 0 var(--reading-edge); }
 .markdown-alert.lector-reading .markdown-alert-title { color: var(--fg); }
 
+/* ---- Lo ya escuchado: una línea tenue en el margen, más a la izquierda que la barra de lectura ----
+   lector.js pone en --heard-left dónde cae la línea respecto del borde izquierdo de cada bloque, para que todas queden
+   en una columna. La línea se ancla a su bloque (anchor-name) en vez de ubicarse dentro de él: así no la recortan el
+   <pre> ni la tabla, que se desplazan a lo ancho, y el bloque no cambia en nada. */
+.lector-heard { anchor-name: --lector-heard; anchor-scope: --lector-heard; }
+/* Una fila no puede llevar su propio ::after (sería una celda más): la línea la dibuja su primera celda. Un diagrama que
+   se está dibujando usa su ::after para el aviso: la línea aparece cuando termina. */
+.lector-heard:not(tr, .lector-diagram-pending)::after,
+tr.lector-heard > :first-child::after {
+  content: "";
+  position: absolute;
+  position-anchor: --lector-heard;
+  top: anchor(top);
+  bottom: anchor(bottom);
+  left: calc(anchor(left) + var(--heard-left, -24px));
+  width: 2px;
+  border-radius: 1px;
+  background: var(--heard);
+  pointer-events: none;
+}
+
 ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 
 /* ---- Búsqueda (Ctrl+F) ---- */
@@ -260,7 +283,7 @@ body.has-notes:not(.notes-compact) main.doc {
 }
 
 .lector-note-ui { font-size: 14px; line-height: 1.4; }
-.lector-notes[hidden], .lector-note-markers[hidden], .lector-undo[hidden] { display: none; }
+.lector-notes[hidden], .lector-note-markers[hidden], .lector-undo[hidden], .lector-notice[hidden] { display: none; }
 .lector-notes { position: absolute; top: 0; width: 280px; }
 .notes-head {
   position: sticky;
@@ -276,7 +299,7 @@ body.has-notes:not(.notes-compact) main.doc {
 .notes-title-row { flex-basis: 100%; display: flex; align-items: center; gap: 2px; }
 .notes-title { flex: 1; font-size: 13px; color: var(--muted); font-weight: 600; }
 .notes-head .note-icon { padding: 0; border: 0; background: transparent; font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 12px; }
-.notes-head button, .lector-undo button {
+.notes-head button, .lector-undo button, .lector-notice button {
   font: inherit;
   font-size: 13px;
   padding: 4px 10px;
@@ -289,6 +312,9 @@ body.has-notes:not(.notes-compact) main.doc {
 .notes-head button[data-act="export"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
 .notes-head button:hover:not(:disabled) { filter: brightness(1.06); }
 .notes-head button:disabled { opacity: 0.45; cursor: default; }
+/* «N apuntes ya no encuentran su cita · Marcar resueltos», bajo los botones (en una línea de la columna). */
+.notes-orphans { flex-basis: 100%; color: var(--caution); font-size: 11.5px; }
+.notes-head .notes-orphans button { padding: 0; border: 0; background: none; color: var(--accent); font-size: 11.5px; text-decoration: underline; }
 
 .note-card {
   padding: 8px 10px 10px;
@@ -369,6 +395,11 @@ body.has-notes:not(.notes-compact) main.doc {
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
+/* La cita cambió (se encontró por parecido): la original tachada (con el color de toda cita, que se lee) y, debajo,
+   lo que dice ahora. */
+.note-changed-label { margin: 6px 0 2px; color: var(--warning); font-size: 12px; font-weight: 600; }
+.note-quote-old { margin: 0 0 4px; text-decoration: line-through; }
+.note-quote-new { margin: 0 0 6px; border-left-color: var(--warning); color: var(--fg); }
 .note-text { padding: 2px 4px; margin: 0 -4px; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
 
 /* En la columna, las tarjetas que no están elegidas se achican (su tipo, una línea de la cita y dos de la nota) para
@@ -377,6 +408,7 @@ body.has-notes:not(.notes-compact) main.doc {
 .lector-notes .note-card:not(.pinned):not(.hovered) .note-kind[aria-checked="false"],
 .lector-notes .note-card:not(.pinned):not(.hovered) .note-actions { display: none; }
 .lector-notes .note-card:not(.pinned):not(.hovered) .note-quote { -webkit-line-clamp: 1; }
+.lector-notes .note-card:not(.pinned):not(.hovered) .note-quote-old { display: none; }
 .lector-notes .note-card:not(.pinned):not(.hovered) .note-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .note-text:hover { background: var(--soft); }
 .note-empty { color: var(--muted); font-style: italic; }
@@ -412,6 +444,8 @@ body.notes-compact .notes-head {
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
 }
 body.notes-compact .notes-title-row { flex-basis: auto; }
+/* La línea de los huérfanos va debajo: sin tope, la barra se estiraría a lo ancho de la ventana. */
+body.notes-compact .lector-notes:has(.notes-orphans:not([hidden])) { max-width: 480px; }
 body.notes-compact .notes-cards { display: none; }
 .lector-note-markers { position: absolute; top: 0; left: 0; }
 .note-marker {
@@ -457,7 +491,7 @@ body.notes-compact .notes-cards { display: none; }
   cursor: pointer;
 }
 .lector-menu button:hover, .lector-menu button:focus-visible { background: var(--soft); outline: none; }
-.lector-undo {
+.lector-undo, .lector-notice {
   position: fixed;
   left: 50%;
   bottom: 18px;
@@ -472,8 +506,21 @@ body.notes-compact .notes-cards { display: none; }
   border-radius: 8px;
   box-shadow: 0 6px 22px rgb(0 0 0 / 0.25);
 }
-.lector-undo button { background: transparent; color: var(--bg); border-color: currentColor; font-weight: 600; }
-body.notes-compact .lector-undo { bottom: 74px; }
+.lector-undo button, .lector-notice button { background: transparent; color: var(--bg); border-color: currentColor; font-weight: 600; }
+body.notes-compact .lector-undo, body.notes-compact .lector-notice { bottom: 74px; }
+/* En una línea: centrado con left: 50%, sin esto se achicaría a la mitad de la ventana («2 apuntes marcados…»). */
+.lector-undo { width: max-content; max-width: calc(100vw - 32px); }
+/* El aviso de la app (el archivo cambió en el disco): tres botones, el primero resaltado. Si sale también el de
+   «Deshacer», ese va arriba. */
+.lector-notice { gap: 8px; flex-wrap: wrap; width: max-content; max-width: calc(100vw - 32px); }
+.lector-notice span { margin-right: 6px; }
+.lector-notice button:first-of-type { background: var(--bg); color: var(--fg); border-color: var(--bg); }
+/* Sin botones (la recarga espera a que se guarde o cancele un apunte) es solo una indicación: va por debajo de los
+   apuntes (la columna y la tarjeta flotante) y no recibe el mouse, para no tapar ni quitarle el foco al que se escribe. */
+.lector-notes { z-index: 8; }
+.lector-notice.quiet { z-index: 7; pointer-events: none; }
+body.has-notice .lector-undo { bottom: 72px; }
+body.notes-compact.has-notice .lector-undo { bottom: 128px; }
 
 /* ---- Pantalla de bienvenida ---- */
 .welcome {
