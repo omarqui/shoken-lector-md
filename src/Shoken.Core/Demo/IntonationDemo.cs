@@ -19,6 +19,10 @@ public sealed record ProsodyChange(int RatePercent, int PitchPercent);
 /// <param name="Prosody">Cambio de velocidad y tono del segmento entero (los títulos), o null.</param>
 /// <param name="Strong">Frases en negrita que cambian de tono (vacío si no hay o el perfil no las marca).</param>
 /// <param name="StrongProsody">El cambio de esas negritas, o null si no hay.</param>
+/// <param name="Quoted">Nombres entre comillas que cambian de tono (vacío si no hay).</param>
+/// <param name="QuotedProsody">El cambio de esos nombres, o null si no hay.</param>
+/// <param name="Asides">Apartes entre paréntesis que cambian de tono (vacío si no hay).</param>
+/// <param name="AsideProsody">El cambio de esos apartes, o null si no hay.</param>
 /// <param name="AddsPeriod">Shoken le agrega un punto al final para que la voz cierre la frase.</param>
 /// <param name="ReadsNumber">Elemento de una lista numerada: se lee su número.</param>
 /// <param name="Announces">Texto que agrega Shoken y no se ve como tal en el Markdown (la etiqueta de una alerta), o null.</param>
@@ -32,6 +36,10 @@ public sealed record DemoSegment(
     ProsodyChange? Prosody,
     IReadOnlyList<string> Strong,
     ProsodyChange? StrongProsody,
+    IReadOnlyList<string> Quoted,
+    ProsodyChange? QuotedProsody,
+    IReadOnlyList<string> Asides,
+    ProsodyChange? AsideProsody,
     bool AddsPeriod,
     bool ReadsNumber,
     string? Announces);
@@ -111,6 +119,8 @@ public static class IntonationDemo
             IReadOnlyList<string> strong = segment.IsHeading || strongProsody is null
                 ? []
                 : segment.Runs.Where(r => r.Style.HasFlag(RunStyle.Strong) && !string.IsNullOrWhiteSpace(r.Text)).Select(r => r.Text.Trim()).ToList();
+            IReadOnlyList<string> quoted = Phrases(segment, profile, RunStyle.Quoted);
+            IReadOnlyList<string> asides = Phrases(segment, profile, RunStyle.Aside);
             return new DemoSegment(
                 segment.Id,
                 segment.AnchorId,
@@ -121,10 +131,52 @@ public static class IntonationDemo
                 rate != 0 || pitch != 0 ? new ProsodyChange(rate, pitch) : null,
                 strong,
                 strong.Count > 0 ? strongProsody : null,
+                quoted,
+                quoted.Count > 0 ? Change(profile.ForRun(RunStyle.Quoted)) : null,
+                asides,
+                asides.Count > 0 ? Change(profile.ForRun(RunStyle.Aside)) : null,
                 AddsPeriod(segment, plan.Normalizer),
                 segment.Kind == SegmentKind.ListItem && NumberedItem.IsMatch(segment.PlainText),
                 segment.Kind == SegmentKind.AlertLabel ? segment.PlainText.Trim().TrimEnd('.') : null);
         }).ToList();
+    }
+
+    private static ProsodyChange Change((int Rate, int Pitch) change) => new(change.Rate, change.Pitch);
+
+    /// <summary>
+    /// Los tramos seguidos a los que <see cref="SsmlBuilder"/> les da el tono de <paramref name="kind"/> (comillas o
+    /// paréntesis), con sus mismas reglas: la negrita manda y los tramos que solo tienen signos no cuentan.
+    /// </summary>
+    private static IReadOnlyList<string> Phrases(SpeechSegment segment, ProsodyProfile profile, RunStyle kind)
+    {
+        var phrases = new List<string>();
+        if (segment.IsHeading)
+        {
+            return phrases;
+        }
+
+        var current = new StringBuilder();
+        foreach (SpeechRun run in segment.Runs)
+        {
+            bool toned = run.Style.HasFlag(kind) && !run.Style.HasFlag(RunStyle.Strong)
+                && !string.IsNullOrWhiteSpace(run.Text) && profile.Styles(run.Style, run.Text);
+            if (toned)
+            {
+                current.Append(run.Text);
+            }
+            else if (current.Length > 0)
+            {
+                phrases.Add(current.ToString().Trim());
+                current.Clear();
+            }
+        }
+
+        if (current.Length > 0)
+        {
+            phrases.Add(current.ToString().Trim());
+        }
+
+        return phrases;
     }
 
     // Lo mismo que hace SsmlBuilder con el último tramo del segmento.

@@ -5,6 +5,9 @@ namespace Shoken.Core.Tts;
 /// <summary>Instante (dentro del audio de un bloque) en que empieza un segmento.</summary>
 public sealed record SegmentMark(int SegmentId, TimeSpan Offset);
 
+/// <summary>Instante en que empieza una palabra dicha, según el motor (Azure: <c>WordBoundary</c>).</summary>
+public sealed record WordMark(int SegmentId, TimeSpan Offset, string Text);
+
 /// <summary>Audio sintetizado de un bloque, listo para reproducir.</summary>
 public sealed class AudioChunk
 {
@@ -19,6 +22,12 @@ public sealed class AudioChunk
 
     /// <summary>Duración total del audio; null en entradas de caché anteriores a que se guardara.</summary>
     public TimeSpan? Duration { get; init; }
+
+    /// <summary>
+    /// Palabras con su tiempo exacto, ordenadas. Vacío si el motor no los da o la entrada de caché es anterior:
+    /// entonces <see cref="WordTimeline"/> los estima.
+    /// </summary>
+    public IReadOnlyList<WordMark> Words { get; init; } = [];
 
     public TimeSpan OffsetOf(int segmentId) =>
         Marks.FirstOrDefault(m => m.SegmentId == segmentId)?.Offset ?? TimeSpan.Zero;

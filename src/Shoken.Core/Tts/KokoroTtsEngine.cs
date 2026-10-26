@@ -5,6 +5,7 @@ using KokoroSharp.Processing;
 using NumSharp;
 using Shoken.Core.Audio;
 using Shoken.Core.Caching;
+using Shoken.Core.Parsing;
 using Shoken.Core.Planning;
 using Shoken.Core.Text;
 
@@ -177,7 +178,7 @@ public sealed class KokoroTtsEngine : ITtsEngine, IDisposable
     {
         var texts = chunk.Segments
             .Select(s => SpeechTextNormalizer.EnsureTerminalPunctuation(
-                string.Concat(s.Runs.Select(r => _normalizer.Normalize(r.Text))).Replace('\n', ' ').Trim()))
+                string.Concat(QuotedSpans.Unmark(s.Runs).Select(r => _normalizer.Normalize(r.Text))).Replace('\n', ' ').Trim()))
             .ToList();
 
         var payload = new StringBuilder();

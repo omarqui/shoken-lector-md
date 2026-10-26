@@ -23,6 +23,14 @@ public sealed class ProsodyProfile
     public int EmphasisRate { get; init; }
     public int EmphasisPitch { get; init; }
 
+    /// <summary>Entre comillas: un nombre («Guardar», "Usar"). Solo tono, sin pausas, que cuestan más.</summary>
+    public int QuotedRate { get; init; }
+    public int QuotedPitch { get; init; } = 8;
+
+    /// <summary>Entre paréntesis: un aparte, más grave y algo más rápido.</summary>
+    public int AsideRate { get; init; } = 6;
+    public int AsidePitch { get; init; } = -6;
+
     /// <summary>Velocidad y tono de un segmento entero según su tipo (0 = sin cambio).</summary>
     internal (int Rate, int Pitch) ForKind(SegmentKind kind) => kind switch
     {
@@ -32,11 +40,32 @@ public sealed class ProsodyProfile
         _ => (0, 0),
     };
 
-    /// <summary>Velocidad y tono de un tramo en negrita o en cursiva (0 = sin cambio).</summary>
+    /// <summary>
+    /// Velocidad y tono de un tramo (0 = sin cambio). Se aplica uno solo, para no anidar prosodia:
+    /// negrita, luego comillas o paréntesis, luego cursiva.
+    /// </summary>
     internal (int Rate, int Pitch) ForRun(RunStyle style) =>
         style.HasFlag(RunStyle.Strong) ? (StrongRate, StrongPitch)
+        : style.HasFlag(RunStyle.Quoted) ? (QuotedRate, QuotedPitch)
+        : style.HasFlag(RunStyle.Aside) ? (AsideRate, AsidePitch)
         : style.HasFlag(RunStyle.Emphasis) ? (EmphasisRate, EmphasisPitch)
         : (0, 0);
+
+    /// <summary>
+    /// Si un tramo con este estilo lleva prosodia. Los de comillas o paréntesis que solo tienen signos (los «» que
+    /// quedan sueltos alrededor de una negrita) no: Azure cobraría la etiqueta por algo que no se dice.
+    /// </summary>
+    internal bool Styles(RunStyle style, string text)
+    {
+        (int rate, int pitch) = ForRun(style);
+        if (rate == 0 && pitch == 0)
+        {
+            return false;
+        }
+
+        bool onlySpan = (style & (RunStyle.Strong | RunStyle.Emphasis)) == 0;
+        return !onlySpan || text.Any(char.IsLetterOrDigit);
+    }
 }
 
 /// <param name="Ssml">Documento SSML completo.</param>
@@ -107,7 +136,7 @@ public sealed class SsmlBuilder(SpeechTextNormalizer normalizer, ProsodyProfile?
 
             RunStyle style = segment.Runs[i].Style;
             (int runRate, int runPitch) = _profile.ForRun(style);
-            bool styled = !segment.IsHeading && !string.IsNullOrWhiteSpace(text) && (runRate != 0 || runPitch != 0);
+            bool styled = !segment.IsHeading && !string.IsNullOrWhiteSpace(text) && _profile.Styles(style, text);
             if (!styled)
             {
                 body.Append(Escape(text));

@@ -45,6 +45,19 @@ El flujo, de punta a punta:
 - **La clave de caché es el SHA-256 del SSML** (Azure) o de sus equivalentes (Piper), vía
   `AudioCache.ComputeKey`. Cualquier cambio en `SsmlBuilder` o en el normalizador invalida el audio
   ya generado. Está bien si es intencional; no lo hagas como efecto secundario de un refactor.
+- **La palabra que suena (`Tts/WordTimeline`, módulo `word` de `lector.js`):** los tiempos por palabra salen de
+  `WordBoundary` de Azure (gratis, no tocan el SSML) y se guardan en la entrada de caché (`Words`), **no** en la clave.
+  Sin ellos (otros motores, caché vieja) se estiman por el largo de cada palabra; nunca se vuelve a sintetizar para
+  conseguirlos. Las palabras son las de `WordTimeline.Tokenize(segment)`: `MainWindow` manda a la página las de todos
+  los segmentos del bloque al cambiar de segmento y luego solo el índice; la página las empareja (LCS) con las que
+  muestra y deja la última con pareja si la que suena no la tiene. Se dibuja con `CSS.highlights` (`lector-word`, por
+  debajo de la búsqueda); su color es `ThemePalettes.ReadingWord`. Se apaga con `AppSettings.HighlightWord`.
+- **Comillas y paréntesis (`Parsing/QuotedSpans`):** al armar cada bloque, `AddSegments` parte los tramos en los
+  bordes de «…», “…”, "…" y (…) y los marca `RunStyle.Quoted` o `Aside` (si se anidan, manda el de adentro; `(1)`,
+  `(a)`, el código en línea, las comillas sin pareja y `5"` no cuentan). Solo parte: el texto no cambia, así que el
+  SSML de un bloque sin comillas ni paréntesis sale idéntico. Kokoro y Piper normalizan `QuotedSpans.Unmark(runs)`
+  para que su texto (y su caché) no cambie. `ProsodyProfile.Styles` deja sin etiqueta los tramos que solo son signos.
+  `QuotedSpansTests` verifica las dos cosas con `MarkSpans = false`.
 - **Azure cobra el SSML, no solo el texto** (todo salvo `<speak>` y `<voice>`). Cada pausa,
   bookmark o `<prosody>` cuesta caracteres de la capa F0 (500 000/mes). Por eso la cursiva y las
   citas se distinguen con pausas y no con prosodia. Antes de agregar etiquetas, piensa en el costo.

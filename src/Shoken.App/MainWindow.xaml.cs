@@ -39,6 +39,8 @@ public partial class MainWindow : Window
     private EngineServices? _services;
     private DocumentView? _view;
     private SpeechDocument? _document;
+    private int _wordSegmentId = -1; // segmento cuyas palabras ya tiene la página
+    private int _wordPart;           // su lugar entre los segmentos de su bloque
     private DocumentTab? _active;
     private IReadOnlyList<OutlineEntry> _outline = [];
     private IReadOnlyList<int>? _findCounts; // resultados de Ctrl+F por entrada del índice
@@ -94,6 +96,7 @@ public partial class MainWindow : Window
         TabList.ItemsSource = _tabs;
 
         _player.SegmentChanged += OnSegmentChanged;
+        _player.WordChanged += OnWordChanged;
         _player.SegmentHeard += OnSegmentHeard;
         _player.StateChanged += OnPlaybackStateChanged;
         _player.ChunkStarted += OnChunkStarted;
@@ -1914,8 +1917,41 @@ public partial class MainWindow : Window
             _ = _view.HighlightAsync(segment.AnchorId);
         }
 
+        _wordSegmentId = -1; // la palabra que sigue manda las palabras del bloque
         MarkOutline(segment.Id);
         ShowPosition(segment.Id);
+    }
+
+    /// <summary>La palabra que suena, dentro del párrafo resaltado (si está activado en Configuración).</summary>
+    private void OnWordChanged(SpeechSegment segment, int word)
+    {
+        if (_view is null || _document is null || !_settings.HighlightWord)
+        {
+            return;
+        }
+
+        IReadOnlyList<IReadOnlyList<string>>? parts = null;
+        if (segment.Id != _wordSegmentId)
+        {
+            // Los segmentos de un mismo bloque van seguidos: un párrafo largo se parte en varios.
+            int first = segment.Id;
+            while (first > 0 && _document.Segments[first - 1].AnchorId == segment.AnchorId)
+            {
+                first--;
+            }
+
+            var block = new List<IReadOnlyList<string>>();
+            for (int id = first; id < _document.Segments.Count && _document.Segments[id].AnchorId == segment.AnchorId; id++)
+            {
+                block.Add(WordTimeline.Tokenize(_document.Segments[id]));
+            }
+
+            parts = block;
+            _wordSegmentId = segment.Id;
+            _wordPart = segment.Id - first;
+        }
+
+        _ = _view.HighlightWordAsync(segment.AnchorId, _wordPart, word, parts);
     }
 
     /// <summary>"§ Sección" y "Párrafo N de M · capítulo X de Y" en el reproductor.</summary>

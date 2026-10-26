@@ -33,6 +33,7 @@ public class ThemeTests
 
         Assert.True(ColorContrast.Ratio(c.DocumentText, c.Document) >= 4.5, "texto del documento");
         Assert.True(ColorContrast.Ratio(c.DocumentText, c.Reading) >= 4.5, "párrafo que se lee");
+        Assert.True(ColorContrast.Ratio(c.DocumentText, ThemePalettes.ReadingWord(c)) >= 4.5, "palabra que suena");
         Assert.True(ColorContrast.Ratio(c.Text, c.Surface) >= 4.5, "texto de las barras");
         Assert.True(ColorContrast.Ratio(c.Text2, c.Surface) >= 4.5, "texto secundario en las barras");
         Assert.True(ColorContrast.Ratio(c.Text2, c.Background) >= 4.5, "duraciones del índice");
@@ -108,6 +109,7 @@ public class ThemeTests
         Assert.Equal(c.DocumentText, css["fg"]);
         Assert.Equal(c.Accent, css["accent"]);
         Assert.Equal(c.Reading, css["reading"]);
+        Assert.Equal(ThemePalettes.ReadingWord(c), css["reading-word"]);
         Assert.Equal(c.Code, css["soft"]);
         Assert.Contains("caution", css.Keys); // las alertas y la búsqueda también llegan, según el modo
     }

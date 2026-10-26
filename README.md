@@ -1,6 +1,6 @@
 # Shoken: lee Markdown con entonación
 
-App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **español de México** y aprovecha el formato del documento para decidir las **pausas y la entonación**. Mientras lee, resalta el párrafo y lo va siguiendo en pantalla.
+App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **español de México** y aprovecha el formato del documento para decidir las **pausas y la entonación**. Mientras lee, resalta el párrafo y la palabra que suena, y los va siguiendo en pantalla.
 
 - **Motor principal:** Azure Speech, voces neuronales `es-MX`, con la capa gratuita **F0** (500 000 caracteres al mes).
 - **Respaldo en la nube:** Google Cloud TTS, si agregas su clave.
@@ -16,6 +16,8 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 | `# Encabezado` | Pausa antes (1.1 s en h1 y 0.55 s en h4–h6), un poco más lento y grave, y cierre con punto para que la entonación baje |
 | Párrafo | Pausa de ~0.3 s al terminar. Los párrafos muy largos se parten por oraciones |
 | `**negrita**` | Un poco más lenta y aguda (velocidad −4 %, tono +6 %) |
+| «Guardar», “Guardar”, "Guardar" | Lo que va entre comillas suele ser un nombre: sube un poco el tono (+8 %), sin pausas |
+| `(aparte)` | Lo que va entre paréntesis suena como un aparte: un poco más grave y rápido (tono −6 %, velocidad +6 %). `(1)`, `(a)` o `(iv)` se leen igual que el resto. Si hay comillas dentro, el nombre suena como nombre |
 | `1.` `2.` listas numeradas | Se lee "uno…, dos…", con pausa corta entre elementos |
 | `- [x]` / `- [ ]` | "Hecho: …" / "Pendiente: …" |
 | `> cita` | Pausas al entrar y al salir |
@@ -29,13 +31,13 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 | ✅ / ❌ | "sí" / "no". Los demás emojis se omiten |
 | `→`, `~5`, `p. ej.`, `&` | ", ", "aproximadamente 5", "por ejemplo", "y" |
 
-La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/Shoken.Core/Ssml/SsmlBuilder.cs`.
+La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/Shoken.Core/Ssml/SsmlBuilder.cs`. Las comillas y los paréntesis sí cambian de tono: unos 30 a 40 caracteres de Azure por tramo. Kokoro y Piper no aceptan SSML, así que con ellos suenan como el resto de la frase.
 
 ### Escúchalo: la demo de entonación
 
 En la bienvenida, **Escucha cómo entona** abre la pestaña *Así entona Shoken* (también está en ⚙ Configuración › Lectura). Es un texto corto que cuenta lo que hace Shoken con cada elemento, leído dos veces por la misma voz:
 
-- **Con Shoken:** pausas según la estructura, un punto al final de títulos y elementos de lista, y el tono de títulos y negritas.
+- **Con Shoken:** pausas según la estructura, un punto al final de títulos y elementos de lista, y el tono de títulos, negritas y comillas.
 - **Sin entonación:** las mismas palabras, de corrido.
 
 Si cambias de versión mientras suena, la otra sigue en la misma parte. Dos líneas de tiempo a la misma escala muestran dónde se alarga la lectura, y junto a cada párrafo se ve qué pausa o cambio de tono le puso Shoken.
@@ -266,9 +268,11 @@ docs/demo-shoken.md        Guía rápida (la del audio de demostración)
 
 El resaltado es exacto porque cada segmento lleva un `<bookmark>` en el SSML. Azure devuelve el instante en que empieza cada uno; con Piper, los instantes se calculan al unir los WAV.
 
+Dentro del párrafo, la palabra que suena se marca con un tono más intenso (se apaga en ⚙ Configuración › Lectura). Con Azure el momento de cada palabra es exacto: lo da el evento `WordBoundary`, que no se cobra. Con Google, Kokoro, Piper y el audio de Azure guardado antes de esta función, se estima repartiendo la duración del párrafo según el largo de cada palabra, así que puede ir una o dos palabras adelantada o atrasada. Nunca se vuelve a generar audio para conseguir los tiempos.
+
 ## Límites conocidos
 
-- El resaltado va por bloque (párrafo, elemento de lista o fila), no palabra por palabra.
+- La palabra marcada es aproximada fuera de Azure. Lo que se dice y no está escrito (el encabezado de cada celda, «Código en C#») no se marca.
 - Las voces es-MX no son multilingües: para términos en inglés usa el diccionario.
 - Piper no cambia la entonación con las negritas, solo respeta las pausas.
 - La velocidad de la barra superior usa el `SpeedRatio` del reproductor de Windows. Si a alguna velocidad notas un cambio de tono, usa mejor la velocidad de la voz en Configuración.

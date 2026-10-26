@@ -75,6 +75,16 @@
         chips.push({ kind: 'tone', text: 'negrita: ' + toneWords(s.strongProsody, true), title: '«' + phrase + '»: ' + toneDetail(s.strongProsody) });
       }
     }
+    if (s.quotedProsody) {
+      for (const phrase of s.quoted) {
+        chips.push({ kind: 'tone', text: 'entre comillas: ' + toneWords(s.quotedProsody, false), title: phrase + ': ' + toneDetail(s.quotedProsody) });
+      }
+    }
+    if (s.asideProsody) {
+      for (const phrase of s.asides) {
+        chips.push({ kind: 'tone', text: 'paréntesis: ' + toneWords(s.asideProsody, false), title: phrase + ': ' + toneDetail(s.asideProsody) });
+      }
+    }
     if (s.announces) chips.push({ kind: 'added', text: 'dice «' + s.announces + '»', title: 'Lo agrega Shoken: en el Markdown es una alerta' });
     if (s.number) chips.push({ kind: 'added', text: 'lee el número', title: 'Elemento de una lista numerada' });
     if (s.period) chips.push({ kind: 'added', text: '+ punto', title: 'Shoken agrega un punto final para que la voz cierre la frase y baje el tono' });

@@ -66,6 +66,19 @@ public static class ThemePalettes
             "#2B2B2B", "#F3F3F3", "#1E3A4C", "#60CDFF", "#333333", "#5E5E5E"),
     };
 
+    /// <summary>Fondo de la palabra que suena: el del párrafo que se lee con un 30 % del color de su barra.</summary>
+    public static string ReadingWord(PaletteColors c) => Mix(c.Reading, c.ReadingEdge, 0.3);
+
+    internal static string Mix(string from, string to, double amount)
+    {
+        int a = int.Parse(from.TrimStart('#'), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        int b = int.Parse(to.TrimStart('#'), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        int Channel(int shift) =>
+            (int)Math.Round(((a >> shift) & 0xFF) * (1 - amount) + ((b >> shift) & 0xFF) * amount, MidpointRounding.AwayFromZero);
+        return "#" + Channel(16).ToString("X2", CultureInfo.InvariantCulture) + Channel(8).ToString("X2", CultureInfo.InvariantCulture)
+            + Channel(0).ToString("X2", CultureInfo.InvariantCulture);
+    }
+
     /// <summary>
     /// Variables CSS del documento (sin el "--"). Las de la búsqueda y las alertas dependen solo del modo: se leen
     /// bien sobre cualquiera de los fondos.
@@ -82,6 +95,7 @@ public static class ThemePalettes
             ["accent-fg"] = c.OnAccent,
             ["reading"] = c.Reading,
             ["reading-edge"] = c.ReadingEdge,
+            ["reading-word"] = ReadingWord(c), // la palabra que suena, dentro del párrafo que se lee
             ["heard"] = c.Heard, // lo ya escuchado: línea al margen, avance del índice y tinte de la línea de tiempo
             ["find"] = dark ? "#5C4D12" : "#FFF0A8",
             ["find-current"] = dark ? "#D68A1E" : "#F2A33A",

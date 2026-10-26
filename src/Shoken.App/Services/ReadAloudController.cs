@@ -41,6 +41,8 @@ internal sealed class ReadAloudController : IDisposable
     private TaskCompletionSource? _ended;
     private AudioChunk? _current;
     private int _currentSegmentId = -1;
+    private WordTimeline? _words;  // tiempos por palabra del bloque abierto
+    private int _currentWord = -1;
     private int? _resumeSegmentId;
     private double _speed = 1.0;
     private bool _mediaReady;    // hay un bloque abierto y posicionado
@@ -64,6 +66,12 @@ internal sealed class ReadAloudController : IDisposable
     }
 
     public event Action<SpeechSegment>? SegmentChanged;
+
+    /// <summary>
+    /// Cambió la palabra que suena: índice en <see cref="WordTimeline.Tokenize(SpeechSegment)"/> del segmento, o -1
+    /// si todavía no empieza ninguna. Llega después de <see cref="SegmentChanged"/>.
+    /// </summary>
+    public event Action<SpeechSegment, int>? WordChanged;
 
     /// <summary>Un segmento sonó completo, de principio a fin y sin saltos (ver <see cref="HeardTracker"/>).</summary>
     public event Action<int>? SegmentHeard;
@@ -202,6 +210,8 @@ internal sealed class ReadAloudController : IDisposable
         _player.Stop();
         _player.Close();
         _current = null;
+        _words = null;
+        _currentWord = -1;
         _mediaReady = false;
         _pausePending = false;
         if (_currentSegmentId >= 0)
@@ -346,7 +356,7 @@ internal sealed class ReadAloudController : IDisposable
                 // siguiente párrafo, que tampoco sonó desde su principio.
                 bool landing = first && intoSegment > TimeSpan.Zero;
                 first = false;
-                await PlayChunkAsync(audio, startAt, landing, token);
+                await PlayChunkAsync(audio, _chunks[index], startAt, landing, token);
                 pending.Remove(index);
             }
 
@@ -402,10 +412,11 @@ internal sealed class ReadAloudController : IDisposable
     }
 
     /// <param name="landing">True si la lectura cae a mitad de un párrafo: el primer cambio de párrafo es un salto.</param>
-    private async Task PlayChunkAsync(AudioChunk audio, TimeSpan startAt, bool landing, CancellationToken token)
+    private async Task PlayChunkAsync(AudioChunk audio, SpeechChunk chunk, TimeSpan startAt, bool landing, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         _current = audio;
+        _words = null;
         _mediaReady = false;
         ChunkStarted?.Invoke(audio);
 
@@ -439,6 +450,7 @@ internal sealed class ReadAloudController : IDisposable
         // 1 a 5 s hacia adelante y se pierde el inicio del bloque (medido con MP3 de Azure a 1.25x y 1.5x). Desde 1 ms
         // no pasa.
         _player.Position = startAt > MinimumStart ? startAt : MinimumStart;
+        _words = WordTimeline.Build(chunk, audio, _player.NaturalDuration.HasTimeSpan ? _player.NaturalDuration.TimeSpan : null);
 
         _diagnosticSamples = PlaybackDiagnostics.Enabled ? 15 : 0;
 
@@ -510,15 +522,27 @@ internal sealed class ReadAloudController : IDisposable
         }
 
         int id = _current.SegmentAt(position + HighlightLead);
+        bool segmentChanged = false;
         if (id >= 0 && id < _document.Segments.Count && id != _currentSegmentId)
         {
             _currentSegmentId = id;
+            segmentChanged = true;
             if (!_seeking)
             {
                 _heard.Moved(id);
             }
 
             SegmentChanged?.Invoke(_document.Segments[id]);
+        }
+
+        if (_words is not null && _currentSegmentId >= 0)
+        {
+            int word = _words.WordAt(_currentSegmentId, position + HighlightLead);
+            if (segmentChanged || word != _currentWord)
+            {
+                _currentWord = word;
+                WordChanged?.Invoke(_document.Segments[_currentSegmentId], word);
+            }
         }
 
         // La línea de tiempo no necesita 60 actualizaciones por segundo.
@@ -535,6 +559,8 @@ internal sealed class ReadAloudController : IDisposable
         _timer.Stop();
         _player.Close();
         _current = null;
+        _words = null;
+        _currentWord = -1;
         _mediaReady = false;
         _pausePending = false;
         _session = null;

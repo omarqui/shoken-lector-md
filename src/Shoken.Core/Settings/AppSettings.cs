@@ -48,6 +48,9 @@ public sealed class AppSettings
 
     public bool ReadImageAltText { get; set; }
 
+    /// <summary>Marcar, dentro del párrafo que se lee, la palabra que suena.</summary>
+    public bool HighlightWord { get; set; } = true;
+
     /// <summary>Último archivo de la versión sin pestañas. Solo se lee para migrar a <see cref="OpenTabs"/>.</summary>
     public string? LastFile { get; set; }
 

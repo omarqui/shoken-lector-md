@@ -64,6 +64,11 @@ public class DemoTests
         Assert.Equal(2, segments.Count(s => s.ReadsNumber));
         Assert.Equal("Consejo", Assert.Single(segments, s => s.Announces is not null).Announces);
 
+        // «Consejo», entre comillas, sube el tono como en el SSML.
+        DemoSegment named = Assert.Single(segments, s => s.Quoted.Count > 0);
+        Assert.Equal(["«Consejo»"], named.Quoted);
+        Assert.Equal(new ProsodyChange(0, 8), named.QuotedProsody);
+
         // La pausa más larga es la de la línea horizontal (cambio de tema).
         Assert.Equal(segments[^1].PauseBeforeMs, segments.Max(s => s.PauseBeforeMs));
     }

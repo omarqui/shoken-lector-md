@@ -9,6 +9,10 @@ public enum RunStyle
     Emphasis = 2,
     Code = 4,
     Link = 8,
+    /// <summary>Entre comillas («…», “…”, "…"): suele nombrar algo (un botón, una opción, un término).</summary>
+    Quoted = 16,
+    /// <summary>Entre paréntesis: un aparte.</summary>
+    Aside = 32,
 }
 
 /// <summary>Un tramo de texto con un estilo uniforme dentro de un segmento.</summary>

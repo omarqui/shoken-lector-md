@@ -66,6 +66,7 @@ public partial class SettingsWindow : Window
         CodeModeBox.SelectedIndex = (int)settings.CodeBlocks;
         TableModeBox.SelectedIndex = (int)settings.Tables;
         ImageAltBox.IsChecked = settings.ReadImageAltText;
+        HighlightWordBox.IsChecked = settings.HighlightWord;
         TextSizeBox.SelectedIndex = (int)settings.TextSize;
         PaletteBox.SelectedIndex = (int)settings.Palette;
         NotesInstructionBox.Text = settings.NotesInstruction ?? NoteExporter.DefaultInstruction;
@@ -118,6 +119,7 @@ public partial class SettingsWindow : Window
         settings.CodeBlocks = (CodeBlockMode)Math.Max(0, CodeModeBox.SelectedIndex);
         settings.Tables = (TableMode)Math.Max(0, TableModeBox.SelectedIndex);
         settings.ReadImageAltText = ImageAltBox.IsChecked == true;
+        settings.HighlightWord = HighlightWordBox.IsChecked == true;
         settings.TextSize = (TextSize)Math.Max(0, TextSizeBox.SelectedIndex);
         settings.Palette = (ThemePalette)Math.Max(0, PaletteBox.SelectedIndex);
         // La de la app se guarda como null: así se recibe cuando la app la mejore.

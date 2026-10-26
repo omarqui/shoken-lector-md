@@ -192,6 +192,15 @@ internal sealed class DocumentView
     public Task HighlightAsync(string? anchor, bool follow = true) =>
         RunScriptAsync($"window.lector && window.lector.highlight({JsonSerializer.Serialize(anchor)}, {(follow ? "true" : "false")})");
 
+    /// <summary>
+    /// Marca la palabra <paramref name="word"/> de la parte <paramref name="part"/> del bloque (los segmentos que
+    /// comparten <paramref name="anchor"/>). <paramref name="parts"/>, las palabras dichas de cada parte, va solo al
+    /// cambiar de segmento: la página las empareja con las que muestra.
+    /// </summary>
+    public Task HighlightWordAsync(string anchor, int part, int word, IReadOnlyList<IReadOnlyList<string>>? parts) =>
+        RunScriptAsync($"window.lector && window.lector.word({JsonSerializer.Serialize(anchor)}, {part}, {word}" +
+                       (parts is null ? ")" : $", {JsonSerializer.Serialize(parts)})"));
+
     public Task ScrollToAsync(string anchor) =>
         RunScriptAsync($"window.lector && window.lector.scrollToAnchor({JsonSerializer.Serialize(anchor)})");
 
