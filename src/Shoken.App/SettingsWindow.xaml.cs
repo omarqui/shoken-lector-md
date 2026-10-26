@@ -15,7 +15,6 @@ using Shoken.Core.Ssml;
 using Shoken.Core.Text;
 using Shoken.Core.Tts;
 using Shoken.Core.Usage;
-using Microsoft.Win32;
 
 namespace Shoken.App;
 
@@ -61,8 +60,6 @@ public partial class SettingsWindow : Window
 
         GoogleVoiceBox.Text = settings.GoogleVoice;
         GoogleLimitBox.Text = settings.GoogleMonthlyCharacterLimit.ToString(CultureInfo.InvariantCulture);
-        PiperExeBox.Text = settings.PiperExePath;
-        PiperModelBox.Text = settings.PiperModelPath;
         OfflineOnlyBox.IsChecked = settings.OfflineOnly;
         RateSlider.Value = Math.Clamp(settings.RatePercent, -30, 30);
         UpdateRateLabel();
@@ -80,6 +77,15 @@ public partial class SettingsWindow : Window
         KokoroVoiceBox.SelectedIndex = Math.Max(0, KokoroTtsEngine.Voices.ToList().FindIndex(v => v.Id == settings.KokoroVoice));
         Closed += (_, _) => _kokoroDownload?.Cancel();
         UpdateKokoroStatus();
+        _piper = new PiperDownloads(paths.PiperDirectory);
+        foreach (PiperVoice voice in PiperDownloads.Voices)
+        {
+            PiperVoiceBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = $"{voice.Name} ({voice.Kind})", Tag = voice });
+        }
+
+        PiperVoiceBox.SelectedIndex = Math.Max(0, PiperDownloads.Voices.ToList().FindIndex(v => v.Id == settings.PiperVoice));
+        Closed += (_, _) => _piperDownload?.Cancel();
+        UpdatePiperStatus();
         UpdateCacheInfo();
     }
 
@@ -106,8 +112,7 @@ public partial class SettingsWindow : Window
         settings.AzureKey = AzureKeyBox.Password.Trim();
         settings.AzureRegion = AzureRegionBox.Text.Trim().ToLowerInvariant();
         settings.AzureVoice = string.IsNullOrWhiteSpace(AzureVoiceBox.Text) ? "es-MX-DaliaNeural" : AzureVoiceBox.Text.Trim();
-        settings.PiperExePath = PiperExeBox.Text.Trim().Trim('"');
-        settings.PiperModelPath = PiperModelBox.Text.Trim().Trim('"');
+        settings.PiperVoice = SelectedPiperVoice.Id;
         settings.OfflineOnly = OfflineOnlyBox.IsChecked == true;
         settings.RatePercent = (int)Math.Round(RateSlider.Value);
         settings.CodeBlocks = (CodeBlockMode)Math.Max(0, CodeModeBox.SelectedIndex);
@@ -147,28 +152,12 @@ public partial class SettingsWindow : Window
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         AppSettings settings = ReadForm();
-        var problems = new List<string>();
-        if (!string.IsNullOrEmpty(settings.PiperExePath) && !File.Exists(settings.PiperExePath))
-        {
-            problems.Add("No encuentro piper.exe en la ruta indicada.");
-        }
-
-        if (!string.IsNullOrEmpty(settings.PiperModelPath))
-        {
-            if (!File.Exists(settings.PiperModelPath))
-            {
-                problems.Add("No encuentro el modelo .onnx de Piper.");
-            }
-            else if (!File.Exists(settings.PiperModelPath + ".json"))
-            {
-                problems.Add($"Falta {Path.GetFileName(settings.PiperModelPath)}.json junto al modelo.");
-            }
-        }
-
-        if (problems.Count > 0)
+        // Con el programa descargado, Piper lee solo con la voz elegida (EngineServices.ResolvePiper).
+        if (_piper.HasProgram && !_piper.HasVoice(settings.PiperVoice))
         {
             MessageBoxResult answer = MessageBox.Show(this,
-                string.Join("\n", problems) + "\n\n¿Guardar de todos modos?", "Configuración",
+                $"La voz {SelectedPiperVoice.Name} de Piper no está descargada: Piper no se usará hasta que la descargues."
+                + "\n\n¿Guardar de todos modos?", "Configuración",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (answer != MessageBoxResult.Yes)
             {
@@ -245,9 +234,15 @@ public partial class SettingsWindow : Window
     private async void OnTestPiperClick(object sender, RoutedEventArgs e)
     {
         AppSettings settings = ReadForm();
+        if (EngineServices.ResolvePiper(settings, _paths) is not { } files)
+        {
+            ShowResult(PiperTestResult, $"Descarga primero Piper con la voz {SelectedPiperVoice.Name}.", ok: false);
+            return;
+        }
+
         var normalizer = new SpeechTextNormalizer(PronunciationDictionary.LoadOrCreate(_paths.PronunciationFile));
         using var engine = new PiperTtsEngine(
-            new PiperTtsOptions { ExePath = settings.PiperExePath, ModelPath = settings.PiperModelPath, RatePercent = settings.RatePercent },
+            new PiperTtsOptions { ExePath = files.ExePath, ModelPath = files.ModelPath, RatePercent = settings.RatePercent },
             normalizer, new AudioCache(_paths.CacheDirectory), _paths.TempDirectory);
         await RunTestAsync(TestPiperButton, PiperTestResult, engine,
             "Hola. Así suena Piper, la voz sin conexión, cuando Azure no está disponible.");
@@ -292,8 +287,7 @@ public partial class SettingsWindow : Window
             KokoroModelStatus.Text = $"Descargando… {fraction * 100:0} % de 310 MB");
         try
         {
-            await KokoroModelDownloader.DownloadAsync(DownloadHttp, KokoroModelDownloader.ModelUrl, _paths.KokoroModelFile,
-                KokoroModelDownloader.ModelBytes, progress, _kokoroDownload.Token);
+            await KokoroModelDownloader.DownloadAsync(DownloadHttp, _paths.KokoroModelFile, progress, _kokoroDownload.Token);
             UpdateKokoroStatus();
         }
         catch (OperationCanceledException)
@@ -309,6 +303,82 @@ public partial class SettingsWindow : Window
         finally
         {
             KokoroDownloadButton.IsEnabled = true;
+        }
+    }
+
+    // ------------------------------------------------------------------ descarga de Piper
+
+    private PiperDownloads _piper = null!;
+    private CancellationTokenSource? _piperDownload;
+
+    private PiperVoice SelectedPiperVoice =>
+        (PiperVoiceBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as PiperVoice ?? PiperDownloads.Voices[0];
+
+    // Como el Explorador y el «310 MB» de Kokoro: en MB de 1024².
+    private static string Megabytes(long bytes) => $"{bytes / (1024.0 * 1024.0):0} MB";
+
+    private void OnPiperVoiceChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && _piperDownload is null)
+        {
+            UpdatePiperStatus();
+        }
+    }
+
+    private void UpdatePiperStatus()
+    {
+        PiperVoice voice = SelectedPiperVoice;
+        long missing = _piper.BytesToDownload(voice, everything: false);
+        if (missing == 0)
+        {
+            PiperDownloadButton.Content = "Volver a descargar";
+            PiperDownloadStatus.Text = "✓ Instalado";
+        }
+        else if (_piper.HasProgram)
+        {
+            PiperDownloadButton.Content = $"Descargar voz ({Megabytes(missing)})";
+            PiperDownloadStatus.Text = $"Falta la voz {voice.Name}.";
+        }
+        else
+        {
+            PiperDownloadButton.Content = $"Descargar Piper ({Megabytes(missing)})";
+            PiperDownloadStatus.Text = "No instalado: Piper no se usa hasta descargarlo.";
+        }
+
+        PiperDownloadStatus.ClearValue(System.Windows.Controls.TextBlock.ForegroundProperty);
+    }
+
+    private async void OnDownloadPiperClick(object sender, RoutedEventArgs e)
+    {
+        PiperVoice voice = SelectedPiperVoice;
+        bool everything = _piper.BytesToDownload(voice, everything: false) == 0; // «Volver a descargar»
+        string size = Megabytes(_piper.BytesToDownload(voice, everything));
+        _piperDownload = new CancellationTokenSource();
+        PiperDownloadButton.IsEnabled = false;
+        PiperVoiceBox.IsEnabled = false;
+        TestPiperButton.IsEnabled = false;
+        var progress = new Progress<double>(fraction => PiperDownloadStatus.Text = $"Descargando… {fraction * 100:0} % de {size}");
+        try
+        {
+            await _piper.DownloadAsync(DownloadHttp, voice, everything, progress, _piperDownload.Token);
+            UpdatePiperStatus();
+        }
+        catch (OperationCanceledException)
+        {
+            // Se cerró la ventana: no queda nada a medias.
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            ErrorLog.Write(ex);
+            UpdatePiperStatus();
+            ShowResult(PiperDownloadStatus, $"No se pudo descargar: {ex.Message}", ok: false);
+        }
+        finally
+        {
+            _piperDownload = null;
+            PiperDownloadButton.IsEnabled = true;
+            PiperVoiceBox.IsEnabled = true;
+            TestPiperButton.IsEnabled = true;
         }
     }
 
@@ -362,24 +432,6 @@ public partial class SettingsWindow : Window
     }
 
     // ------------------------------------------------------------------ archivos
-
-    private void OnBrowsePiperClick(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Title = "Ubicar piper.exe", Filter = "piper.exe|piper.exe|Ejecutables (*.exe)|*.exe" };
-        if (dialog.ShowDialog(this) == true)
-        {
-            PiperExeBox.Text = dialog.FileName;
-        }
-    }
-
-    private void OnBrowseModelClick(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Title = "Ubicar el modelo de voz", Filter = "Modelo Piper (*.onnx)|*.onnx" };
-        if (dialog.ShowDialog(this) == true)
-        {
-            PiperModelBox.Text = dialog.FileName;
-        }
-    }
 
     private void OnEditDictionaryClick(object sender, RoutedEventArgs e)
     {

@@ -67,7 +67,7 @@ public sealed class PiperTtsEngine : ITtsEngine, IDisposable
         if (!IsConfigured)
         {
             throw new TtsException(TtsFailureKind.NotConfigured,
-                "Piper no está configurado (falta piper.exe, el modelo .onnx o su .onnx.json).");
+                "Piper no está instalado (falta piper.exe, el modelo .onnx o su .onnx.json): descárgalo desde Configuración.");
         }
 
         (List<string> texts, string key) = Prepare(chunk);

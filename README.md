@@ -124,11 +124,13 @@ Kokoro fonetiza el español de España; la app lo pasa a español de México ant
 
 ## 3. Configurar Piper (último respaldo sin conexión)
 
-1. Descarga **[piper_windows_amd64.zip](https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip)** y descomprímelo, por ejemplo en `C:\Herramientas\piper\`. Deja juntos `piper.exe`, sus DLL y la carpeta `espeak-ng-data`.
-2. Descarga una voz es_MX de [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_MX). Necesitas los **dos** archivos y deben quedar en la misma carpeta:
-   - `es/es_MX/claude/high/es_MX-claude-high.onnx` y `.onnx.json`: voz de mujer, combina con Dalia.
-   - `es/es_MX/ald/medium/es_MX-ald-medium.onnx` y `.onnx.json`: voz de hombre, combina con Jorge.
-3. En ⚙ **Configuración**, indica `piper.exe` y el `.onnx`, y pulsa **Probar Piper**.
+1. En ⚙ **Configuración**, elige la **Voz** de Piper:
+   - **Claude** (mujer, `es_MX-claude-high`): combina con Dalia. Es la que viene elegida.
+   - **Ald** (hombre, `es_MX-ald-medium`): combina con Jorge.
+2. Pulsa **Descargar Piper (82 MB)**. Baja el programa oficial para Windows ([piper_windows_amd64.zip](https://github.com/rhasspy/piper/releases/tag/2023.11.14-2), 21 MB, con sus DLL y `espeak-ng-data`) y la voz de [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_MX) (60 MB, el `.onnx` y su `.onnx.json`). Antes de usarlos, la app comprueba que cada archivo sea el esperado (SHA-256), y los guarda en la carpeta `piper\` de los datos de la app. Para cambiar de voz, elige la otra y pulsa **Descargar voz (60 MB)**.
+3. Pulsa **Probar Piper**.
+
+Si configuraste Piper a mano en una versión anterior (con `piper.exe` y el `.onnx` en otra carpeta), se sigue usando mientras no lo descargues desde Configuración.
 
 Si marcas **Usar solo los motores locales**, la app nunca se conecta a Azure ni a Google (lee con Kokoro, o Piper si no está).
 
@@ -228,6 +230,7 @@ Todo vive en `%LOCALAPPDATA%\Shoken\`:
 | `pronunciacion.json` | Diccionario de pronunciación |
 | `cache\` | Audio generado (MP3 de Azure y Google, WAV de Kokoro y Piper). Se recorta solo al pasar de 1 GB |
 | `kokoro\kokoro.onnx` | Modelo de Kokoro (310 MB), descargado desde Configuración. Borrarlo desactiva Kokoro |
+| `piper\` | Programa de Piper (`programa\`) y sus voces (`voces\`), descargados desde Configuración. Borrarlo desactiva Piper |
 | `errores.log` | Detalle de errores inesperados |
 
 **Si usabas la app cuando se llamaba Lector MD**, tus datos están en `%LOCALAPPDATA%\LectorMd\`. Ciérrala con *Salir* desde la bandeja y renombra la carpeta para conservar la configuración, la caché y los apuntes (la consulta del consumo real de Azure te pedirá iniciar sesión una vez más):

@@ -266,7 +266,8 @@ public partial class MainWindow : Window
         AudioCacheTrim(_services);
 
         ShowEngine(_services.Engine.Status.ActiveEngine, _services.Engine.Status.UsingFallback, _services.Engine.Status.Reason);
-        Player.SetEngineChoice(_settings.Engine, _settings.HasAzure, _settings.HasGoogle, File.Exists(_paths.KokoroModelFile), _settings.HasPiper);
+        Player.SetEngineChoice(_settings.Engine, _settings.HasAzure, _settings.HasGoogle, File.Exists(_paths.KokoroModelFile),
+            EngineServices.ResolvePiper(_settings, _paths) is not null);
         UpdateUsage();
     }
 

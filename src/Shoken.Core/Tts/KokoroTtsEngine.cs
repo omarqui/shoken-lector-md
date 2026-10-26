@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using KokoroSharp.Core;
 using KokoroSharp.Processing;
+using NumSharp;
 using Shoken.Core.Audio;
 using Shoken.Core.Caching;
 using Shoken.Core.Planning;
@@ -220,8 +221,18 @@ internal sealed class KokoroSharpBackend : IKokoroBackend, IDisposable
 
     public KokoroSharpBackend(KokoroTtsOptions options)
     {
-        _style = KokoroVoice.FromPath(Path.Combine(options.VoicesDirectory, options.Voice + ".npy")).Features;
+        _style = LoadVoice(Path.Combine(options.VoicesDirectory, options.Voice + ".npy"));
         _model = new KokoroModel(options.ModelPath, null);
+    }
+
+    /// <summary>
+    /// Lee la voz solo para lectura. <c>KokoroVoice.FromPath</c> la abre pidiendo también escritura, y empaquetada
+    /// (MSIX) la voz está en la carpeta de instalación, que es de solo lectura: Windows le niega el acceso.
+    /// </summary>
+    internal static float[,,] LoadVoice(string path)
+    {
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return np.Load<float[,,]>(stream);
     }
 
     public int SampleRate => 24000;

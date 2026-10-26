@@ -15,9 +15,16 @@ public sealed class AppSettings
 
     public string AzureVoice { get; set; } = "es-MX-DaliaNeural";
 
+    /// <summary>Voz de Piper que se descarga desde Configuración (es_MX-claude-high o es_MX-ald-medium).</summary>
+    public string PiperVoice { get; set; } = "es_MX-claude-high";
+
+    /// <summary>
+    /// piper.exe elegido a mano, de antes de que Piper se descargara desde Configuración. Solo se usa si no se
+    /// descargó (ver <see cref="EngineServices.ResolvePiper"/>); la interfaz ya no lo muestra.
+    /// </summary>
     public string PiperExePath { get; set; } = "";
 
-    /// <summary>Ruta al modelo .onnx (con su .onnx.json al lado), p. ej. es_MX-claude-high.onnx.</summary>
+    /// <summary>Modelo .onnx elegido a mano (con su .onnx.json al lado), igual que <see cref="PiperExePath"/>.</summary>
     public string PiperModelPath { get; set; } = "";
 
     /// <summary>Voz de Kokoro en español (ef_dora, em_alex o em_santa). Su modelo vive en <see cref="AppPaths.KokoroModelFile"/>.</summary>
@@ -93,9 +100,6 @@ public sealed class AppSettings
 
     [JsonIgnore]
     public bool HasAzure => !string.IsNullOrWhiteSpace(AzureKey) && !string.IsNullOrWhiteSpace(AzureRegion);
-
-    [JsonIgnore]
-    public bool HasPiper => File.Exists(PiperExePath) && File.Exists(PiperModelPath);
 
     public AppSettings Clone()
     {
@@ -186,6 +190,9 @@ public sealed class AppPaths(string root)
 
     /// <summary>Modelo de Kokoro (unos 310 MB), descargado desde Configuración.</summary>
     public string KokoroModelFile => Path.Combine(Root, "kokoro", "kokoro.onnx");
+
+    /// <summary>Programa de Piper y sus voces, descargados desde Configuración (<see cref="Tts.PiperDownloads"/>).</summary>
+    public string PiperDirectory => Path.Combine(Root, "piper");
 
     /// <summary>Cuenta de Azure con la que se consulta el consumo (sin secretos: el token va en la caché cifrada).</summary>
     public string AzureAccountFile => Path.Combine(Root, "cuenta-azure.json");

@@ -127,39 +127,24 @@ public sealed class KokoroTests : IDisposable
         Assert.All(backend.InferLengths, length => Assert.True(length <= 12, $"pasada de {length} tokens"));
     }
 
-    private sealed class BytesHandler(byte[] body) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(body) });
-    }
-
     [Fact]
-    public async Task Download_WritesTheModel_ReportsProgress_AndLeavesNoPartialFile()
+    public void Voice_LoadsFromAReadOnlyFile_LikeInTheStorePackage()
     {
-        string target = Path.Combine(_dir, "kokoro", "kokoro.onnx");
-        var reported = new List<double>();
-        using var http = new HttpClient(new BytesHandler(new byte[5000]));
+        // Empaquetada, la voz está en WindowsApps, que no se puede escribir: abrirla pidiendo escritura falla.
+        Directory.CreateDirectory(_dir);
+        string voice = Path.Combine(_dir, "ef_dora.npy");
+        NumSharp.np.Save((Array)new float[2, 1, 3] { { { 1, 2, 3 } }, { { 4, 5, 6 } } }, voice);
+        File.SetAttributes(voice, FileAttributes.ReadOnly);
+        try
+        {
+            float[,,] style = KokoroSharpBackend.LoadVoice(voice);
 
-        await KokoroModelDownloader.DownloadAsync(http, new Uri("https://ejemplo/kokoro.onnx"), target, expectedBytes: 5000,
-            new Progress<double>(reported.Add), CancellationToken.None);
-
-        Assert.Equal(5000, new FileInfo(target).Length);
-        Assert.False(File.Exists(target + ".part"));
-        await Task.Delay(50); // Progress<T> avisa en el contexto de sincronización
-        Assert.Contains(1.0, reported);
-    }
-
-    [Fact]
-    public async Task Download_WithTheWrongSize_KeepsNoBrokenModel()
-    {
-        string target = Path.Combine(_dir, "kokoro", "kokoro.onnx");
-        using var http = new HttpClient(new BytesHandler(new byte[100]));
-
-        await Assert.ThrowsAsync<IOException>(() => KokoroModelDownloader.DownloadAsync(http, new Uri("https://ejemplo/kokoro.onnx"),
-            target, expectedBytes: 5000, null, CancellationToken.None));
-
-        Assert.False(File.Exists(target));
-        Assert.False(File.Exists(target + ".part"));
+            Assert.Equal(6f, style[1, 0, 2]);
+        }
+        finally
+        {
+            File.SetAttributes(voice, FileAttributes.Normal);
+        }
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 # Política de privacidad de Shoken
 
-*Vigente desde el 25 de octubre de 2026.*
+*Vigente desde el 26 de octubre de 2026.*
 
 Shoken es una app de Windows que lee en voz alta archivos Markdown. No tiene cuentas, no muestra anuncios y no envía
 telemetría ni estadísticas de uso a nadie. Su autor no recibe ningún dato tuyo.
@@ -15,6 +15,7 @@ Solo sale lo necesario para generar la voz o descargar algo que pediste:
 | Lees con **Google** (si pusiste tu clave) | Google Cloud Text-to-Speech | El texto del documento que se va a leer, con tu clave |
 | Consultas el **consumo real de Azure** en Configuración | Microsoft (inicio de sesión y Azure Resource Manager) | Tu inicio de sesión de Microsoft, para leer el consumo de tu propio recurso |
 | Descargas el **modelo de Kokoro** en Configuración | GitHub (`github.com/Lyrcaxis/KokoroSharpBinaries`) | Solo la petición de descarga; no se envía nada tuyo |
+| Descargas **Piper** o una de sus voces en Configuración | GitHub (`github.com/rhasspy/piper`) y Hugging Face (`huggingface.co/rhasspy/piper-voices`) | Solo las peticiones de descarga; no se envía nada tuyo |
 
 El texto se envía con **tu** clave y queda sujeto a la política de privacidad de ese servicio (Microsoft o Google), no
 a la de Shoken. Si no configuras ninguna clave, Shoken lee con sus voces locales (Kokoro y Piper) y el texto nunca
@@ -26,6 +27,7 @@ Todo se guarda en la carpeta de datos de la app, en tu equipo:
 
 - la configuración y las pestañas abiertas, con las claves de Azure y Google cifradas con la protección de datos de
   Windows (DPAPI);
+- las voces locales que descargaste (el modelo de Kokoro, y Piper con sus voces);
 - el audio generado (caché), tus apuntes, lo que ya escuchaste de cada documento, tu diccionario de pronunciación y el
   conteo de caracteres enviados a Azure este mes;
 - un registro de errores inesperados, que no sale de tu equipo.
@@ -52,7 +54,7 @@ Si esta política cambia, se actualizará este archivo y su fecha. Para pregunta
 
 Shoken has no accounts, ads or telemetry, and its author receives no data. Document text leaves your PC only when you
 choose a cloud voice: it is sent with your own key to Microsoft Azure Speech or Google Cloud Text-to-Speech, under
-their privacy policies. Signing in to view your Azure usage talks to Microsoft. Downloading the Kokoro model fetches a
-file from GitHub. Settings (with keys encrypted by Windows DPAPI), the audio cache, notes, listening progress and the
+their privacy policies. Signing in to view your Azure usage talks to Microsoft. Downloading the Kokoro model or Piper
+fetches files from GitHub and Hugging Face. Settings (with keys encrypted by Windows DPAPI), the audio cache, notes, listening progress and the
 error log stay on your PC; the Microsoft Store version removes them when you uninstall it. Questions:
 <https://github.com/omarqui/shoken-lector-md/issues>.

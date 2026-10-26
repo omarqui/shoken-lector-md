@@ -73,12 +73,12 @@ public sealed class EngineServices : IDisposable
                 new SsmlBuilder(normalizer), cache, usage)
             : null;
 
-        PiperTtsEngine? piper = !string.IsNullOrWhiteSpace(settings.PiperExePath) && !string.IsNullOrWhiteSpace(settings.PiperModelPath)
+        PiperTtsEngine? piper = ResolvePiper(settings, paths) is { } piperFiles
             ? new PiperTtsEngine(
                 new PiperTtsOptions
                 {
-                    ExePath = settings.PiperExePath,
-                    ModelPath = settings.PiperModelPath,
+                    ExePath = piperFiles.ExePath,
+                    ModelPath = piperFiles.ModelPath,
                     RatePercent = settings.RatePercent,
                 },
                 normalizer, cache, paths.TempDirectory)
@@ -146,6 +146,25 @@ public sealed class EngineServices : IDisposable
 
     /// <summary>Voces de Kokoro en español (.npy), junto al ejecutable de la app.</summary>
     public static string KokoroVoicesDirectory => Path.Combine(AppContext.BaseDirectory, "kokoro");
+
+    /// <summary>
+    /// Qué Piper se usa: el descargado desde Configuración, con la voz elegida. Las rutas elegidas a mano (de antes de
+    /// la descarga) solo cuentan si no se descargó el programa. Null si falta algo.
+    /// </summary>
+    public static PiperFiles? ResolvePiper(AppSettings settings, AppPaths paths)
+    {
+        var downloads = new PiperDownloads(paths.PiperDirectory);
+        if (downloads.HasProgram)
+        {
+            return downloads.HasVoice(settings.PiperVoice)
+                ? new PiperFiles(downloads.ExePath, downloads.ModelPath(settings.PiperVoice))
+                : null;
+        }
+
+        return File.Exists(settings.PiperExePath) && File.Exists(settings.PiperModelPath)
+            ? new PiperFiles(settings.PiperExePath, settings.PiperModelPath)
+            : null;
+    }
 
     // Una sola conexión HTTP para toda la app (crear un HttpClient por motor agota los sockets).
     private static readonly HttpClient GoogleHttp = new() { Timeout = TimeSpan.FromSeconds(30) };

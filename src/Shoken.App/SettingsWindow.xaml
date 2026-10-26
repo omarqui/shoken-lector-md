@@ -178,28 +178,28 @@
                 <!-- Piper -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Piper · respaldo sin conexión" />
                 <TextBlock Style="{StaticResource Hint}">
-                    El último respaldo: se usa si no hay Kokoro o falla. Necesitas piper.exe (con su carpeta
-                    espeak-ng-data) y un modelo de voz es_MX: el archivo .onnx y su .onnx.json en la misma carpeta.
+                    El último respaldo: se usa si no hay Kokoro o falla. Corre en el equipo, sin conexión. El programa
+                    (21 MB) y la voz elegida (60 MB) se descargan una sola vez (no cierres esta ventana mientras se descargan).
                 </TextBlock>
 
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="piper.exe" VerticalAlignment="Center" />
-                    <TextBox x:Name="PiperExeBox" Grid.Row="0" Grid.Column="1" Margin="0,4" />
-                    <Button Grid.Row="0" Grid.Column="2" Content="Examinar…" Padding="10,5" Margin="8,4,0,4" Click="OnBrowsePiperClick" />
+                    <TextBlock Grid.Row="0" Text="Voz" VerticalAlignment="Center" />
+                    <ComboBox x:Name="PiperVoiceBox" Grid.Row="0" Grid.Column="1" Margin="0,4" SelectionChanged="OnPiperVoiceChanged" />
 
-                    <TextBlock Grid.Row="1" Text="Modelo (.onnx)" VerticalAlignment="Center" />
-                    <TextBox x:Name="PiperModelBox" Grid.Row="1" Grid.Column="1" Margin="0,4" />
-                    <Button Grid.Row="1" Grid.Column="2" Content="Examinar…" Padding="10,5" Margin="8,4,0,4" Click="OnBrowseModelClick" />
+                    <TextBlock Grid.Row="1" Text="Archivos" VerticalAlignment="Center" />
+                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                        <Button x:Name="PiperDownloadButton" Padding="12,6" Click="OnDownloadPiperClick" />
+                        <TextBlock x:Name="PiperDownloadStatus" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="300" />
+                    </StackPanel>
                 </Grid>
 
                 <StackPanel Orientation="Horizontal" Margin="170,8,0,0">
