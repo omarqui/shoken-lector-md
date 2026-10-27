@@ -63,13 +63,16 @@ El flujo, de punta a punta:
   otra versión puede dar otro Markdown, y con él cambian el `BlockKey` (se pierde lo escuchado) y la caché (se vuelve a
   gastar cuota). `Word_Structure_MatchesExpected` compara contra `Fixtures/Word/estructura.expected.md`: si falla tras
   actualizar, revisa la diferencia antes de regenerarlo. La salida de DocSharp se corrige en tres puntos: el encabezado
-  y el pie se apagan (`ExportHeaderFooter = false`); las notas `[n]`/`[n]:` pasan a `[^n]` (Markdig tomaba la
-  definición por un enlace; los corchetes del texto común llegan escapados); y las imágenes, que DocSharp escribe con
+  y el pie se apagan (`ExportHeaderFooter = false`); las notas al pie (`[n]`) y al final (`[i]`, en
+  romanos) pasan a `[^n]`, solo si tienen su definición (Markdig tomaba la definición por un enlace; los corchetes
+  del texto común llegan escapados); y las imágenes, que DocSharp escribe con
   ruta `file:///` y el id de la relación como alt, se guardan en `AppPaths.WordImagesDirectory` con su SHA-256 como
   nombre, con el texto alternativo real del Word y la URL `https://img.lector/<sha>.<ext>`. Ese host queda dentro del
   Markdown: no lo cambies. DocSharp **descarta sin avisar** los gráficos (`c:chart`) y las imágenes que no son PNG,
-  JPEG, GIF, BMP, WebP ni SVG (EMF): antes de convertir se cambian por un marcador y después por
-  `https://app.lector/imagen-no-disponible.svg`. En la App, `LoadDocumentTextAsync` convierte fuera del hilo de la
+  JPEG, GIF, BMP, WebP ni SVG (EMF): antes de convertir se cambian por un marcador (distinto en cada conversión) y
+  después por `https://app.lector/imagen-no-disponible.svg`. Se miran los `w:drawing` y también las imágenes VML
+  (`w:pict`, `w:object`) de documentos viejos y objetos pegados. Las imágenes extraídas se reconocen por la carpeta de
+  extracción, no por el id (los generadores no usan `rId…`). En la App, `LoadDocumentTextAsync` convierte fuera del hilo de la
   interfaz; un `InvalidDataException` es un `.docx` dañado o con contraseña. En un Word, las tarjetas de apuntes no
   muestran la línea (`DocumentView` lo decide por la extensión) y `NoteExporter` no da `archivo:líneas`. Los `.docx`
   de las pruebas los genera `Fixtures/Word/crear-muestras.ps1` (necesita Word; guárdalo con BOM o PowerShell 5.1 rompe
