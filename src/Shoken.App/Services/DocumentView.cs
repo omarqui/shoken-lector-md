@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Shoken.Core.Desktop;
+using Shoken.Core.Documents;
 using Shoken.Core.Model;
 using Shoken.Core.Notes;
 using Shoken.Core.Settings;
@@ -170,6 +171,8 @@ internal sealed class DocumentView
             return Task.CompletedTask;
         }
 
+        // En un Word, las líneas de los apuntes serían las del Markdown convertido: la tarjeta no las muestra.
+        _showNoteLines = document.SourcePath is null || !WordConverter.IsWordFile(document.SourcePath);
         string? folder = document.SourcePath is null ? null : Path.GetDirectoryName(Path.GetFullPath(document.SourcePath));
         if (!string.Equals(folder, _documentFolder, StringComparison.OrdinalIgnoreCase))
         {
@@ -229,8 +232,11 @@ internal sealed class DocumentView
             _webView.Focus(); // el cuadro de la nota vive en la página: necesita el foco del WebView2
         }
 
-        return RunScriptAsync($"window.lector && window.lector.notes.set({JsonSerializer.Serialize(items)}, {(visible ? "true" : "false")}, {JsonSerializer.Serialize(editId)}, {JsonSerializer.Serialize(flashId)})");
+        return RunScriptAsync($"window.lector && window.lector.notes.set({JsonSerializer.Serialize(items)}, {(visible ? "true" : "false")}, {JsonSerializer.Serialize(editId)}, {JsonSerializer.Serialize(flashId)}, {(_showNoteLines ? "true" : "false")})");
     }
+
+    /// <summary>Si las tarjetas de los apuntes muestran la línea («L12»): no en un documento de Word.</summary>
+    private bool _showNoteLines = true;
 
     public Task SetNotesVisibleAsync(bool visible) =>
         RunScriptAsync($"window.lector && window.lector.notes.setVisible({(visible ? "true" : "false")})");

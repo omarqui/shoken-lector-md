@@ -672,6 +672,7 @@
     let list = []; // { id, quote, kind, text, resolved, line, range, seg, endSeg, shownLine, current }
     let undoAction = null; // lo que hace «Deshacer» en el aviso que se ve
     let visible = true;
+    let showLines = true; // en un Word la línea sería la del Markdown convertido: la tarjeta no la muestra
     let compact = false;
     let aside = null;
     let markers = null; // las marcas (en dots) y la tarjeta flotante (popover), con la ventana angosta
@@ -932,7 +933,8 @@
 
     // Lo que manda la app al abrir el documento o tras crear, borrar o restaurar; editId abre esa tarjeta para escribir
     // y flashId la destella sin mover el foco (una marca para revisar).
-    function set(items, show, editId, flashId) {
+    function set(items, show, editId, flashId, lines) {
+      showLines = lines !== false;
       // Una marca para revisar (flashId sin editId) no cierra el apunte que se está escribiendo: sigue abierto, con lo
       // escrito, el cursor y el foco. Si no, y se estaba escribiendo otro apunte (y se creó uno nuevo), lo escrito se
       // guarda antes de redibujar.
@@ -1052,7 +1054,7 @@
       const kinds = Object.entries(KINDS).map(([value, name]) =>
         '<button type="button" role="radio" class="note-kind kind-' + value.toLowerCase() + '" data-act="kind" data-kind="' + value +
         '" aria-checked="' + (value === kind) + '">' + name + '</button>').join('');
-      const where = n.range ? 'L' + n.shownLine : 'ya no está';
+      const where = n.range ? (showLines ? 'L' + n.shownLine : '') : 'ya no está';
       const body = editingId === n.id
         ? '<textarea class="note-editor" rows="3" aria-label="Nota" placeholder="¿Qué quieres que la IA aclare o mejore?">' + esc(n.text) + '</textarea>' +
           '<div class="note-hint">Ctrl+Enter guarda · Esc cancela</div>'
@@ -1067,7 +1069,7 @@
         (activeId === n.id ? ' active' : '') + (pinnedId === n.id || editingId === n.id ? ' pinned' : '') +
         (hoverId === n.id ? ' hovered' : '') + '" data-id="' + esc(n.id) + '">' +
         '<div class="note-top"><div class="note-kinds" role="radiogroup" aria-label="Tipo de apunte">' + kinds + '</div>' +
-        '<span class="note-where" title="' + (n.range ? 'Línea en el Markdown' : 'La cita ya no está en el documento') + '">' + where + '</span></div>' +
+        (where ? '<span class="note-where" title="' + (n.range ? 'Línea en el Markdown' : 'La cita ya no está en el documento') + '">' + where + '</span>' : '') + '</div>' +
         quote + body +
         '<div class="note-actions">' +
         '<button type="button" class="note-icon" data-act="play" title="Leer desde aquí" aria-label="Leer desde aquí"' + (n.seg ? '' : ' disabled') + '>&#xE768;</button>' +
