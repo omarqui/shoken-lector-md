@@ -188,4 +188,35 @@ public sealed class NotesTests : IDisposable
         Assert.Contains("## 1. Aclarar · § Acuerdos", pasted);
         Assert.DoesNotContain(":4", pasted);
     }
+
+    [Fact]
+    public void Export_WordDocument_HasSectionAndQuoteButNoLines()
+    {
+        string text = NoteExporter.ToMarkdown(null, new NoteSource(@"C:\Docs\informe.docx", "Informe"), [Note("cita", 12, section: "Uso")]);
+
+        Assert.Contains("## 1. Aclarar · § Uso", text);
+        Assert.DoesNotContain("informe.docx:12", text);
+        string instruction = NoteExporter.DefaultWordInstruction
+            .Replace("{archivo}", @"C:\Docs\informe.docx", StringComparison.Ordinal)
+            .Replace("{titulo}", "Informe", StringComparison.Ordinal)
+            .Replace("{cantidad}", "1", StringComparison.Ordinal);
+        Assert.StartsWith(instruction, text);
+        Assert.Contains("pegarlo en Word", NoteExporter.DefaultWordInstruction);
+        Assert.DoesNotContain("archivo:líneas", NoteExporter.DefaultWordInstruction);
+    }
+
+    [Fact]
+    public void Export_WordDocument_WithCustomInstruction_UsesItWithoutLines()
+    {
+        string text = NoteExporter.ToMarkdown("Revisa {archivo}", new NoteSource(@"C:\Docs\informe.docx", "Informe"), [Note("cita", 12)]);
+
+        Assert.StartsWith(@"Revisa C:\Docs\informe.docx", text);
+        Assert.DoesNotContain(":12", text);
+    }
+
+    [Fact]
+    public void Settings_WordImages_LiveInTheAppData()
+    {
+        Assert.Equal(Path.Combine(_dir, "imagenes-word"), new Settings.AppPaths(_dir).WordImagesDirectory);
+    }
 }

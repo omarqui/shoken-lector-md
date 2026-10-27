@@ -5,7 +5,7 @@ namespace Shoken.Core.Desktop;
 /// </summary>
 public sealed class DraggedFiles
 {
-    private static readonly string[] OpenableExtensions = [".md", ".markdown", ".mdx", ".txt"];
+    private static readonly string[] OpenableExtensions = [".md", ".markdown", ".mdx", ".txt", ".docx"];
 
     private DraggedFiles(IReadOnlyList<string> openable, string title, string? detail)
     {
