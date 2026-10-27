@@ -34,6 +34,8 @@ docker compose up -d
 
 Si algo falla, revisa los registros (p. ej. `docker logs api`) & reporta en <https://soporte.ejemplo.com>.
 
+Al terminar, pulsa «Guardar», elige “Reiniciar” y luego "Usar ahora" (el servicio arranca solo). Si te pide confirmar, pulsa «**Aceptar**» (o «Cancelar» para volver). Revisa los pasos (1) y (a), la pantalla de 5" y el texto que dice «sin cerrar.
+
 ## Cómo fluye una descarga
 
 ```mermaid

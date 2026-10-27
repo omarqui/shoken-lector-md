@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Shoken.Core.Documents;
 using Shoken.Core.Model;
 
 namespace Shoken.App.Services;
@@ -13,13 +14,16 @@ internal static class HtmlPages
     /// <summary>Host virtual de la carpeta del documento abierto (imágenes relativas).</summary>
     public const string DocumentHost = "doc.lector";
 
+    /// <summary>Host virtual de las imágenes de los documentos de Word (AppPaths.WordImagesDirectory).</summary>
+    public const string WordImagesHost = WordConverter.WordImagesHost;
+
     // Solo se ejecuta nuestro script: un <script> dentro del Markdown queda bloqueado. El audio de app.lector es el
     // de la demo de entonación.
     private const string ContentSecurityPolicy =
         "default-src 'none'; " +
         "script-src https://app.lector; " +
         "style-src https://app.lector 'unsafe-inline'; " +
-        "img-src https://doc.lector https: data:; " +
+        "img-src https://doc.lector https://img.lector https: data:; " +
         "media-src https://doc.lector https://app.lector; " +
         "font-src https://app.lector";
 

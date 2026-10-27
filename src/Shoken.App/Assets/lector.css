@@ -10,6 +10,7 @@
   --accent-fg: #ffffff;
   --reading: #eaf2fb;
   --reading-edge: #005fb8;
+  --reading-word: #a4c6e7;
   --heard: #c2c2c2;
   --find: #fff0a8;
   --find-current: #f2a33a;
@@ -35,6 +36,7 @@
     --accent-fg: #00344d;
     --reading: #1e3a4c;
     --reading-edge: #60cdff;
+    --reading-word: #326682;
     --heard: #5e5e5e;
     --find: #5c4d12;
     --find-current: #d68a1e;
@@ -211,6 +213,7 @@ tr.lector-heard > :first-child::after {
 ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 
 /* ---- Búsqueda (Ctrl+F) ---- */
+::highlight(lector-word) { background-color: var(--reading-word); color: inherit; }
 ::highlight(lector-find) { background-color: var(--find); color: inherit; }
 ::highlight(lector-find-current) { background-color: var(--find-current); color: var(--find-current-fg); }
 

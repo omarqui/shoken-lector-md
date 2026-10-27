@@ -16,6 +16,7 @@ using Azure.Identity;
 using Shoken.App.Controls;
 using Shoken.App.Services;
 using Shoken.Core;
+using Shoken.Core.Documents;
 using Shoken.Core.Model;
 using Shoken.Core.Planning;
 using Shoken.Core.Settings;
@@ -31,6 +32,10 @@ public partial class MainWindow : Window
     private static readonly CultureInfo Mexico = CultureInfo.GetCultureInfo("es-MX");
 
     private readonly AppPaths _paths = AppPaths.Default;
+    private WordConverter? _word;
+
+    /// <summary>Convierte los .docx; sus imágenes quedan en <see cref="AppPaths.WordImagesDirectory"/> (img.lector).</summary>
+    private WordConverter Word => _word ??= new WordConverter(_paths.WordImagesDirectory, _paths.TempDirectory);
     private readonly SettingsStore _settingsStore;
     private readonly ReadAloudController _player = new();
     private readonly ObservableCollection<DocumentTab> _tabs = [];
@@ -39,6 +44,8 @@ public partial class MainWindow : Window
     private EngineServices? _services;
     private DocumentView? _view;
     private SpeechDocument? _document;
+    private int _wordSegmentId = -1; // segmento cuyas palabras ya tiene la página
+    private int _wordPart;           // su lugar entre los segmentos de su bloque
     private DocumentTab? _active;
     private IReadOnlyList<OutlineEntry> _outline = [];
     private IReadOnlyList<int>? _findCounts; // resultados de Ctrl+F por entrada del índice
@@ -94,6 +101,7 @@ public partial class MainWindow : Window
         TabList.ItemsSource = _tabs;
 
         _player.SegmentChanged += OnSegmentChanged;
+        _player.WordChanged += OnWordChanged;
         _player.SegmentHeard += OnSegmentHeard;
         _player.StateChanged += OnPlaybackStateChanged;
         _player.ChunkStarted += OnChunkStarted;
@@ -473,7 +481,7 @@ public partial class MainWindow : Window
         IReadOnlyList<SpeechChunk> chunks;
         try
         {
-            markdown ??= await File.ReadAllTextAsync(tab.State.Path);
+            markdown ??= await LoadDocumentTextPatientlyAsync(tab.State.Path);
             if (activation != _activation)
             {
                 return;
@@ -1102,8 +1110,10 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Abrir documento Markdown",
-            Filter = "Markdown (*.md;*.markdown;*.mdx)|*.md;*.markdown;*.mdx|Texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*",
+            Title = "Abrir documento",
+            Filter = "Documentos (*.md;*.markdown;*.mdx;*.txt;*.docx)|*.md;*.markdown;*.mdx;*.txt;*.docx|" +
+                     "Markdown (*.md;*.markdown;*.mdx)|*.md;*.markdown;*.mdx|Word (*.docx)|*.docx|Texto (*.txt)|*.txt|" +
+                     "Todos los archivos (*.*)|*.*",
             Multiselect = true,
         };
         if (_active is { State.IsEmpty: false, State.IsPasted: false } && Path.GetDirectoryName(_active.State.Path) is { } folder
@@ -1214,15 +1224,15 @@ public partial class MainWindow : Window
             if (openable.Count == 0)
             {
                 ShowStatus(paths.Count == 1
-                    ? $"No hay un documento Markdown en \"{paths[0]}\"."
-                    : "Ninguna de las rutas pegadas es un documento Markdown que exista.");
+                    ? $"No hay un documento Markdown ni Word en \"{paths[0]}\"."
+                    : "Ninguna de las rutas pegadas es un documento Markdown o Word que exista.");
                 return false;
             }
 
             await OpenFilesAsync(openable);
             if (openable.Count < paths.Count)
             {
-                ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: las demás rutas no son documentos Markdown que existan.");
+                ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: las demás rutas no son documentos Markdown o Word que existan.");
             }
 
             return true;
@@ -1395,16 +1405,18 @@ public partial class MainWindow : Window
     /// El texto del archivo, o null si ya no está o el editor lo sigue teniendo tomado (se espera hasta unos 5 s: hay
     /// editores que lo dejan abierto mientras escriben en varias pasadas).
     /// </summary>
-    private static async Task<string?> ReadDocumentAsync(string path)
+    private async Task<string?> ReadDocumentAsync(string path)
     {
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                // Como File.ReadAllTextAsync (UTF-8, o lo que diga el BOM), pero sin chocar con el editor que lo tiene abierto.
-                await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
-                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-                return await reader.ReadToEndAsync();
+                return await LoadDocumentTextAsync(path);
+            }
+            catch (InvalidDataException ex)
+            {
+                ErrorLog.Write(ex); // un Word que no se pudo convertir: la pestaña sigue con lo último que se cargó
+                return null;
             }
             catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
             {
@@ -1424,6 +1436,48 @@ public partial class MainWindow : Window
                 return null;
             }
         }
+    }
+
+    /// <summary>
+    /// Como <see cref="LoadDocumentTextAsync"/>, pero si el archivo justo no está, está tomado o está a medio escribir,
+    /// espera y vuelve a probar (hasta unos 2 s) antes de lanzar. Word guarda reemplazando el archivo: si en ese instante
+    /// se activa la pestaña, sin esto se avisaría un error y se cerraría la pestaña.
+    /// </summary>
+    private async Task<string> LoadDocumentTextPatientlyAsync(string path)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await LoadDocumentTextAsync(path);
+            }
+            catch (Exception ex) when (attempt < 8 && ex is IOException or InvalidDataException)
+            {
+                await Task.Delay(250);
+            }
+        }
+    }
+
+    /// <summary>
+    /// El texto Markdown del documento, sin reintentar: lanza si no se puede. Como File.ReadAllTextAsync (UTF-8, o lo
+    /// que diga el BOM), pero sin chocar con el editor que lo tiene abierto. Un .docx se lee igual (Word lo deja leer
+    /// mientras lo tiene abierto) y se convierte fuera del hilo de la interfaz.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Un .docx que no se pudo convertir.</exception>
+    private async Task<string> LoadDocumentTextAsync(string path)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+        if (WordConverter.IsWordFile(path))
+        {
+            var bytes = new MemoryStream();
+            await stream.CopyToAsync(bytes);
+            bytes.Position = 0;
+            WordConverter word = Word;
+            return await Task.Run(() => word.Convert(bytes));
+        }
+
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync();
     }
 
     /// <summary>El archivo se borró o se renombró: la pestaña sigue abierta con lo último que se cargó.</summary>
@@ -1740,15 +1794,15 @@ public partial class MainWindow : Window
         if (openable.Count == 0)
         {
             ShowStatus(paths.Count == 1
-                ? $"\"{Path.GetFileName(paths[0])}\" no es un documento Markdown."
-                : "Ninguno de los archivos soltados es un documento Markdown.");
+                ? $"\"{Path.GetFileName(paths[0])}\" no es Markdown ni Word."
+                : "Ninguno de los archivos soltados es Markdown ni Word.");
             return;
         }
 
         await OpenFilesAsync(openable);
         if (openable.Count < paths.Count)
         {
-            ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: los demás no son documentos Markdown.");
+            ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: los demás no son Markdown ni Word.");
         }
     }
 
@@ -1763,7 +1817,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                ShowStatus($"No se abre \"{Path.GetFileName(local)}\": solo se siguen enlaces a documentos Markdown.");
+                ShowStatus($"No se abre \"{Path.GetFileName(local)}\": solo se siguen enlaces a documentos Markdown o Word.");
             }
 
             return;
@@ -1914,8 +1968,41 @@ public partial class MainWindow : Window
             _ = _view.HighlightAsync(segment.AnchorId);
         }
 
+        _wordSegmentId = -1; // la palabra que sigue manda las palabras del bloque
         MarkOutline(segment.Id);
         ShowPosition(segment.Id);
+    }
+
+    /// <summary>La palabra que suena, dentro del párrafo resaltado (si está activado en Configuración).</summary>
+    private void OnWordChanged(SpeechSegment segment, int word)
+    {
+        if (_view is null || _document is null || !_settings.HighlightWord)
+        {
+            return;
+        }
+
+        IReadOnlyList<IReadOnlyList<string>>? parts = null;
+        if (segment.Id != _wordSegmentId)
+        {
+            // Los segmentos de un mismo bloque van seguidos: un párrafo largo se parte en varios.
+            int first = segment.Id;
+            while (first > 0 && _document.Segments[first - 1].AnchorId == segment.AnchorId)
+            {
+                first--;
+            }
+
+            var block = new List<IReadOnlyList<string>>();
+            for (int id = first; id < _document.Segments.Count && _document.Segments[id].AnchorId == segment.AnchorId; id++)
+            {
+                block.Add(WordTimeline.Tokenize(_document.Segments[id]));
+            }
+
+            parts = block;
+            _wordSegmentId = segment.Id;
+            _wordPart = segment.Id - first;
+        }
+
+        _ = _view.HighlightWordAsync(segment.AnchorId, _wordPart, word, parts);
     }
 
     /// <summary>"§ Sección" y "Párrafo N de M · capítulo X de Y" en el reproductor.</summary>

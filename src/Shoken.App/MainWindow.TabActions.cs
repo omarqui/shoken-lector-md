@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Shoken.App.Services;
 using Shoken.Core.Desktop;
+using Shoken.Core.Documents;
 using Shoken.Core.Settings;
 using Microsoft.Win32;
 
@@ -160,7 +161,7 @@ public partial class MainWindow
                 menu.Items.Add(MenuItem("Guardar como .md…", "", () => _ = SavePastedAsync(tab)));
             }
 
-            menu.Items.Add(MenuItem("Copiar el texto Markdown", state.IsPasted ? "" : "", () => CopyMarkdown(state.Path)));
+            menu.Items.Add(MenuItem("Copiar el texto Markdown", state.IsPasted ? "" : "", () => _ = CopyMarkdownAsync(tab)));
             menu.Items.Add(new Separator());
         }
 
@@ -215,9 +216,28 @@ public partial class MainWindow
         await ReloadAsync();
     }
 
-    /// <summary>Abre el archivo para corregirlo: en VS Code si está instalado; si no, en el Bloc de notas.</summary>
+    /// <summary>
+    /// Abre el archivo para corregirlo: un Word, con el programa que Windows tenga para .docx; el resto, en VS Code si
+    /// está instalado y si no en el Bloc de notas.
+    /// </summary>
     private void OpenInEditor(string path)
     {
+        if (WordConverter.IsWordFile(path))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                ShowToast("Abierto en Word · al guardar, se recarga solo");
+            }
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+            {
+                ErrorLog.Write(ex);
+                ShowToast("No se pudo abrir el editor.", ok: false);
+            }
+
+            return;
+        }
+
         string programs = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string? vsCode = EditorLocator.FindVsCode(Environment.GetEnvironmentVariable("PATH"),
             [
@@ -239,13 +259,15 @@ public partial class MainWindow
         }
     }
 
-    private void CopyMarkdown(string path)
+    /// <summary>El Markdown del documento; de un Word, el convertido (el ya cargado si es la pestaña que se ve).</summary>
+    private async Task CopyMarkdownAsync(DocumentTab tab)
     {
         try
         {
-            CopyToClipboard(File.ReadAllText(path), "Markdown copiado");
+            string markdown = tab == _active && _loadedMarkdown is { } loaded ? loaded : await LoadDocumentTextAsync(tab.State.Path);
+            CopyToClipboard(markdown, "Markdown copiado");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             ErrorLog.Write(ex);
             ShowToast("No se pudo leer el archivo.", ok: false);

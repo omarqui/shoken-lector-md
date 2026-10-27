@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="120" viewBox="0 0 420 120" role="img" aria-label="Imagen que Shoken no puede mostrar">
+  <rect x="1" y="1" width="418" height="118" rx="8" fill="none" stroke="#8a8a8a" stroke-width="2" stroke-dasharray="6 5"/>
+  <g transform="translate(28 42)" fill="none" stroke="#8a8a8a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="0" width="44" height="36" rx="4"/>
+    <circle cx="13" cy="12" r="4"/>
+    <path d="M4 32 L17 20 L26 28 L32 22 L41 32"/>
+    <path d="M-4 -4 L48 40"/>
+  </g>
+  <g font-family="Segoe UI, sans-serif" fill="#8a8a8a">
+    <text x="92" y="58" font-size="15" font-weight="600">Imagen que Shoken no puede mostrar</text>
+    <text x="92" y="80" font-size="13">Ábrela en Word</text>
+  </g>
+</svg>

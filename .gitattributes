@@ -1,2 +1,6 @@
 # Mermaid empaquetado tal cual (minificado, una sola línea): sin conversión de fin de línea ni diffs.
 src/Shoken.App/Assets/mermaid.min.js -text -diff
+
+# Muestras de Word: el .docx es binario y la salida esperada se compara byte a byte (fin de línea \n).
+tests/Shoken.Core.Tests/Fixtures/Word/*.docx binary
+tests/Shoken.Core.Tests/Fixtures/Word/*.expected.md -text

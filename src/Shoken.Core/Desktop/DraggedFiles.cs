@@ -5,7 +5,7 @@ namespace Shoken.Core.Desktop;
 /// </summary>
 public sealed class DraggedFiles
 {
-    private static readonly string[] OpenableExtensions = [".md", ".markdown", ".mdx", ".txt"];
+    private static readonly string[] OpenableExtensions = [".md", ".markdown", ".mdx", ".txt", ".docx"];
 
     private DraggedFiles(IReadOnlyList<string> openable, string title, string? detail)
     {
@@ -42,12 +42,12 @@ public sealed class DraggedFiles
 
         var openable = paths.Where(p => IsOpenable(p) && fileExists(p)).ToList();
         var leftOut = paths.Except(openable).ToList();
-        string NotMarkdown(string path) => $"{Path.GetFileName(path)} no es un documento Markdown";
+        string NotMarkdown(string path) => $"{Path.GetFileName(path)} no es Markdown ni Word";
 
         if (openable.Count == 0)
         {
             string extensions = string.Join(", ", OpenableExtensions[..^1]) + " y " + OpenableExtensions[^1];
-            return new DraggedFiles([], leftOut.Count == 1 ? NotMarkdown(leftOut[0]) : "Ninguno es un documento Markdown",
+            return new DraggedFiles([], leftOut.Count == 1 ? NotMarkdown(leftOut[0]) : "Ninguno es Markdown ni Word",
                 $"Shoken abre archivos {extensions}");
         }
 
@@ -58,7 +58,7 @@ public sealed class DraggedFiles
         {
             0 => null,
             1 => NotMarkdown(leftOut[0]),
-            _ => "Los demás no son documentos Markdown",
+            _ => "Los demás no son Markdown ni Word",
         };
         return new DraggedFiles(openable, title, detail);
     }

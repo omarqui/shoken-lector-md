@@ -34,7 +34,7 @@ public class DraggedFilesTests
 
         Assert.Equal([@"C:\a.md", @"C:\b.md"], dragged.Openable);
         Assert.Equal("Suelta para abrir 2 de 3", dragged.Title);
-        Assert.Equal("foto.png no es un documento Markdown", dragged.Detail);
+        Assert.Equal("foto.png no es Markdown ni Word", dragged.Detail);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class DraggedFilesTests
 
         Assert.Equal([@"C:\guia.md"], dragged.Openable);
         Assert.Equal("Suelta para abrir guia.md", dragged.Title);
-        Assert.Equal("Los demás no son documentos Markdown", dragged.Detail);
+        Assert.Equal("Los demás no son Markdown ni Word", dragged.Detail);
     }
 
     [Fact]
@@ -55,9 +55,9 @@ public class DraggedFilesTests
 
         Assert.False(one.CanDrop);
         Assert.Empty(one.Openable);
-        Assert.Equal("guia.pdf no es un documento Markdown", one.Title);
-        Assert.Equal("Shoken abre archivos .md, .markdown, .mdx y .txt", one.Detail);
-        Assert.Equal("Ninguno es un documento Markdown", several.Title);
+        Assert.Equal("guia.pdf no es Markdown ni Word", one.Title);
+        Assert.Equal("Shoken abre archivos .md, .markdown, .mdx, .txt y .docx", one.Detail);
+        Assert.Equal("Ninguno es Markdown ni Word", several.Title);
         Assert.Equal(one.Detail, several.Detail);
     }
 
@@ -67,7 +67,7 @@ public class DraggedFilesTests
         DraggedFiles dragged = DraggedFiles.Describe([@"C:\notas.md", @"C:\guia.md"], path => path == @"C:\guia.md");
 
         Assert.Equal([@"C:\guia.md"], dragged.Openable);
-        Assert.Equal("notas.md no es un documento Markdown", dragged.Detail);
+        Assert.Equal("notas.md no es Markdown ni Word", dragged.Detail);
     }
 
     [Fact]
@@ -90,5 +90,12 @@ public class DraggedFilesTests
         Assert.True(DraggedFiles.IsOpenable(@"C:\a.txt"));
         Assert.False(DraggedFiles.IsOpenable(@"C:\a.pdf"));
         Assert.False(DraggedFiles.IsOpenable(@"C:\md"));
+    }
+
+    [Fact]
+    public void Openable_AcceptsWordDocx()
+    {
+        Assert.True(DraggedFiles.IsOpenable(@"C:\informe.DOCX"));
+        Assert.False(DraggedFiles.IsOpenable(@"C:\viejo.doc"));
     }
 }

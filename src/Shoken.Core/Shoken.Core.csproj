@@ -7,6 +7,9 @@
 
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.4.0" />
+    <!-- Word (.docx) a Markdown. Versión fija: otra versión puede cambiar el Markdown, y con él lo escuchado y la caché
+         (ver AGENTS.md). -->
+    <PackageReference Include="DocSharp.Docx" Version="0.18.1" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.52.0" />
     <!-- Kokoro (voz local natural). Sin buildTransitive/contentFiles: el paquete copiaría sus 61 voces (79 MB);
          la app trae solo las tres en español (Assets\kokoro). El modelo se descarga desde Configuración. -->

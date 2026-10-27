@@ -48,6 +48,9 @@ public sealed class AppSettings
 
     public bool ReadImageAltText { get; set; }
 
+    /// <summary>Marcar, dentro del párrafo que se lee, la palabra que suena.</summary>
+    public bool HighlightWord { get; set; } = true;
+
     /// <summary>Último archivo de la versión sin pestañas. Solo se lee para migrar a <see cref="OpenTabs"/>.</summary>
     public string? LastFile { get; set; }
 
@@ -188,6 +191,12 @@ public sealed class AppPaths(string root)
     /// <summary>Qué bloques de cada documento se escucharon (un archivo por documento).</summary>
     public string HeardDirectory => Path.Combine(Root, "escuchado");
 
+    /// <summary>
+    /// Imágenes de los documentos de Word abiertos, con el SHA-256 de su contenido como nombre (las sirve img.lector).
+    /// No se limpia sola, como la caché de audio.
+    /// </summary>
+    public string WordImagesDirectory => Path.Combine(Root, "imagenes-word");
+
     /// <summary>Modelo de Kokoro (unos 310 MB), descargado desde Configuración.</summary>
     public string KokoroModelFile => Path.Combine(Root, "kokoro", "kokoro.onnx");
 
@@ -199,7 +208,7 @@ public sealed class AppPaths(string root)
 
     public void EnsureCreated()
     {
-        foreach (string dir in new[] { Root, CacheDirectory, ViewDirectory, WebViewDataDirectory, TempDirectory, PastedDirectory })
+        foreach (string dir in new[] { Root, CacheDirectory, ViewDirectory, WebViewDataDirectory, TempDirectory, PastedDirectory, WordImagesDirectory })
         {
             Directory.CreateDirectory(dir);
         }

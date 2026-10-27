@@ -1,6 +1,6 @@
 # Shoken: lee Markdown con entonación
 
-App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **español de México** y aprovecha el formato del documento para decidir las **pausas y la entonación**. Mientras lee, resalta el párrafo y lo va siguiendo en pantalla.
+App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **español de México** y aprovecha el formato del documento para decidir las **pausas y la entonación**. Mientras lee, resalta el párrafo y la palabra que suena, y los va siguiendo en pantalla.
 
 - **Motor principal:** Azure Speech, voces neuronales `es-MX`, con la capa gratuita **F0** (500 000 caracteres al mes).
 - **Respaldo en la nube:** Google Cloud TTS, si agregas su clave.
@@ -16,6 +16,8 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 | `# Encabezado` | Pausa antes (1.1 s en h1 y 0.55 s en h4–h6), un poco más lento y grave, y cierre con punto para que la entonación baje |
 | Párrafo | Pausa de ~0.3 s al terminar. Los párrafos muy largos se parten por oraciones |
 | `**negrita**` | Un poco más lenta y aguda (velocidad −4 %, tono +6 %) |
+| «Guardar», “Guardar”, "Guardar" | Lo que va entre comillas suele ser un nombre: sube un poco el tono (+8 %), sin pausas |
+| `(aparte)` | Lo que va entre paréntesis suena como un aparte: un poco más grave y rápido (tono −6 %, velocidad +6 %). `(1)`, `(a)` o `(iv)` se leen igual que el resto. Si hay comillas dentro, el nombre suena como nombre |
 | `1.` `2.` listas numeradas | Se lee "uno…, dos…", con pausa corta entre elementos |
 | `- [x]` / `- [ ]` | "Hecho: …" / "Pendiente: …" |
 | `> cita` | Pausas al entrar y al salir |
@@ -29,13 +31,13 @@ App de Windows (WPF, .NET 10) que lee archivos Markdown en voz alta en **españo
 | ✅ / ❌ | "sí" / "no". Los demás emojis se omiten |
 | `→`, `~5`, `p. ej.`, `&` | ", ", "aproximadamente 5", "por ejemplo", "y" |
 
-La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/Shoken.Core/Ssml/SsmlBuilder.cs`.
+La *cursiva* y las citas no cambian la prosodia porque Azure también cobra las etiquetas SSML. Se distinguen con pausas, que cuestan menos y se notan más. Si quieres activarlas, ajusta `ProsodyProfile` en `src/Shoken.Core/Ssml/SsmlBuilder.cs`. Las comillas y los paréntesis sí cambian de tono: unos 30 a 40 caracteres de Azure por tramo. Kokoro y Piper no aceptan SSML, así que con ellos suenan como el resto de la frase.
 
 ### Escúchalo: la demo de entonación
 
 En la bienvenida, **Escucha cómo entona** abre la pestaña *Así entona Shoken* (también está en ⚙ Configuración › Lectura). Es un texto corto que cuenta lo que hace Shoken con cada elemento, leído dos veces por la misma voz:
 
-- **Con Shoken:** pausas según la estructura, un punto al final de títulos y elementos de lista, y el tono de títulos y negritas.
+- **Con Shoken:** pausas según la estructura, un punto al final de títulos y elementos de lista, y el tono de títulos, negritas y comillas.
 - **Sin entonación:** las mismas palabras, de corrido.
 
 Si cambias de versión mientras suena, la otra sigue en la misma parte. Dos líneas de tiempo a la misma escala muestran dónde se alarga la lectura, y junto a cada párrafo se ve qué pausa o cambio de tono le puso Shoken.
@@ -166,7 +168,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 | Leer desde un párrafo | **Doble clic** sobre él |
 | Sección siguiente / anterior | `Ctrl` + `→` / `Ctrl` + `←` |
 | Detener | `Esc` |
-| Abrir (uno o varios) | `Ctrl` + `O`, arrastra los `.md` a la ventana (antes de soltarlos, una capa dice cuáles se abrirán y cuáles no son Markdown) o *Abrir con › Shoken* en el Explorador |
+| Abrir (uno o varios) | `Ctrl` + `O`, arrastra los `.md` o `.docx` a la ventana (antes de soltarlos, una capa dice cuáles se abrirán y cuáles no) o *Abrir con › Shoken* en el Explorador (solo los `.md`) |
 | Pegar una ruta o un texto Markdown | `Ctrl` + `V` |
 | Pestaña nueva / cerrar pestaña | `Ctrl` + `T` / `Ctrl` + `W` (o clic central en la pestaña) |
 | Pestaña siguiente / anterior | `Ctrl` + `Tab` / `Ctrl` + `Shift` + `Tab` |
@@ -198,6 +200,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 - **Mini reproductor:** si la ventana está oculta o minimizada mientras suena algo (o detrás de otra app cuando lees con `Ctrl` + `Alt` + `L`), aparece abajo a la derecha con la sección, el avance, los controles y la velocidad. No roba el foco y se cierra solo tras 10 segundos en pausa o detenido (con el mouse encima espera).
 - **Velocidad de la voz** (Configuración): cambia la síntesis misma. Como el texto enviado cambia, el audio se vuelve a generar.
 - Los enlaces a otros `.md` de la misma carpeta se abren en la app, en una pestaña nueva. Los enlaces web se abren en tu navegador.
+- **Documentos de Word (`.docx`):** se abren arrastrándolos, con `Ctrl` + `O` o pegando su ruta (Shoken no aparece en *Abrir con* para los `.docx`: Word sigue siendo el que los abre con doble clic). Se convierten a Markdown al abrirlos, sin guardar nada junto al archivo, y se leen igual que un `.md`: títulos, listas, tablas, citas, negritas y cursivas, notas al pie (se muestran, no se leen) e imágenes. No se leen el encabezado ni el pie de página, los comentarios ni el texto borrado con control de cambios. Las imágenes que el navegador no puede mostrar (EMF, como un gráfico de Excel o Visio pegado) y los gráficos de Word aparecen como un aviso «Imagen que Shoken no puede mostrar». Al guardar en Word, la pestaña se recarga sola. *Abrir en el editor* abre el documento en Word y *Copiar el texto Markdown* copia el Markdown convertido. En los apuntes, la tarjeta no muestra la línea y «Copiar para la IA» los referencia por sección y pide el texto propuesto listo para pegarlo en Word. No se abren los `.doc` antiguos, `.rtf`, `.odt` ni PDF.
 
 ## Diccionario de pronunciación
 
@@ -226,6 +229,7 @@ Todo vive en `%LOCALAPPDATA%\Shoken\`:
 | `pegados\` | Texto Markdown pegado en pestañas. Cada archivo se borra al cerrar su pestaña |
 | `apuntes\` | Los apuntes de cada documento, un archivo por documento. Los de un texto pegado se borran con su pestaña |
 | `escuchado\` | Qué bloques de cada documento ya se escucharon, un archivo por documento |
+| `imagenes-word\` | Imágenes de los documentos de Word abiertos (nombradas por su contenido). No se borra sola; se puede vaciar con la app cerrada |
 | `cuenta-azure.json` | Qué cuenta de Azure se usa para consultar el consumo real (sin contraseñas ni tokens) |
 | `pronunciacion.json` | Diccionario de pronunciación |
 | `cache\` | Audio generado (MP3 de Azure y Google, WAV de Kokoro y Piper). Se recorta solo al pasar de 1 GB |
@@ -266,9 +270,11 @@ docs/demo-shoken.md        Guía rápida (la del audio de demostración)
 
 El resaltado es exacto porque cada segmento lleva un `<bookmark>` en el SSML. Azure devuelve el instante en que empieza cada uno; con Piper, los instantes se calculan al unir los WAV.
 
+Dentro del párrafo, la palabra que suena se marca con un tono más intenso (se apaga en ⚙ Configuración › Lectura). Con Azure el momento de cada palabra es exacto: lo da el evento `WordBoundary`, que no se cobra. Con Google, Kokoro, Piper y el audio de Azure guardado antes de esta función, se estima repartiendo la duración del párrafo según el largo de cada palabra, así que puede ir una o dos palabras adelantada o atrasada. Nunca se vuelve a generar audio para conseguir los tiempos.
+
 ## Límites conocidos
 
-- El resaltado va por bloque (párrafo, elemento de lista o fila), no palabra por palabra.
+- La palabra marcada es aproximada fuera de Azure. Lo que se dice y no está escrito (el encabezado de cada celda, «Código en C#») no se marca.
 - Las voces es-MX no son multilingües: para términos en inglés usa el diccionario.
 - Piper no cambia la entonación con las negritas, solo respeta las pausas.
 - La velocidad de la barra superior usa el `SpeedRatio` del reproductor de Windows. Si a alguna velocidad notas un cambio de tono, usa mejor la velocidad de la voz en Configuración.

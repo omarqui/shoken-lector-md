@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Shoken.Core.Desktop;
+using Shoken.Core.Documents;
 using Shoken.Core.Model;
 using Shoken.Core.Notes;
 using Shoken.Core.Settings;
@@ -98,6 +99,7 @@ internal sealed class DocumentView
 #endif
 
         _core.SetVirtualHostNameToFolderMapping(HtmlPages.AppHost, _paths.ViewDirectory, CoreWebView2HostResourceAccessKind.Allow);
+        _core.SetVirtualHostNameToFolderMapping(HtmlPages.WordImagesHost, _paths.WordImagesDirectory, CoreWebView2HostResourceAccessKind.Allow);
         _core.WebMessageReceived += OnWebMessageReceived;
         _core.NavigationStarting += OnNavigationStarting;
         _core.NavigationCompleted += OnNavigationCompleted;
@@ -169,6 +171,8 @@ internal sealed class DocumentView
             return Task.CompletedTask;
         }
 
+        // En un Word, las líneas de los apuntes serían las del Markdown convertido: la tarjeta no las muestra.
+        _showNoteLines = document.SourcePath is null || !WordConverter.IsWordFile(document.SourcePath);
         string? folder = document.SourcePath is null ? null : Path.GetDirectoryName(Path.GetFullPath(document.SourcePath));
         if (!string.Equals(folder, _documentFolder, StringComparison.OrdinalIgnoreCase))
         {
@@ -191,6 +195,15 @@ internal sealed class DocumentView
     /// <param name="follow">Si es false solo marca el segmento, sin desplazar la vista hasta él.</param>
     public Task HighlightAsync(string? anchor, bool follow = true) =>
         RunScriptAsync($"window.lector && window.lector.highlight({JsonSerializer.Serialize(anchor)}, {(follow ? "true" : "false")})");
+
+    /// <summary>
+    /// Marca la palabra <paramref name="word"/> de la parte <paramref name="part"/> del bloque (los segmentos que
+    /// comparten <paramref name="anchor"/>). <paramref name="parts"/>, las palabras dichas de cada parte, va solo al
+    /// cambiar de segmento: la página las empareja con las que muestra.
+    /// </summary>
+    public Task HighlightWordAsync(string anchor, int part, int word, IReadOnlyList<IReadOnlyList<string>>? parts) =>
+        RunScriptAsync($"window.lector && window.lector.word({JsonSerializer.Serialize(anchor)}, {part}, {word}" +
+                       (parts is null ? ")" : $", {JsonSerializer.Serialize(parts)})"));
 
     public Task ScrollToAsync(string anchor) =>
         RunScriptAsync($"window.lector && window.lector.scrollToAnchor({JsonSerializer.Serialize(anchor)})");
@@ -219,8 +232,11 @@ internal sealed class DocumentView
             _webView.Focus(); // el cuadro de la nota vive en la página: necesita el foco del WebView2
         }
 
-        return RunScriptAsync($"window.lector && window.lector.notes.set({JsonSerializer.Serialize(items)}, {(visible ? "true" : "false")}, {JsonSerializer.Serialize(editId)}, {JsonSerializer.Serialize(flashId)})");
+        return RunScriptAsync($"window.lector && window.lector.notes.set({JsonSerializer.Serialize(items)}, {(visible ? "true" : "false")}, {JsonSerializer.Serialize(editId)}, {JsonSerializer.Serialize(flashId)}, {(_showNoteLines ? "true" : "false")})");
     }
+
+    /// <summary>Si las tarjetas de los apuntes muestran la línea («L12»): no en un documento de Word.</summary>
+    private bool _showNoteLines = true;
 
     public Task SetNotesVisibleAsync(bool visible) =>
         RunScriptAsync($"window.lector && window.lector.notes.setVisible({(visible ? "true" : "false")})");
@@ -568,7 +584,7 @@ internal sealed class DocumentView
         }
 
         Assembly assembly = typeof(DocumentView).Assembly;
-        foreach (string name in new[] { "lector.css", "lector.js", "logo.svg", "mermaid.min.js", "demo.css", "demo.js", "demo-con.mp3", "demo-sin.mp3" })
+        foreach (string name in new[] { "lector.css", "lector.js", "logo.svg", "imagen-no-disponible.svg", "mermaid.min.js", "demo.css", "demo.js", "demo-con.mp3", "demo-sin.mp3" })
         {
             using Stream? stream = assembly.GetManifestResourceStream(name);
             if (stream is null)

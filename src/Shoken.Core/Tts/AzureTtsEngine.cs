@@ -31,6 +31,7 @@ public sealed class AzureTtsEngine : ITtsEngine, IBillableEngine, IDisposable
     private readonly object _marksLock = new();
     private SpeechSynthesizer? _synthesizer;
     private List<(int Index, TimeSpan Offset)>? _marks;
+    private List<(TimeSpan Offset, string Text)>? _words;
     private bool _disposed;
 
     public AzureTtsEngine(AzureTtsOptions options, SsmlBuilder ssml, AudioCache cache, UsageTracker usage)
@@ -82,9 +83,11 @@ public sealed class AzureTtsEngine : ITtsEngine, IBillableEngine, IDisposable
 
             SpeechSynthesizer synthesizer = _synthesizer ??= CreateSynthesizer();
             var marks = new List<(int, TimeSpan)>();
+            var words = new List<(TimeSpan, string)>();
             lock (_marksLock)
             {
                 _marks = marks;
+                _words = words;
             }
 
             SpeechSynthesisResult result;
@@ -102,6 +105,7 @@ public sealed class AzureTtsEngine : ITtsEngine, IBillableEngine, IDisposable
                 lock (_marksLock)
                 {
                     _marks = null;
+                    _words = null;
                 }
             }
 
@@ -112,12 +116,15 @@ public sealed class AzureTtsEngine : ITtsEngine, IBillableEngine, IDisposable
                     case ResultReason.SynthesizingAudioCompleted:
                         _usage.Add(document.BillableCharacters);
                         List<(int, TimeSpan)> snapshot;
+                        List<(TimeSpan, string)> spoken;
                         lock (_marksLock)
                         {
                             snapshot = [.. marks];
+                            spoken = [.. words];
                         }
 
-                        return _cache.Store(key, result.AudioData, ".mp3", snapshot, chunk, Name, result.AudioDuration);
+                        return _cache.Store(key, result.AudioData, ".mp3", snapshot, chunk, Name, result.AudioDuration,
+                            AssignWords(snapshot, spoken));
 
                     case ResultReason.Canceled:
                         var details = SpeechSynthesisCancellationDetails.FromResult(result);
@@ -159,7 +166,48 @@ public sealed class AzureTtsEngine : ITtsEngine, IBillableEngine, IDisposable
                 }
             }
         };
+        // Las palabras no se piden en el SSML ni se cobran: Azure las avisa solo si hay quien escuche el evento.
+        synthesizer.WordBoundary += (_, e) =>
+        {
+            if (e.BoundaryType == SpeechSynthesisBoundaryType.Word && !string.IsNullOrWhiteSpace(e.Text))
+            {
+                lock (_marksLock)
+                {
+                    _words?.Add((TimeSpan.FromTicks((long)e.AudioOffset), e.Text));
+                }
+            }
+        };
         return synthesizer;
+    }
+
+    /// <summary>Cada palabra es del segmento cuyo bookmark es el último anterior a ella.</summary>
+    internal static List<(int Index, TimeSpan Offset, string Text)> AssignWords(
+        IReadOnlyList<(int Index, TimeSpan Offset)> marks, IEnumerable<(TimeSpan Offset, string Text)> words)
+    {
+        var ordered = marks.OrderBy(m => m.Offset).ThenBy(m => m.Index).ToList();
+        var result = new List<(int, TimeSpan, string)>();
+        if (ordered.Count == 0)
+        {
+            return result;
+        }
+
+        foreach ((TimeSpan offset, string text) in words.OrderBy(w => w.Offset))
+        {
+            int index = ordered[0].Index;
+            foreach ((int markIndex, TimeSpan markOffset) in ordered)
+            {
+                if (markOffset > offset)
+                {
+                    break;
+                }
+
+                index = markIndex;
+            }
+
+            result.Add((index, offset, text));
+        }
+
+        return result;
     }
 
     private void ResetSynthesizer()

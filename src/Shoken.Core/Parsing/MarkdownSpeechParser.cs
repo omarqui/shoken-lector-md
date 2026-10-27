@@ -42,12 +42,15 @@ public sealed class MarkdownSpeechParser
 
     public MarkdownSpeechOptions Options => _options;
 
+    /// <summary>Solo para las pruebas: sin marcar comillas ni paréntesis.</summary>
+    internal bool MarkSpans { get; init; } = true;
+
     public SpeechDocument Parse(string markdown, string? sourcePath = null)
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
         MarkdownDocument document = Markdig.Markdown.Parse(markdown, _pipeline);
-        var state = new State(_options, markdown);
+        var state = new State(_options, markdown) { MarkSpans = MarkSpans };
         VisitChildren(document, state, SegmentKind.Paragraph);
 
         string title = state.Segments.FirstOrDefault(s => s.IsHeading)?.PlainText is { Length: > 0 } heading
@@ -443,6 +446,11 @@ public sealed class MarkdownSpeechParser
             return;
         }
 
+        if (state.MarkSpans)
+        {
+            cleaned = QuotedSpans.Mark(cleaned);
+        }
+
         string anchor = state.NewAnchor(block);
         string blockKey = state.KeyOf(block);
         List<List<SpeechRun>> parts = kind == SegmentKind.Heading
@@ -619,6 +627,9 @@ public sealed class MarkdownSpeechParser
         private readonly int[] _lineStarts = LineStarts(markdown);
 
         public MarkdownSpeechOptions Options { get; } = options;
+
+        /// <summary>Marca comillas y paréntesis (<see cref="QuotedSpans"/>); las pruebas lo apagan para comparar.</summary>
+        public bool MarkSpans { get; init; } = true;
 
         /// <summary>Línea (1-based) del carácter en <paramref name="offset"/> del Markdown.</summary>
         public int LineAt(int offset)

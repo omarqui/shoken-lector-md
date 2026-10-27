@@ -59,6 +59,7 @@ public sealed class AudioCache
                 EngineName = engineName,
                 FromCache = true,
                 Duration = entry.DurationTicks is { } ticks ? TimeSpan.FromTicks(ticks) : null,
+                Words = ToWords(entry.Words, chunk),
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -68,16 +69,23 @@ public sealed class AudioCache
     }
 
     public AudioChunk Store(string key, byte[] audio, string extension, IReadOnlyList<(int Index, TimeSpan Offset)> marks,
-        SpeechChunk chunk, string engineName, TimeSpan? duration = null)
+        SpeechChunk chunk, string engineName, TimeSpan? duration = null,
+        IReadOnlyList<(int Index, TimeSpan Offset, string Text)>? words = null)
     {
         string audioPath = Path.Combine(_directory, key + extension);
         string tempPath = audioPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
         File.WriteAllBytes(tempPath, audio);
         File.Move(tempPath, audioPath, overwrite: true);
 
+        // Los tiempos por palabra son datos de la entrada, no parte de la clave: el SSML no cambia.
+        List<CachedWord>? cachedWords = words is { Count: > 0 }
+            ? words.Where(w => w.Index >= 0 && w.Index < chunk.Segments.Count)
+                .Select(w => new CachedWord(w.Index, w.Offset.Ticks, w.Text))
+                .ToList()
+            : null;
         var entry = new CacheEntry(extension, Complete(marks, chunk.Segments.Count)
             .Select(m => new CachedMark(m.Index, m.Offset.Ticks))
-            .ToList(), duration?.Ticks);
+            .ToList(), duration?.Ticks, cachedWords);
         File.WriteAllText(Path.Combine(_directory, key + ".json"), JsonSerializer.Serialize(entry));
 
         return new AudioChunk
@@ -87,6 +95,7 @@ public sealed class AudioCache
             EngineName = engineName,
             FromCache = false,
             Duration = duration,
+            Words = ToWords(entry.Words, chunk),
         };
     }
 
@@ -176,6 +185,14 @@ public sealed class AudioCache
             .Select(m => new SegmentMark(chunk.Segments[m.Index].Id, TimeSpan.FromTicks(m.OffsetTicks)))
             .ToList();
 
+    private static List<WordMark> ToWords(IEnumerable<CachedWord>? words, SpeechChunk chunk) =>
+        words is null
+            ? []
+            : words.Where(w => w.Index >= 0 && w.Index < chunk.Segments.Count)
+                .OrderBy(w => w.OffsetTicks)
+                .Select(w => new WordMark(chunk.Segments[w.Index].Id, TimeSpan.FromTicks(w.OffsetTicks), w.Text))
+                .ToList();
+
     private static void TryDelete(string path)
     {
         try
@@ -188,8 +205,10 @@ public sealed class AudioCache
         }
     }
 
-    // DurationTicks falta en las entradas de versiones anteriores: se deserializa como null.
-    private sealed record CacheEntry(string Extension, List<CachedMark> Marks, long? DurationTicks = null);
+    // DurationTicks y Words faltan en las entradas de versiones anteriores: se deserializan como null.
+    private sealed record CacheEntry(string Extension, List<CachedMark> Marks, long? DurationTicks = null, List<CachedWord>? Words = null);
 
     private sealed record CachedMark(int Index, long OffsetTicks);
+
+    private sealed record CachedWord(int Index, long OffsetTicks, string Text);
 }

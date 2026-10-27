@@ -23,6 +23,9 @@
     Array.from(document.querySelectorAll('[data-seg="' + CSS.escape(anchor) + '"]')).map(visualTarget);
 
   function highlight(anchor, scroll = true) {
+    if (anchor !== word.anchor()) {
+      word.clear(); // la palabra marcada es del bloque anterior
+    }
     for (const el of highlighted) {
       el.classList.remove('lector-reading');
     }
@@ -669,6 +672,7 @@
     let list = []; // { id, quote, kind, text, resolved, line, range, seg, endSeg, shownLine, current }
     let undoAction = null; // lo que hace «Deshacer» en el aviso que se ve
     let visible = true;
+    let showLines = true; // en un Word la línea sería la del Markdown convertido: la tarjeta no la muestra
     let compact = false;
     let aside = null;
     let markers = null; // las marcas (en dots) y la tarjeta flotante (popover), con la ventana angosta
@@ -929,7 +933,8 @@
 
     // Lo que manda la app al abrir el documento o tras crear, borrar o restaurar; editId abre esa tarjeta para escribir
     // y flashId la destella sin mover el foco (una marca para revisar).
-    function set(items, show, editId, flashId) {
+    function set(items, show, editId, flashId, lines) {
+      showLines = lines !== false;
       // Una marca para revisar (flashId sin editId) no cierra el apunte que se está escribiendo: sigue abierto, con lo
       // escrito, el cursor y el foco. Si no, y se estaba escribiendo otro apunte (y se creó uno nuevo), lo escrito se
       // guarda antes de redibujar.
@@ -1049,7 +1054,7 @@
       const kinds = Object.entries(KINDS).map(([value, name]) =>
         '<button type="button" role="radio" class="note-kind kind-' + value.toLowerCase() + '" data-act="kind" data-kind="' + value +
         '" aria-checked="' + (value === kind) + '">' + name + '</button>').join('');
-      const where = n.range ? 'L' + n.shownLine : 'ya no está';
+      const where = n.range ? (showLines ? 'L' + n.shownLine : '') : 'ya no está';
       const body = editingId === n.id
         ? '<textarea class="note-editor" rows="3" aria-label="Nota" placeholder="¿Qué quieres que la IA aclare o mejore?">' + esc(n.text) + '</textarea>' +
           '<div class="note-hint">Ctrl+Enter guarda · Esc cancela</div>'
@@ -1064,7 +1069,7 @@
         (activeId === n.id ? ' active' : '') + (pinnedId === n.id || editingId === n.id ? ' pinned' : '') +
         (hoverId === n.id ? ' hovered' : '') + '" data-id="' + esc(n.id) + '">' +
         '<div class="note-top"><div class="note-kinds" role="radiogroup" aria-label="Tipo de apunte">' + kinds + '</div>' +
-        '<span class="note-where" title="' + (n.range ? 'Línea en el Markdown' : 'La cita ya no está en el documento') + '">' + where + '</span></div>' +
+        (where ? '<span class="note-where" title="' + (n.range ? 'Línea en el Markdown' : 'La cita ya no está en el documento') + '">' + where + '</span>' : '') + '</div>' +
         quote + body +
         '<div class="note-actions">' +
         '<button type="button" class="note-icon" data-act="play" title="Leer desde aquí" aria-label="Leer desde aquí"' + (n.seg ? '' : ' disabled') + '>&#xE768;</button>' +
@@ -1696,12 +1701,113 @@
     }
   });
 
+  // La palabra que suena, dentro del bloque resaltado. La app manda las palabras dichas de cada segmento del bloque
+  // (un bloque largo se parte en varios) y luego solo cuál suena. Lo dicho no siempre está escrito («Código en C#:», el
+  // encabezado antes de cada celda, el diccionario): se empareja en orden con las palabras que se ven (LCS sobre las
+  // palabras plegadas) y, si la que suena no tiene pareja, queda marcada la última que sí la tuvo.
+  const word = (() => {
+    const MAX_CELLS = 2000000; // por encima, emparejamiento simple hacia adelante
+    let anchor = null;
+    let lastParts = null;
+    let ranges = null; // ranges[parte][palabra] = Range o null
+
+    function clear() {
+      if (window.CSS && CSS.highlights) CSS.highlights.delete('lector-word');
+    }
+
+    const subwords = (s) => textIndex.fold(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+    function set(newAnchor, parts) {
+      anchor = newAnchor;
+      lastParts = parts;
+      ranges = null;
+      clear();
+      if (!anchor || !parts) return;
+      const shown = [];
+      for (const block of textIndex.blocks().filter((b) => b.seg === anchor)) {
+        const text = textIndex.slice(block.start, block.end);
+        for (const m of text.matchAll(/[\p{L}\p{N}]+/gu)) {
+          shown.push({ word: m[0], start: block.start + m.index, end: block.start + m.index + m[0].length });
+        }
+      }
+      const spoken = []; // { word, part, index }: las palabras dichas partidas como en la página («appsettings.json»)
+      parts.forEach((tokens, part) => tokens.forEach((token, index) => {
+        for (const w of subwords(token)) spoken.push({ word: w, part, index });
+      }));
+      const pairs = align(spoken.map((s) => s.word), shown.map((s) => s.word));
+      // Cada palabra dicha abarca desde la primera hasta la última de sus partes que tuvo pareja.
+      const spans = parts.map((tokens) => tokens.map(() => null));
+      pairs.forEach((j, i) => {
+        if (j < 0) return;
+        const { part, index } = spoken[i];
+        const span = spans[part][index];
+        if (span) span.end = shown[j].end;
+        else spans[part][index] = { start: shown[j].start, end: shown[j].end };
+      });
+      ranges = spans.map((list) => list.map((s) => (s ? textIndex.rangeOf(s.start, s.end) : null)));
+    }
+
+    // Para cada palabra de a, la de b con la que se empareja (o -1), en orden.
+    function align(a, b) {
+      const n = a.length, m = b.length;
+      const pairs = new Array(n).fill(-1);
+      if (!n || !m) return pairs;
+      if ((n + 1) * (m + 1) > MAX_CELLS) {
+        for (let i = 0, j = 0; i < n; i++) {
+          const k = b.indexOf(a[i], j);
+          if (k >= 0 && k - j < 8) { pairs[i] = k; j = k + 1; }
+        }
+        return pairs;
+      }
+      const dp = new Int32Array((n + 1) * (m + 1));
+      const at = (i, j) => i * (m + 1) + j;
+      for (let i = n - 1; i >= 0; i--) {
+        for (let j = m - 1; j >= 0; j--) {
+          dp[at(i, j)] = a[i] === b[j] ? dp[at(i + 1, j + 1)] + 1 : Math.max(dp[at(i + 1, j)], dp[at(i, j + 1)]);
+        }
+      }
+      for (let i = 0, j = 0; i < n && j < m;) {
+        if (a[i] === b[j]) { pairs[i] = j; i++; j++; }
+        else if (dp[at(i + 1, j)] >= dp[at(i, j + 1)]) i++;
+        else j++;
+      }
+      return pairs;
+    }
+
+    // parts solo llega al cambiar de segmento; index -1: todavía no suena ninguna palabra del segmento.
+    function show(newAnchor, part, index, parts) {
+      if (parts !== undefined || newAnchor !== anchor) set(newAnchor, parts || null);
+      const range = ranges && ranges[part] && index >= 0 ? ranges[part][index] : null;
+      if (!range || !(window.CSS && CSS.highlights)) return;
+      const marked = new Highlight(range);
+      marked.priority = -1; // debajo de la búsqueda
+      CSS.highlights.set('lector-word', marked);
+      // Un bloque más alto que la pantalla (código, tabla, párrafo largo): si la palabra sale de la vista, se la sigue.
+      if (follow) {
+        const rect = range.getBoundingClientRect();
+        const height = window.innerHeight || document.documentElement.clientHeight;
+        if (rect.height && (rect.top < 0 || rect.bottom > height * 0.9)) {
+          window.scrollBy({ top: rect.top - height * 0.4, behavior: 'smooth' });
+        }
+      }
+    }
+
+    return {
+      show,
+      clear: () => { anchor = null; lastParts = null; ranges = null; clear(); },
+      anchor: () => anchor,
+      // El texto cambió (diagramas): los rangos viejos ya no sirven; la próxima palabra los vuelve a armar.
+      refresh: () => { if (anchor) set(anchor, lastParts); },
+    };
+  })();
+
   // Cambió el texto de la página (se dibujaron los diagramas): índice, búsqueda y apuntes al día.
   function textChanged() {
     textIndex.invalidate();
     find.refresh();
     notes.refresh();
+    word.refresh();
   }
 
-  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, visibleBlock, scrollToBlock, find, diagrams, setColors, notes, notice, coverage };
+  window.lector = { highlight, scrollToAnchor, scrollToHeading, scrollToY, visibleBlock, scrollToBlock, find, diagrams, setColors, notes, notice, coverage, word: word.show };
 })();
