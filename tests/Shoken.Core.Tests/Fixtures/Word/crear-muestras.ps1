@@ -78,6 +78,22 @@ try {
     $doc.TrackRevisions = $false
     Guardar $doc 'especiales-texto.docx'
 
+    # ------------------------------------------------------------------ notas.docx
+    $doc = Nuevo; $sel = $word.Selection
+    P $sel 'Como dice el autor: algo importante.' $Normal
+    P $sel 'Dos notas seguidas aquí.' $Normal
+    P $sel 'Una nota al final del documento.' $Normal
+    function NotaTras([string]$texto, [string]$nota) {
+        $r = $doc.Content
+        if ($r.Find.Execute($texto)) { $r.Collapse(0); $doc.Footnotes.Add($r, [Type]::Missing, $nota) | Out-Null }
+    }
+    NotaTras 'el autor' 'Nota pegada a los dos puntos.'
+    NotaTras 'seguidas' 'Primera de dos.'
+    NotaTras 'seguidas' 'Segunda de dos.' # queda antes de la primera: las dos pegadas
+    $r = $doc.Content
+    if ($r.Find.Execute('al final')) { $r.Collapse(0); $doc.Endnotes.Add($r, [Type]::Missing, 'Texto de la nota final.') | Out-Null }
+    Guardar $doc 'notas.docx'
+
     # ------------------------------------------------------------------ imágenes (PNG, JPEG y EMF de prueba)
     Add-Type -AssemblyName System.Drawing
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('shoken-muestras-' + [Guid]::NewGuid().ToString('N'))

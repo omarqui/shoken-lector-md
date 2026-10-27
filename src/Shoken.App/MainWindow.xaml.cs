@@ -35,7 +35,7 @@ public partial class MainWindow : Window
     private WordConverter? _word;
 
     /// <summary>Convierte los .docx; sus imágenes quedan en <see cref="AppPaths.WordImagesDirectory"/> (img.lector).</summary>
-    private WordConverter Word => _word ??= new WordConverter(_paths.WordImagesDirectory);
+    private WordConverter Word => _word ??= new WordConverter(_paths.WordImagesDirectory, _paths.TempDirectory);
     private readonly SettingsStore _settingsStore;
     private readonly ReadAloudController _player = new();
     private readonly ObservableCollection<DocumentTab> _tabs = [];

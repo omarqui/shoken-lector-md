@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Packaging;
 using Shoken.Core.Documents;
 using Shoken.Core.Parsing;
 
@@ -181,6 +182,151 @@ public sealed class WordConverterTests : IDisposable
     {
         Assert.DoesNotContain("file:", Convert("imagenes.docx"));
         Assert.DoesNotContain("file:", Convert("especiales.docx"));
+    }
+
+    // ------------------------------------------------------------------ documentos que no hizo Word
+
+    /// <summary>PNG de 1×1.</summary>
+    private static readonly byte[] Png = System.Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+
+    private const string Namespaces =
+        "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
+        "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" " +
+        "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
+        "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" " +
+        "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" " +
+        "xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\"";
+
+    /// <summary>Un .docx armado a mano (como lo haría un generador de reportes), con sus imágenes en esos ids.</summary>
+    private static MemoryStream BuildDocx(string bodyXml, params (string Id, string ContentType, byte[] Bytes)[] images)
+    {
+        var stream = new MemoryStream();
+        using (var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Create(stream, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            foreach (var (id, contentType, bytes) in images)
+            {
+                main.AddImagePart(contentType, id).FeedData(new MemoryStream(bytes));
+            }
+
+            using var writer = new StreamWriter(main.GetStream(FileMode.Create));
+            writer.Write($"<w:document {Namespaces}><w:body>{bodyXml}</w:body></w:document>");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static string Paragraph(string text) => $"<w:p><w:r><w:t xml:space=\"preserve\">{text}</w:t></w:r></w:p>";
+
+    private static string InlineImage(string relationshipId, string alt) =>
+        "<w:p><w:r><w:drawing><wp:inline><wp:extent cx=\"914400\" cy=\"914400\"/>" +
+        $"<wp:docPr id=\"1\" name=\"Imagen\" descr=\"{alt}\"/>" +
+        "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic>" +
+        "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"img.png\"/><pic:cNvPicPr/></pic:nvPicPr>" +
+        $"<pic:blipFill><a:blip r:embed=\"{relationshipId}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>" +
+        "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr>" +
+        "</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>";
+
+    private static string VmlImage(string relationshipId, string alt) =>
+        $"<w:p><w:r><w:pict><v:shape id=\"s1\" style=\"width:20pt;height:20pt\" alt=\"{alt}\"><v:imagedata r:id=\"{relationshipId}\"/></v:shape></w:pict></w:r></w:p>";
+
+    private string ConvertStream(Stream docx, string? temporaryDirectory = null) =>
+        new WordConverter(Images, temporaryDirectory).Convert(docx);
+
+    [Fact]
+    public void Word_ImageWithGeneratorRelationshipId_IsStoredByContentHash()
+    {
+        string sha = System.Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Png));
+
+        string md = ConvertStream(BuildDocx(Paragraph("Antes.") + InlineImage("R3f2a9c", "Un punto") + Paragraph("Después."),
+            ("R3f2a9c", "image/png", Png)));
+
+        Assert.Contains($"![Un punto](https://img.lector/{sha}.png)", md);
+        Assert.DoesNotContain("file:", md);
+    }
+
+    [Fact]
+    public void Word_TemporaryFolderWithParenthesesAndSpaces_StillStoresImages()
+    {
+        string temp = Path.Combine(_dir, "Juan (Admin) temp");
+
+        string md = ConvertStream(BuildDocx(InlineImage("rId9", "Logo"), ("rId9", "image/png", Png)), temp);
+
+        Assert.Contains("](https://img.lector/", md);
+        Assert.DoesNotContain("file:", md);
+    }
+
+    [Fact]
+    public void Word_MarkerLikeTextInTheDocument_StaysText()
+    {
+        string md = ConvertStream(BuildDocx(Paragraph("El marcador SHOKENAVISO0Z se describe aquí.")));
+
+        Assert.Contains("SHOKENAVISO0Z", md);
+        Assert.DoesNotContain("imagen-no-disponible", md);
+    }
+
+    [Fact]
+    public void Word_MalformedXml_ThrowsInvalidData()
+    {
+        var stream = new MemoryStream();
+        using (var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Create(stream, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            using var writer = new StreamWriter(doc.AddMainDocumentPart().GetStream(FileMode.Create));
+            writer.Write($"<w:document {Namespaces}><w:body><w:p>");
+        }
+
+        stream.Position = 0;
+        var ex = Assert.Throws<InvalidDataException>(() => ConvertStream(stream));
+        Assert.Equal(WordConverter.ConversionError, ex.Message);
+    }
+
+    [Fact]
+    public void Word_VmlEmf_BecomesTheUnavailableNotice()
+    {
+        string md = ConvertStream(BuildDocx(Paragraph("Antes.") + VmlImage("rId5", "Objeto de Excel") + Paragraph("Después."),
+            ("rId5", "image/x-emf", [1, 2, 3, 4])));
+
+        Assert.Contains("![Objeto de Excel](https://app.lector/imagen-no-disponible.svg)", md);
+    }
+
+    [Fact]
+    public void Word_VmlPng_KeepsItsAltText()
+    {
+        string md = ConvertStream(BuildDocx(VmlImage("rId6", "Logo viejo"), ("rId6", "image/png", Png)));
+
+        Assert.Contains("![Logo viejo](https://img.lector/", md);
+    }
+
+    // ------------------------------------------------------------------ notas al pie y al final
+
+    [Fact]
+    public void Word_FootnoteBeforeColon_IsConverted()
+    {
+        string md = Convert("notas.docx");
+
+        Assert.Contains("el autor[^", md);
+        Assert.DoesNotMatch(@"(?<!\\)\[\d+\](?!:)", md.Split('\n').First(l => l.StartsWith("Como dice", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Word_TwoFootnotesTogether_AreBothConverted()
+    {
+        string line = Convert("notas.docx").Split('\n').First(l => l.StartsWith("Dos notas", StringComparison.Ordinal));
+
+        Assert.Matches(@"seguidas\[\^\w+\]\[\^\w+\]", line);
+    }
+
+    [Fact]
+    public void Word_Endnotes_AreShownButNotRead_LikeFootnotes()
+    {
+        string md = Convert("notas.docx");
+
+        var doc = new MarkdownSpeechParser().Parse(md);
+        Assert.Contains("Texto de la nota final.", doc.HtmlBody);
+        Assert.DoesNotContain(doc.Segments, s => s.PlainText.Contains("nota final.", StringComparison.Ordinal) && s.PlainText.Contains("Texto", StringComparison.Ordinal));
+        Assert.DoesNotContain(doc.Segments, s => s.PlainText.Contains('[', StringComparison.Ordinal));
     }
 
     [Fact]
