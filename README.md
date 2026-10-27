@@ -168,7 +168,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 | Leer desde un párrafo | **Doble clic** sobre él |
 | Sección siguiente / anterior | `Ctrl` + `→` / `Ctrl` + `←` |
 | Detener | `Esc` |
-| Abrir (uno o varios) | `Ctrl` + `O`, arrastra los `.md` a la ventana (antes de soltarlos, una capa dice cuáles se abrirán y cuáles no son Markdown) o *Abrir con › Shoken* en el Explorador |
+| Abrir (uno o varios) | `Ctrl` + `O`, arrastra los `.md` o `.docx` a la ventana (antes de soltarlos, una capa dice cuáles se abrirán y cuáles no) o *Abrir con › Shoken* en el Explorador (solo los `.md`) |
 | Pegar una ruta o un texto Markdown | `Ctrl` + `V` |
 | Pestaña nueva / cerrar pestaña | `Ctrl` + `T` / `Ctrl` + `W` (o clic central en la pestaña) |
 | Pestaña siguiente / anterior | `Ctrl` + `Tab` / `Ctrl` + `Shift` + `Tab` |
@@ -200,6 +200,7 @@ Mientras se usa el respaldo, el punto del estado (en el reproductor) se pone **�
 - **Mini reproductor:** si la ventana está oculta o minimizada mientras suena algo (o detrás de otra app cuando lees con `Ctrl` + `Alt` + `L`), aparece abajo a la derecha con la sección, el avance, los controles y la velocidad. No roba el foco y se cierra solo tras 10 segundos en pausa o detenido (con el mouse encima espera).
 - **Velocidad de la voz** (Configuración): cambia la síntesis misma. Como el texto enviado cambia, el audio se vuelve a generar.
 - Los enlaces a otros `.md` de la misma carpeta se abren en la app, en una pestaña nueva. Los enlaces web se abren en tu navegador.
+- **Documentos de Word (`.docx`):** se abren arrastrándolos, con `Ctrl` + `O` o pegando su ruta (Shoken no aparece en *Abrir con* para los `.docx`: Word sigue siendo el que los abre con doble clic). Se convierten a Markdown al abrirlos, sin guardar nada junto al archivo, y se leen igual que un `.md`: títulos, listas, tablas, citas, negritas y cursivas, notas al pie (se muestran, no se leen) e imágenes. No se leen el encabezado ni el pie de página, los comentarios ni el texto borrado con control de cambios. Las imágenes que el navegador no puede mostrar (EMF, como un gráfico de Excel o Visio pegado) y los gráficos de Word aparecen como un aviso «Imagen que Shoken no puede mostrar». Al guardar en Word, la pestaña se recarga sola. *Abrir en el editor* abre el documento en Word y *Copiar el texto Markdown* copia el Markdown convertido. En los apuntes, la tarjeta no muestra la línea y «Copiar para la IA» los referencia por sección y pide el texto propuesto listo para pegarlo en Word. No se abren los `.doc` antiguos, `.rtf`, `.odt` ni PDF.
 
 ## Diccionario de pronunciación
 
@@ -228,6 +229,7 @@ Todo vive en `%LOCALAPPDATA%\Shoken\`:
 | `pegados\` | Texto Markdown pegado en pestañas. Cada archivo se borra al cerrar su pestaña |
 | `apuntes\` | Los apuntes de cada documento, un archivo por documento. Los de un texto pegado se borran con su pestaña |
 | `escuchado\` | Qué bloques de cada documento ya se escucharon, un archivo por documento |
+| `imagenes-word\` | Imágenes de los documentos de Word abiertos (nombradas por su contenido). No se borra sola; se puede vaciar con la app cerrada |
 | `cuenta-azure.json` | Qué cuenta de Azure se usa para consultar el consumo real (sin contraseñas ni tokens) |
 | `pronunciacion.json` | Diccionario de pronunciación |
 | `cache\` | Audio generado (MP3 de Azure y Google, WAV de Kokoro y Piper). Se recorta solo al pasar de 1 GB |

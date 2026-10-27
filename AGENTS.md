@@ -28,6 +28,7 @@ Requiere el SDK de .NET 10 y el runtime de WebView2. Corre `dotnet test` antes d
 
 El flujo, de punta a punta:
 
+0. Si el documento es un `.docx`, `Documents/WordConverter` lo convierte antes a Markdown (ver la regla de Word).
 1. `Parsing/MarkdownSpeechParser` (Markdig) convierte el Markdown en `SpeechSegment`s y en HTML con `data-seg` para el resaltado.
 2. `Text/SpeechTextNormalizer` y `PronunciationDictionary` preparan el texto para la voz.
 3. `Planning/ChunkPlanner` agrupa los segmentos en bloques de audio (~700 caracteres).
@@ -58,6 +59,21 @@ El flujo, de punta a punta:
   SSML de un bloque sin comillas ni paréntesis sale idéntico. Kokoro y Piper normalizan `QuotedSpans.Unmark(runs)`
   para que su texto (y su caché) no cambie. `ProsodyProfile.Styles` deja sin etiqueta los tramos que solo son signos.
   `QuotedSpansTests` verifica las dos cosas con `MarkSpans = false`.
+- **Documentos de Word (`Documents/WordConverter`):** convierte el `.docx` en memoria con `DocSharp.Docx` **0.18.1, fijo**:
+  otra versión puede dar otro Markdown, y con él cambian el `BlockKey` (se pierde lo escuchado) y la caché (se vuelve a
+  gastar cuota). `Word_Structure_MatchesExpected` compara contra `Fixtures/Word/estructura.expected.md`: si falla tras
+  actualizar, revisa la diferencia antes de regenerarlo. La salida de DocSharp se corrige en tres puntos: el encabezado
+  y el pie se apagan (`ExportHeaderFooter = false`); las notas `[n]`/`[n]:` pasan a `[^n]` (Markdig tomaba la
+  definición por un enlace; los corchetes del texto común llegan escapados); y las imágenes, que DocSharp escribe con
+  ruta `file:///` y el id de la relación como alt, se guardan en `AppPaths.WordImagesDirectory` con su SHA-256 como
+  nombre, con el texto alternativo real del Word y la URL `https://img.lector/<sha>.<ext>`. Ese host queda dentro del
+  Markdown: no lo cambies. DocSharp **descarta sin avisar** los gráficos (`c:chart`) y las imágenes que no son PNG,
+  JPEG, GIF, BMP, WebP ni SVG (EMF): antes de convertir se cambian por un marcador y después por
+  `https://app.lector/imagen-no-disponible.svg`. En la App, `LoadDocumentTextAsync` convierte fuera del hilo de la
+  interfaz; un `InvalidDataException` es un `.docx` dañado o con contraseña. En un Word, las tarjetas de apuntes no
+  muestran la línea (`DocumentView` lo decide por la extensión) y `NoteExporter` no da `archivo:líneas`. Los `.docx`
+  de las pruebas los genera `Fixtures/Word/crear-muestras.ps1` (necesita Word; guárdalo con BOM o PowerShell 5.1 rompe
+  los acentos). Shoken no se registra en «Abrir con» para `.docx` (ni `FileAssociation` ni `AppxManifest.xml`).
 - **Azure cobra el SSML, no solo el texto** (todo salvo `<speak>` y `<voice>`). Cada pausa,
   bookmark o `<prosody>` cuesta caracteres de la capa F0 (500 000/mes). Por eso la cursiva y las
   citas se distinguen con pausas y no con prosodia. Antes de agregar etiquetas, piensa en el costo.
