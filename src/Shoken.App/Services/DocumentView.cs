@@ -98,6 +98,7 @@ internal sealed class DocumentView
 #endif
 
         _core.SetVirtualHostNameToFolderMapping(HtmlPages.AppHost, _paths.ViewDirectory, CoreWebView2HostResourceAccessKind.Allow);
+        _core.SetVirtualHostNameToFolderMapping(HtmlPages.WordImagesHost, _paths.WordImagesDirectory, CoreWebView2HostResourceAccessKind.Allow);
         _core.WebMessageReceived += OnWebMessageReceived;
         _core.NavigationStarting += OnNavigationStarting;
         _core.NavigationCompleted += OnNavigationCompleted;
@@ -577,7 +578,7 @@ internal sealed class DocumentView
         }
 
         Assembly assembly = typeof(DocumentView).Assembly;
-        foreach (string name in new[] { "lector.css", "lector.js", "logo.svg", "mermaid.min.js", "demo.css", "demo.js", "demo-con.mp3", "demo-sin.mp3" })
+        foreach (string name in new[] { "lector.css", "lector.js", "logo.svg", "imagen-no-disponible.svg", "mermaid.min.js", "demo.css", "demo.js", "demo-con.mp3", "demo-sin.mp3" })
         {
             using Stream? stream = assembly.GetManifestResourceStream(name);
             if (stream is null)

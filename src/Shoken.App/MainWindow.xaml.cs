@@ -16,6 +16,7 @@ using Azure.Identity;
 using Shoken.App.Controls;
 using Shoken.App.Services;
 using Shoken.Core;
+using Shoken.Core.Documents;
 using Shoken.Core.Model;
 using Shoken.Core.Planning;
 using Shoken.Core.Settings;
@@ -31,6 +32,10 @@ public partial class MainWindow : Window
     private static readonly CultureInfo Mexico = CultureInfo.GetCultureInfo("es-MX");
 
     private readonly AppPaths _paths = AppPaths.Default;
+    private WordConverter? _word;
+
+    /// <summary>Convierte los .docx; sus imágenes quedan en <see cref="AppPaths.WordImagesDirectory"/> (img.lector).</summary>
+    private WordConverter Word => _word ??= new WordConverter(_paths.WordImagesDirectory);
     private readonly SettingsStore _settingsStore;
     private readonly ReadAloudController _player = new();
     private readonly ObservableCollection<DocumentTab> _tabs = [];
@@ -476,7 +481,7 @@ public partial class MainWindow : Window
         IReadOnlyList<SpeechChunk> chunks;
         try
         {
-            markdown ??= await File.ReadAllTextAsync(tab.State.Path);
+            markdown ??= await LoadDocumentTextAsync(tab.State.Path);
             if (activation != _activation)
             {
                 return;
@@ -1105,8 +1110,10 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Abrir documento Markdown",
-            Filter = "Markdown (*.md;*.markdown;*.mdx)|*.md;*.markdown;*.mdx|Texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*",
+            Title = "Abrir documento",
+            Filter = "Documentos (*.md;*.markdown;*.mdx;*.txt;*.docx)|*.md;*.markdown;*.mdx;*.txt;*.docx|" +
+                     "Markdown (*.md;*.markdown;*.mdx)|*.md;*.markdown;*.mdx|Word (*.docx)|*.docx|Texto (*.txt)|*.txt|" +
+                     "Todos los archivos (*.*)|*.*",
             Multiselect = true,
         };
         if (_active is { State.IsEmpty: false, State.IsPasted: false } && Path.GetDirectoryName(_active.State.Path) is { } folder
@@ -1398,16 +1405,18 @@ public partial class MainWindow : Window
     /// El texto del archivo, o null si ya no está o el editor lo sigue teniendo tomado (se espera hasta unos 5 s: hay
     /// editores que lo dejan abierto mientras escriben en varias pasadas).
     /// </summary>
-    private static async Task<string?> ReadDocumentAsync(string path)
+    private async Task<string?> ReadDocumentAsync(string path)
     {
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                // Como File.ReadAllTextAsync (UTF-8, o lo que diga el BOM), pero sin chocar con el editor que lo tiene abierto.
-                await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
-                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-                return await reader.ReadToEndAsync();
+                return await LoadDocumentTextAsync(path);
+            }
+            catch (InvalidDataException ex)
+            {
+                ErrorLog.Write(ex); // un Word que no se pudo convertir: la pestaña sigue con lo último que se cargó
+                return null;
             }
             catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
             {
@@ -1427,6 +1436,28 @@ public partial class MainWindow : Window
                 return null;
             }
         }
+    }
+
+    /// <summary>
+    /// El texto Markdown del documento, sin reintentar: lanza si no se puede. Como File.ReadAllTextAsync (UTF-8, o lo
+    /// que diga el BOM), pero sin chocar con el editor que lo tiene abierto. Un .docx se lee igual (Word lo deja leer
+    /// mientras lo tiene abierto) y se convierte fuera del hilo de la interfaz.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Un .docx que no se pudo convertir.</exception>
+    private async Task<string> LoadDocumentTextAsync(string path)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+        if (WordConverter.IsWordFile(path))
+        {
+            var bytes = new MemoryStream();
+            await stream.CopyToAsync(bytes);
+            bytes.Position = 0;
+            WordConverter word = Word;
+            return await Task.Run(() => word.Convert(bytes));
+        }
+
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync();
     }
 
     /// <summary>El archivo se borró o se renombró: la pestaña sigue abierta con lo último que se cargó.</summary>
