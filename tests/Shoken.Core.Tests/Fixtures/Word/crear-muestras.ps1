@@ -77,6 +77,48 @@ try {
     if ($hallado) { $rango.Delete() | Out-Null }
     $doc.TrackRevisions = $false
     Guardar $doc 'especiales-texto.docx'
+
+    # ------------------------------------------------------------------ imágenes (PNG, JPEG y EMF de prueba)
+    Add-Type -AssemblyName System.Drawing
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) ('shoken-muestras-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $tmp | Out-Null
+    function Mapa([string]$ruta, $color, $formato) {
+        $bmp = New-Object System.Drawing.Bitmap 120, 60
+        $g = [System.Drawing.Graphics]::FromImage($bmp); $g.Clear($color); $g.Dispose()
+        $bmp.Save($ruta, $formato); $bmp.Dispose()
+    }
+    [string]$png = Join-Path $tmp 'azul.png'; Mapa $png ([System.Drawing.Color]::SteelBlue) ([System.Drawing.Imaging.ImageFormat]::Png)
+    [string]$jpg = Join-Path $tmp 'verde.jpg'; Mapa $jpg ([System.Drawing.Color]::SeaGreen) ([System.Drawing.Imaging.ImageFormat]::Jpeg)
+    [string]$emf = Join-Path $tmp 'dibujo.emf'
+    $ref = New-Object System.Drawing.Bitmap 1, 1; $g0 = [System.Drawing.Graphics]::FromImage($ref); $hdc = $g0.GetHdc()
+    $mf = New-Object System.Drawing.Imaging.Metafile($emf, $hdc); $g0.ReleaseHdc($hdc); $g0.Dispose(); $ref.Dispose()
+    $g = [System.Drawing.Graphics]::FromImage($mf); $g.FillRectangle([System.Drawing.Brushes]::Tomato, 0, 0, 100, 50); $g.Dispose(); $mf.Dispose()
+
+    # ------------------------------------------------------------------ imagenes.docx
+    $doc = Nuevo; $sel = $word.Selection
+    P $sel 'Primera imagen:' $Normal
+    $img = $sel.InlineShapes.AddPicture($png); $img.AlternativeText = 'Logo de Shoken'; $sel.TypeParagraph()
+    P $sel 'La misma, sin texto alternativo:' $Normal
+    $sel.InlineShapes.AddPicture($png) | Out-Null; $sel.TypeParagraph()
+    P $sel 'Una foto:' $Normal
+    $img = $sel.InlineShapes.AddPicture($jpg); $img.AlternativeText = "Paso [2] *importante*`ncon salto"; $sel.TypeParagraph()
+    P $sel 'Fin.' $Normal
+    Guardar $doc 'imagenes.docx'
+
+    # ------------------------------------------------------------------ especiales.docx
+    $doc = Nuevo; $sel = $word.Selection
+    P $sel 'Antes del EMF.' $Normal
+    $img = $sel.InlineShapes.AddPicture($emf); $img.AlternativeText = 'Diagrama EMF'; $sel.TypeParagraph()
+    P $sel 'Entre el EMF y el gráfico.' $Normal
+    $graf = $sel.InlineShapes.AddChart2(-1, 51); $graf.AlternativeText = 'Gráfico de ventas'
+    $graf.Chart.ChartData.Workbook.Application.Quit()
+    $sel.EndKey(6) | Out-Null; $sel.TypeParagraph()
+    P $sel 'Entre el gráfico y el EMF sin texto.' $Normal
+    $sel.InlineShapes.AddPicture($emf) | Out-Null; $sel.TypeParagraph()
+    P $sel 'Después de todo.' $Normal
+    Guardar $doc 'especiales.docx'
+
+    Remove-Item -Recurse -Force $tmp
 }
 finally {
     $word.Quit()

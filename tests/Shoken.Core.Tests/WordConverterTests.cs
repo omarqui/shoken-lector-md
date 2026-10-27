@@ -102,6 +102,87 @@ public sealed class WordConverterTests : IDisposable
         Assert.Equal("No se pudo abrir el documento de Word: puede estar dañado o protegido con contraseña.", ex.Message);
     }
 
+    // ------------------------------------------------------------------ imágenes
+
+    /// <summary>El SHA-256 (hex en minúsculas) de cada imagen de ese tipo que trae el .docx, en el orden del paquete.</summary>
+    private static string[] ImageHashes(string fixture, string contentType)
+    {
+        using var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(Path.Combine(Fixtures, fixture), false);
+        return doc.MainDocumentPart!.ImageParts.Where(p => p.ContentType == contentType)
+            .Select(p =>
+            {
+                using Stream s = p.GetStream();
+                return System.Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(s));
+            })
+            .Distinct()
+            .ToArray();
+    }
+
+    [Fact]
+    public void Word_Image_IsStoredByContentHash_WithItsAltText()
+    {
+        string sha = Assert.Single(ImageHashes("imagenes.docx", "image/png"));
+
+        string md = Convert("imagenes.docx");
+
+        Assert.Contains($"![Logo de Shoken](https://img.lector/{sha}.png)", md);
+        Assert.True(File.Exists(Path.Combine(Images, sha + ".png")));
+    }
+
+    [Fact]
+    public void Word_ImageWithoutAltText_HasEmptyAlt()
+    {
+        string sha = Assert.Single(ImageHashes("imagenes.docx", "image/png"));
+
+        string md = Convert("imagenes.docx");
+
+        Assert.Contains($"![](https://img.lector/{sha}.png)", md);
+        Assert.DoesNotContain("rId", md);
+    }
+
+    [Fact]
+    public void Word_SameImageTwice_IsStoredOnce()
+    {
+        Convert("imagenes.docx");
+
+        Assert.Equal(2, Directory.GetFiles(Images).Length);
+    }
+
+    [Fact]
+    public void Word_AltTextWithMarkdownCharacters_IsEscaped()
+    {
+        string md = Convert("imagenes.docx");
+
+        var doc = new MarkdownSpeechParser(new MarkdownSpeechOptions { ReadImageAltText = true }).Parse(md);
+        Assert.Contains(doc.Segments, s => s.PlainText.Contains("Imagen: Paso [2] *importante* con salto", StringComparison.Ordinal));
+        Assert.Equal(3, doc.HtmlBody.Split("<img").Length - 1);
+    }
+
+    [Fact]
+    public void Word_EmfAndChart_BecomeTheUnavailableNotice()
+    {
+        string md = Convert("especiales.docx");
+
+        string notice = "(https://app.lector/imagen-no-disponible.svg)";
+        int emf = md.IndexOf("![Diagrama EMF]" + notice, StringComparison.Ordinal);
+        int chart = md.IndexOf("![Gráfico de ventas]" + notice, StringComparison.Ordinal);
+        int bare = md.IndexOf("![]" + notice, StringComparison.Ordinal);
+        Assert.Equal(3, md.Split(notice).Length - 1);
+        Assert.True(md.IndexOf("Antes del EMF", StringComparison.Ordinal) < emf, md);
+        Assert.True(emf < md.IndexOf("Entre el EMF y el gráfico", StringComparison.Ordinal), md);
+        Assert.True(md.IndexOf("Entre el EMF y el gráfico", StringComparison.Ordinal) < chart, md);
+        Assert.True(chart < md.IndexOf("Entre el gráfico y el EMF sin texto", StringComparison.Ordinal), md);
+        Assert.True(md.IndexOf("Entre el gráfico y el EMF sin texto", StringComparison.Ordinal) < bare, md);
+        Assert.True(bare < md.IndexOf("Después de todo", StringComparison.Ordinal), md);
+    }
+
+    [Fact]
+    public void Word_NoFileUrls()
+    {
+        Assert.DoesNotContain("file:", Convert("imagenes.docx"));
+        Assert.DoesNotContain("file:", Convert("especiales.docx"));
+    }
+
     [Fact]
     public void Word_IsWordFile_OnlyDocx()
     {
