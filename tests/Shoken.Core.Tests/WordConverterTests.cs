@@ -100,7 +100,8 @@ public sealed class WordConverterTests : IDisposable
         new Random(7).NextBytes(bytes);
 
         var ex = Assert.Throws<InvalidDataException>(() => new WordConverter(Images).Convert(new MemoryStream(bytes)));
-        Assert.Equal("No se pudo abrir el documento de Word: puede estar dañado o protegido con contraseña.", ex.Message);
+        // La app lo muestra después de «No se pudo abrir "x.docx":», así que no lo repite.
+        Assert.Equal("El documento de Word puede estar dañado o protegido con contraseña.", ex.Message);
     }
 
     // ------------------------------------------------------------------ imágenes
@@ -297,6 +298,68 @@ public sealed class WordConverterTests : IDisposable
         string md = ConvertStream(BuildDocx(VmlImage("rId6", "Logo viejo"), ("rId6", "image/png", Png)));
 
         Assert.Contains("![Logo viejo](https://img.lector/", md);
+    }
+
+    [Fact]
+    public void Word_ConcurrentConversions_StoreEachImageWhole()
+    {
+        byte[] docx = File.ReadAllBytes(Path.Combine(Fixtures, "imagenes.docx"));
+
+        // Dos guardados seguidos, o «Copiar el texto Markdown» durante una recarga: varias conversiones a la vez.
+        Parallel.For(0, 16, _ => new WordConverter(Images).Convert(new MemoryStream(docx)));
+
+        string[] files = Directory.GetFiles(Images);
+        Assert.Equal(2, files.Length);
+        foreach (string file in files)
+        {
+            string sha = System.Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(file)));
+            Assert.Equal(sha, Path.GetFileNameWithoutExtension(file));
+        }
+    }
+
+    /// <summary>Un .docx con una imagen en el cuerpo y otra (y un EMF) dentro de una nota al pie, con el mismo id.</summary>
+    private static MemoryStream BuildDocxWithImageInFootnote(byte[] bodyImage, byte[] footnoteImage)
+    {
+        var stream = new MemoryStream();
+        using (var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Create(stream, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            main.AddImagePart("image/png", "rId1").FeedData(new MemoryStream(bodyImage));
+            var footnotes = main.AddNewPart<FootnotesPart>("rIdNotas");
+            footnotes.AddImagePart("image/png", "rId1").FeedData(new MemoryStream(footnoteImage));
+            footnotes.AddImagePart("image/x-emf", "rId2").FeedData(new MemoryStream([1, 2, 3, 4]));
+            using (var writer = new StreamWriter(footnotes.GetStream(FileMode.Create)))
+            {
+                writer.Write($"<w:footnotes {Namespaces}>" +
+                    "<w:footnote w:type=\"separator\" w:id=\"-1\"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>" +
+                    "<w:footnote w:type=\"continuationSeparator\" w:id=\"0\"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>" +
+                    "<w:footnote w:id=\"1\"><w:p><w:r><w:t xml:space=\"preserve\">Nota con imagen. </w:t></w:r></w:p>" +
+                    InlineImage("rId1", "Imagen de la nota") + VmlImage("rId2", "EMF de la nota") + "</w:footnote></w:footnotes>");
+            }
+
+            using var body = new StreamWriter(main.GetStream(FileMode.Create));
+            body.Write($"<w:document {Namespaces}><w:body>" +
+                "<w:p><w:r><w:t xml:space=\"preserve\">Texto con nota</w:t></w:r><w:r><w:footnoteReference w:id=\"1\"/></w:r></w:p>" +
+                InlineImage("rId1", "Imagen del cuerpo") + "</w:body></w:document>");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    [Fact]
+    public void Word_ImagesInFootnotes_KeepTheirOwnAltText_AndEmfGivesTheNotice()
+    {
+        byte[] other = (byte[])Png.Clone();
+        other[^5] ^= 0xFF; // otra imagen (otro SHA-256), aunque no sea un PNG válido
+        string bodySha = System.Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Png));
+        string noteSha = System.Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(other));
+
+        string md = ConvertStream(BuildDocxWithImageInFootnote(Png, other));
+
+        Assert.Contains($"![Imagen del cuerpo](https://img.lector/{bodySha}.png)", md);
+        Assert.Contains($"![Imagen de la nota](https://img.lector/{noteSha}.png)", md);
+        Assert.Contains("![EMF de la nota](https://app.lector/imagen-no-disponible.svg)", md);
     }
 
     // ------------------------------------------------------------------ notas al pie y al final

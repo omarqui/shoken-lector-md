@@ -481,7 +481,7 @@ public partial class MainWindow : Window
         IReadOnlyList<SpeechChunk> chunks;
         try
         {
-            markdown ??= await LoadDocumentTextAsync(tab.State.Path);
+            markdown ??= await LoadDocumentTextPatientlyAsync(tab.State.Path);
             if (activation != _activation)
             {
                 return;
@@ -1224,15 +1224,15 @@ public partial class MainWindow : Window
             if (openable.Count == 0)
             {
                 ShowStatus(paths.Count == 1
-                    ? $"No hay un documento Markdown en \"{paths[0]}\"."
-                    : "Ninguna de las rutas pegadas es un documento Markdown que exista.");
+                    ? $"No hay un documento Markdown ni Word en \"{paths[0]}\"."
+                    : "Ninguna de las rutas pegadas es un documento Markdown o Word que exista.");
                 return false;
             }
 
             await OpenFilesAsync(openable);
             if (openable.Count < paths.Count)
             {
-                ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: las demás rutas no son documentos Markdown que existan.");
+                ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: las demás rutas no son documentos Markdown o Word que existan.");
             }
 
             return true;
@@ -1434,6 +1434,26 @@ public partial class MainWindow : Window
             {
                 ErrorLog.Write(ex);
                 return null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Como <see cref="LoadDocumentTextAsync"/>, pero si el archivo justo no está, está tomado o está a medio escribir,
+    /// espera y vuelve a probar (hasta unos 2 s) antes de lanzar. Word guarda reemplazando el archivo: si en ese instante
+    /// se activa la pestaña, sin esto se avisaría un error y se cerraría la pestaña.
+    /// </summary>
+    private async Task<string> LoadDocumentTextPatientlyAsync(string path)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await LoadDocumentTextAsync(path);
+            }
+            catch (Exception ex) when (attempt < 8 && ex is IOException or InvalidDataException)
+            {
+                await Task.Delay(250);
             }
         }
     }
@@ -1774,15 +1794,15 @@ public partial class MainWindow : Window
         if (openable.Count == 0)
         {
             ShowStatus(paths.Count == 1
-                ? $"\"{Path.GetFileName(paths[0])}\" no es un documento Markdown."
-                : "Ninguno de los archivos soltados es un documento Markdown.");
+                ? $"\"{Path.GetFileName(paths[0])}\" no es Markdown ni Word."
+                : "Ninguno de los archivos soltados es Markdown ni Word.");
             return;
         }
 
         await OpenFilesAsync(openable);
         if (openable.Count < paths.Count)
         {
-            ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: los demás no son documentos Markdown.");
+            ShowStatus($"Se abrieron {openable.Count} de {paths.Count}: los demás no son Markdown ni Word.");
         }
     }
 
@@ -1797,7 +1817,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                ShowStatus($"No se abre \"{Path.GetFileName(local)}\": solo se siguen enlaces a documentos Markdown.");
+                ShowStatus($"No se abre \"{Path.GetFileName(local)}\": solo se siguen enlaces a documentos Markdown o Word.");
             }
 
             return;

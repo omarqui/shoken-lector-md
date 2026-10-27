@@ -24,7 +24,8 @@ namespace Shoken.Core.Documents;
 /// <param name="temporaryDirectory">Donde DocSharp extrae las imágenes mientras convierte; null = la carpeta temporal del sistema.</param>
 public sealed partial class WordConverter(string imagesDirectory, string? temporaryDirectory = null)
 {
-    public const string ConversionError = "No se pudo abrir el documento de Word: puede estar dañado o protegido con contraseña.";
+    /// <summary>La app lo muestra después de «No se pudo abrir "x.docx":».</summary>
+    public const string ConversionError = "El documento de Word puede estar dañado o protegido con contraseña.";
 
     /// <summary>Host virtual de <c>imagesDirectory</c>. Queda dentro del Markdown (y del BlockKey): no lo cambies.</summary>
     public const string WordImagesHost = "img.lector";
@@ -100,20 +101,59 @@ public sealed partial class WordConverter(string imagesDirectory, string? tempor
     /// alternativo el id de la relación («rId4»). Antes de convertir, cada gráfico o imagen que no se muestra pasa a un
     /// marcador de texto (alfanumérico, para que no se escape), y del resto se anota el texto alternativo real por id,
     /// en el orden del documento (el mismo id puede repetirse con otro texto). Se miran los dibujos (w:drawing) y las
-    /// imágenes VML de documentos viejos y objetos pegados (w:pict, w:object).
+    /// imágenes VML de documentos viejos y objetos pegados (w:pict, w:object), en el cuerpo y en las notas al pie y al
+    /// final. Cada parte numera sus relaciones por su cuenta («rId1» del cuerpo no es «rId1» de las notas), así que antes
+    /// se les da un id único en todo el documento.
     /// </summary>
     private static (List<string> Notices, Dictionary<string, Queue<string>> AltTexts) PrepareDrawings(WordprocessingDocument document, string marker)
     {
         var notices = new List<string>();
         var altTexts = new Dictionary<string, Queue<string>>(StringComparer.Ordinal);
-        MainDocumentPart? main = document.MainDocumentPart;
-        if (main?.Document?.Body is not { } body)
+        if (document.MainDocumentPart is not { } main)
         {
             return (notices, altTexts);
         }
 
+        OpenXmlPart?[] parts = [main, main.FootnotesPart, main.EndnotesPart];
+        int nextId = 0;
+        foreach (OpenXmlPart part in parts.OfType<OpenXmlPart>())
+        {
+            if (part.RootElement is { } root)
+            {
+                nextId = RenameImageRelationships(part, root, nextId);
+                PreparePictures(part, root, marker, notices, altTexts);
+            }
+        }
+
+        return (notices, altTexts);
+    }
+
+    /// <summary>Le da a cada imagen de la parte un id «shokenimgN», único en el documento, y corrige quienes la usan.</summary>
+    private static int RenameImageRelationships(OpenXmlPart part, OpenXmlPartRootElement root, int nextId)
+    {
+        foreach (IdPartPair pair in part.Parts.Where(p => p.OpenXmlPart is ImagePart).ToList())
+        {
+            string newId = $"shokenimg{nextId++}";
+            part.ChangeIdOfPart(pair.OpenXmlPart, newId);
+            foreach (A.Blip blip in root.Descendants<A.Blip>().Where(b => b.Embed?.Value == pair.RelationshipId))
+            {
+                blip.Embed = newId;
+            }
+
+            foreach (V.ImageData data in root.Descendants<V.ImageData>().Where(d => d.RelationshipId?.Value == pair.RelationshipId))
+            {
+                data.RelationshipId = newId;
+            }
+        }
+
+        return nextId;
+    }
+
+    private static void PreparePictures(OpenXmlPart owner, OpenXmlElement root, string marker, List<string> notices,
+        Dictionary<string, Queue<string>> altTexts)
+    {
         static bool IsPicture(OpenXmlElement e) => e is W.Drawing or W.Picture or W.EmbeddedObject;
-        foreach (OpenXmlElement picture in body.Descendants().Where(IsPicture).Where(e => !e.Ancestors().Any(IsPicture)).ToList())
+        foreach (OpenXmlElement picture in root.Descendants().Where(IsPicture).Where(e => !e.Ancestors().Any(IsPicture)).ToList())
         {
             string alt;
             string? embed;
@@ -132,7 +172,7 @@ public sealed partial class WordConverter(string imagesDirectory, string? tempor
                 notice = picture is W.EmbeddedObject; // un objeto pegado sin vista previa
             }
 
-            bool shown = embed is not null && main.TryGetPartById(embed, out OpenXmlPart? part) && part is ImagePart image &&
+            bool shown = embed is not null && owner.TryGetPartById(embed, out OpenXmlPart? part) && part is ImagePart image &&
                          ShownImageTypes.Contains(image.ContentType);
             if (shown)
             {
@@ -150,8 +190,6 @@ public sealed partial class WordConverter(string imagesDirectory, string? tempor
                 notices.Add(alt);
             }
         }
-
-        return (notices, altTexts);
     }
 
     /// <summary>
@@ -174,8 +212,19 @@ public sealed partial class WordConverter(string imagesDirectory, string? tempor
             string target = Path.Combine(imagesDirectory, name);
             if (!File.Exists(target))
             {
+                // Atómico: se escribe aparte y se mueve. Otra conversión a la vez, o un corte a mitad, no dejan una imagen
+                // a medias con el nombre definitivo (que, por ser el hash, ya no se volvería a escribir).
                 Directory.CreateDirectory(imagesDirectory);
-                File.WriteAllBytes(target, bytes);
+                string partial = Path.Combine(imagesDirectory, $"{name}.{Guid.NewGuid():N}.tmp");
+                File.WriteAllBytes(partial, bytes);
+                try
+                {
+                    File.Move(partial, target, overwrite: false);
+                }
+                catch (IOException) when (File.Exists(target))
+                {
+                    File.Delete(partial); // otra conversión la guardó primero: es la misma imagen
+                }
             }
 
             string alt = altTexts.TryGetValue(m.Groups[1].Value, out Queue<string>? queue) && queue.Count > 0 ? queue.Dequeue() : "";

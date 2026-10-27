@@ -71,8 +71,10 @@ El flujo, de punta a punta:
   Markdown: no lo cambies. DocSharp **descarta sin avisar** los gráficos (`c:chart`) y las imágenes que no son PNG,
   JPEG, GIF, BMP, WebP ni SVG (EMF): antes de convertir se cambian por un marcador (distinto en cada conversión) y
   después por `https://app.lector/imagen-no-disponible.svg`. Se miran los `w:drawing` y también las imágenes VML
-  (`w:pict`, `w:object`) de documentos viejos y objetos pegados. Las imágenes extraídas se reconocen por la carpeta de
-  extracción, no por el id (los generadores no usan `rId…`). En la App, `LoadDocumentTextAsync` convierte fuera del hilo de la
+  (`w:pict`, `w:object`) de documentos viejos y objetos pegados, en el cuerpo y en las notas al pie y al final; como
+  cada parte numera sus relaciones por su cuenta, antes de convertir las imágenes pasan a ids únicos (`shokenimgN`).
+  Las imágenes extraídas se reconocen por la carpeta de extracción, no por el id (los generadores no usan `rId…`), y
+  se guardan de forma atómica (temporal y `File.Move`), porque puede haber dos conversiones a la vez. En la App, `LoadDocumentTextAsync` convierte fuera del hilo de la
   interfaz; un `InvalidDataException` es un `.docx` dañado o con contraseña. En un Word, las tarjetas de apuntes no
   muestran la línea (`DocumentView` lo decide por la extensión) y `NoteExporter` no da `archivo:líneas`. Los `.docx`
   de las pruebas los genera `Fixtures/Word/crear-muestras.ps1` (necesita Word; guárdalo con BOM o PowerShell 5.1 rompe
